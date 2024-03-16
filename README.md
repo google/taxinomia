@@ -16,5 +16,5 @@
     limitations under the License.
 -->
 
-Taxinomia is a table analytics system. 
+Taxinomia is a table oriented analytics system. 
 
