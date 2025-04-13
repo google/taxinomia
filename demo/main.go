@@ -1,6 +1,6 @@
 package main
 
-import "github.com/taxinomia/core"
+import "github.com/google/taxinomia/core"
 
 func main() {
 	core.Hello()
