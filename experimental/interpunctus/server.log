@@ -6,32 +6,44 @@ Group 2 (should be indices [3]): [3]
 TestGroup2 PASSED
 order [a b c]
 sorting map[a:true b:true c:true]
-&{[a b c] map[a:true b:true c:true] [] map[] map[] map[]}
+&{[a b c] map[a:true b:true c:true] [] [] map[] map[] map[]}
 ✓ Test 1: No grouping
 order [a b c]
 sorting map[a:true b:true c:true]
-&{[a b c] map[a:true b:true c:true] [b c a] map[a:0 b:-1 c:2] map[a:[] b:[] c:[]] map[]}
+&{[a b c] map[a:true b:true c:true] [b c a] [b c a] map[a:0 b:-1 c:2] map[a:[] b:[] c:[]] map[]}
 ✓ Test 2: Auto-grouping with sortby
 order [a b c]
 sorting map[a:true b:true c:true]
-&{[a b c] map[a:true b:true c:true] [a c] map[] map[a:[""] c:[xyz\&,=:"]] map[]}
-✓ Test 3: Custom filters with special characters
+&{[a b c] map[a:true b:true c:true] [a c] [a c] map[] map[a:["" "xyz"] c:[val1 val2]] map[]}
+✓ Test 3: Grouping with multiple values
 order [state author_type label_count]
 sorting map[author_type:true label_count:true state:true]
-&{[state author_type label_count] map[author_type:true label_count:true state:true] [] map[] map[] map[]}
+&{[state author_type label_count] map[author_type:true label_count:true state:true] [] [] map[] map[] map[]}
 ✓ Test 4: Columns with sorting direction
 order [state]
 sorting map[state:true]
-&{[state] map[state:true] [state] map[] map[state:["CLOSED" "OPEN"]] map[]}
+&{[state] map[state:true] [state] [state] map[] map[state:["CLOSED" "OPEN"]] map[]}
 ✓ Test 5: Filter with semicolon separator
 order [state author_type label_count year has_assignee label]
 sorting map[author_type:true has_assignee:true label:true label_count:true state:true year:true]
-&{[state author_type label_count year has_assignee label] map[author_type:true has_assignee:true label:true label_count:true state:true year:true] [state author_type label_count year has_assignee] map[label_count:0] map[author_type:[] has_assignee:[] label_count:[] state:[] year:[]] map[]}
+&{[state author_type label_count year has_assignee label] map[author_type:true has_assignee:true label:true label_count:true state:true year:true] [state author_type label_count year has_assignee] [state author_type label_count year has_assignee] map[label_count:0] map[author_type:[] has_assignee:[] label_count:[] state:[] year:[]] map[]}
 ✓ Test 6: Round-trip server URL
 order [state author_type label]
 sorting map[author_type:true label:true state:true]
-&{[state author_type label] map[author_type:true label:true state:true] [state] map[] map[state:["CLOSED"]] map[]}
+&{[state author_type label] map[author_type:true label:true state:true] [] [state] map[] map[state:["CLOSED"]] map[]}
 ✓ Test 7: Column names clean (no spaces)
+order [state author_type]
+sorting map[author_type:true state:true]
+&{[state author_type] map[author_type:true state:true] [] [state] map[] map[state:[CLOSED]] map[]}
+✓ Test 8: Single value = filtering (not in grouping)
+order [state author_type]
+sorting map[author_type:true state:true]
+&{[state author_type] map[author_type:true state:true] [state] [state] map[] map[state:[CLOSED OPEN]] map[]}
+✓ Test 9: Multiple values with || = grouping (in grouping)
+order [state]
+sorting map[state:true]
+&{[state] map[state:true] [state] [state] map[] map[state:[]] map[]}
+✓ Test 10: Empty value = auto-grouping (in grouping)
 
 All tests passed!
 ToggleSortDirection x
@@ -66,115 +78,642 @@ ToggleSortDirection c
 c true
 grouped false
 >> c false
-Loaded 1000 GitHub issues
+✓ ToggleGrouping preserves filters correctly
+✓ All filter tests passed
+Loaded 30 orders
 Server starting on http://127.0.0.1:8090
 
 Apply []
+1.0688ms
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
 0s
-sort.asc map[author:true label:true state:true year:true]
-2.125ms
-ToggleSortDirection year
-year true
+ToggleSortDirection status
+status true
 grouped false
->> year false
-ToggleSortDirection state
-state true
+>> status false
+ToggleSortDirection region
+region true
 grouped false
->> state false
-ToggleSortDirection label
-label true
+>> region false
+ToggleSortDirection product_category
+product_category true
 grouped false
->> label false
-ToggleSortDirection author
-author true
+>> product_category false
+ToggleSortDirection product
+product true
 grouped false
->> author false
-5.0799ms
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.5752ms
 
 Apply []
 0s
-sort.asc map[author:true label:true state:true year:true]
-2.0033ms
-ToggleSortDirection year
-year true
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
 grouped false
->> year false
-ToggleSortDirection state
-state true
+>> status false
+ToggleSortDirection region
+region true
 grouped false
->> state false
-ToggleSortDirection label
-label true
+>> region false
+ToggleSortDirection product_category
+product_category true
 grouped false
->> label false
-ToggleSortDirection author
-author true
+>> product_category false
+ToggleSortDirection product
+product true
 grouped false
->> author false
-14.7008ms
-
-Apply []
-1.9942ms
-sort.asc map[author:true label:true state:true year:true]
-1.572ms
-ToggleSortDirection year
-year true
+>> product false
+ToggleSortDirection amount
+amount true
 grouped false
->> year false
-ToggleSortDirection state
-state true
+>> amount false
+ToggleSortDirection quantity
+quantity true
 grouped false
->> state false
-ToggleSortDirection label
-label true
-grouped false
->> label false
-ToggleSortDirection author
-author true
-grouped false
->> author false
-15.5108ms
+>> quantity false
+11.3892ms
 
 Apply []
 0s
-sort.asc map[author:true label:true state:true year:true]
-9.3751ms
-ToggleSortDirection year
-year true
-grouped false
->> year false
-ToggleSortDirection state
-state true
-grouped false
->> state false
-ToggleSortDirection label
-label true
-grouped false
->> label false
-ToggleSortDirection author
-author true
-grouped false
->> author false
-19.3693ms
-groupon=year:%22CLOSED%22%3B%22OPEN%22
-&{[] map[] [year] map[] map[year:["CLOSED";"OPEN"]] map[]}
-Apply [year]
-965.1µs
-965.1µs
-
-Apply [year]
-1.3397ms
-1.3397ms
-
-Apply [year]
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
 0s
-2.0649ms
-groupon=state:%22CLOSED%22%3B%22OPEN%22
-&{[] map[] [state] map[] map[state:["CLOSED";"OPEN"]] map[]}
-Apply [state]
-600.1µs
-600.1µs
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+505.6µs
 
-Apply [state]
+Apply []
+324.3µs
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
 0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+827.9µs
+
+Apply []
+482.5µs
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
 0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.5101ms
+columns=status+,region+,product_category+,product+,amount+,quantity+&sortby=&groupon=status
+order [status region product_category product amount quantity]
+sorting map[amount:true product:true product_category:true quantity:true region:true status:true]
+&{[status region product_category product amount quantity] map[amount:true product:true product_category:true quantity:true region:true status:true] [status] [status] map[] map[status:[]] map[]}
+Apply [status]
+515.9µs
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+515.9µs
+
+Apply []
+0s
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.5357ms
+columns=region+,status+,product_category+,product+,amount+,quantity+&sortby=&groupon=region
+order [region status product_category product amount quantity]
+sorting map[amount:true product:true product_category:true quantity:true region:true status:true]
+&{[region status product_category product amount quantity] map[amount:true product:true product_category:true quantity:true region:true status:true] [region] [region] map[] map[region:[]] map[]}
+Apply [region]
+0s
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+722µs
+
+Apply []
+766.1µs
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+766.1µs
+columns=product_category+,status+,region+,product+,amount+,quantity+&sortby=&groupon=product_category
+order [product_category status region product amount quantity]
+sorting map[amount:true product:true product_category:true quantity:true region:true status:true]
+&{[product_category status region product amount quantity] map[amount:true product:true product_category:true quantity:true region:true status:true] [product_category] [product_category] map[] map[product_category:[]] map[]}
+Apply [product_category]
+476.6µs
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+476.6µs
+
+Apply []
+781.5µs
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.2881ms
+
+Apply []
+828.3µs
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+2.3991ms
+
+Apply []
+810.4µs
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.317ms
+
+Apply []
+0s
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.4227ms
+
+Apply []
+734.7µs
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.2423ms
+
+Apply []
+0s
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.8287ms
+columns=status+,region+,product_category+,product+,amount+,quantity+&sortby=&groupon=status
+order [status region product_category product amount quantity]
+sorting map[amount:true product:true product_category:true quantity:true region:true status:true]
+&{[status region product_category product amount quantity] map[amount:true product:true product_category:true quantity:true region:true status:true] [status] [status] map[] map[status:[]] map[]}
+Apply [status]
+531.9µs
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+531.9µs
+
+Apply []
+0s
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.2452ms
+columns=region+,status+,product_category+,product+,amount+,quantity+&sortby=&groupon=region
+order [region status product_category product amount quantity]
+sorting map[amount:true product:true product_category:true quantity:true region:true status:true]
+&{[region status product_category product amount quantity] map[amount:true product:true product_category:true quantity:true region:true status:true] [region] [region] map[] map[region:[]] map[]}
+Apply [region]
+0s
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+584.2µs
+
+Apply []
+1.0538ms
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+1.5599ms
+
+Apply []
+0s
+sort.asc map[amount:true product:true product_category:true quantity:true region:true status:true]
+0s
+ToggleSortDirection status
+status true
+grouped false
+>> status false
+ToggleSortDirection region
+region true
+grouped false
+>> region false
+ToggleSortDirection product_category
+product_category true
+grouped false
+>> product_category false
+ToggleSortDirection product
+product true
+grouped false
+>> product false
+ToggleSortDirection amount
+amount true
+grouped false
+>> amount false
+ToggleSortDirection quantity
+quantity true
+grouped false
+>> quantity false
+713.2µs

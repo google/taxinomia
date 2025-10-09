@@ -56,10 +56,10 @@ func Render(t *Table, v *View, g *Group, indices []int) *strings.Builder {
 	} else {
 		cb := CellBuilder()
 		sums := map[string][]int{}
-		for _, c := range v.AggregatedColumns() {
+		for _, c := range r.view.AggregatedColumns() {
 			sums[c] = []int{g.sums[c]}
 		}
-		cb.cells(g, v.columnViews, v.AggregatedColumns(), sums)
+		cb.cells(g, r.view.columnViews, r.view.AggregatedColumns(), sums)
 		r.rows = cb.rows
 		r.renderGrouped()
 	}
@@ -111,18 +111,18 @@ func (r *Renderer) renderTableHeaders() {
 	// move commands
 	r.sb.WriteString("<tr>")
 	for _, col := range r.view.order {
-		w, _ := v.MoveLeftMost(col)
+		w, _ := r.view.MoveLeftMost(col)
 		query := w.ToQuery()
 		fmt.Fprintf(r.sb, `<th class="cmd">`)
 		fmt.Fprintf(r.sb, `<a href="sorted?%s"> << </a>`, query)
 		fmt.Fprintf(r.sb, `&nbsp;`)
 		fmt.Fprintf(r.sb, `&nbsp;`)
-		w, _ = v.MoveLeft(col)
+		w, _ = r.view.MoveLeft(col)
 		query = w.ToQuery()
 		fmt.Fprintf(r.sb, `<a href="sorted?%s"> < </a>`, query)
 		fmt.Fprintf(r.sb, `&nbsp;`)
 		fmt.Fprintf(r.sb, `&nbsp;`)
-		w, _ = v.MoveRight(col)
+		w, _ = r.view.MoveRight(col)
 		query = w.ToQuery()
 		fmt.Fprintf(r.sb, `<a href="sorted?%s"> > </a>`, query)
 		fmt.Fprintf(r.sb, `</th >`)
@@ -138,7 +138,7 @@ func (r *Renderer) renderTableHeaders() {
 		// 		break
 		// 	}
 		// }
-		w, _ := v.ToggleSortDirection(col)
+		w, _ := r.view.ToggleSortDirection(col)
 		query := w.ToQuery()
 		fmt.Fprintf(r.sb, `<th class="cmd">`)
 		fmt.Fprintf(r.sb, `<a href="sorted?%s">&udarr;</a>`, query)
@@ -150,12 +150,12 @@ func (r *Renderer) renderTableHeaders() {
 
 		fmt.Fprintf(r.sb, `&nbsp;`)
 
-		w, _ = v.LeftShiftSortLevel(col)
+		w, _ = r.view.LeftShiftSortLevel(col)
 		query = w.ToQuery()
 		fmt.Fprintf(r.sb, `<a href="sorted?%s">&lArr;</a>`, query)
 		fmt.Fprintf(r.sb, `&nbsp;`)
 
-		w, _ = v.RightShiftSortLevel(col)
+		w, _ = r.view.RightShiftSortLevel(col)
 		query = w.ToQuery()
 		fmt.Fprintf(r.sb, `<a href="sorted?%s">&rArr;</a>`, query)
 		fmt.Fprintf(r.sb, `&nbsp;`)
@@ -171,17 +171,17 @@ func (r *Renderer) renderTableHeaders() {
 	r.sb.WriteString("<tr>")
 	for _, col := range r.view.order {
 		index := -1
-		for i, c := range v.grouping {
+		for i, c := range r.view.grouping {
 			if c == col {
 				index = i
 				break
 			}
 		}
-		w, _ := v.ToggleGrouping(col)
+		w, _ := r.view.ToggleGrouping(col)
 		query := w.ToQuery()
 		fmt.Fprintf(r.sb, `<th class="cmd">`)
 		if index == -1 {
-			fmt.Fprintf(r.sb, `<a href="grouped ?%s">G</a>`, query)
+			fmt.Fprintf(r.sb, `<a href="grouped?%s">G</a>`, query)
 		} else {
 			fmt.Fprintf(r.sb, `<a href="sorted?%s">U</a>`, query)
 		}
@@ -211,7 +211,7 @@ func (r *Renderer) renderTableHeaders() {
 func (r *Renderer) renderNotGrouped() {
 	for _, i := range r.indices {
 		r.sb.WriteString("<tr>")
-		for _, col := range v.order {
+		for _, col := range r.view.order {
 			fmt.Fprintf(r.sb, "<td>")
 			r.sb.WriteString(r.table.columns[col].ColumnDef().keyToValue[r.table.columns[col].get(int(i))])
 			r.sb.WriteString("</td>")
@@ -393,6 +393,7 @@ func (cb *cellBuilder) cells(g *Group, columnViews map[string]*ColumnView, aggre
 			})
 		}
 		// sort the groups...
+
 		slices.SortFunc(groups, compareGroups)
 		for _, sg := range groups {
 			group := g.groups[sg.key]
@@ -419,7 +420,7 @@ func (cb *cellBuilder) cells(g *Group, columnViews map[string]*ColumnView, aggre
 			for col, sum := range group.sums {
 				s[col] = append(sums[col], sum)
 			}
-			cb.cells(group, v.columnViews, aggregatedColumns, s)
+			cb.cells(group, columnViews, aggregatedColumns, s)
 		}
 	}
 }
