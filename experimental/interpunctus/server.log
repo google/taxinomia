@@ -1,0 +1,180 @@
+
+
+TestGroup2 Results:
+Group 1 (should be indices [0,1,2,4]): [0 1 2 4]
+Group 2 (should be indices [3]): [3]
+TestGroup2 PASSED
+order [a b c]
+sorting map[a:true b:true c:true]
+&{[a b c] map[a:true b:true c:true] [] map[] map[] map[]}
+✓ Test 1: No grouping
+order [a b c]
+sorting map[a:true b:true c:true]
+&{[a b c] map[a:true b:true c:true] [b c a] map[a:0 b:-1 c:2] map[a:[] b:[] c:[]] map[]}
+✓ Test 2: Auto-grouping with sortby
+order [a b c]
+sorting map[a:true b:true c:true]
+&{[a b c] map[a:true b:true c:true] [a c] map[] map[a:[""] c:[xyz\&,=:"]] map[]}
+✓ Test 3: Custom filters with special characters
+order [state author_type label_count]
+sorting map[author_type:true label_count:true state:true]
+&{[state author_type label_count] map[author_type:true label_count:true state:true] [] map[] map[] map[]}
+✓ Test 4: Columns with sorting direction
+order [state]
+sorting map[state:true]
+&{[state] map[state:true] [state] map[] map[state:["CLOSED" "OPEN"]] map[]}
+✓ Test 5: Filter with semicolon separator
+order [state author_type label_count year has_assignee label]
+sorting map[author_type:true has_assignee:true label:true label_count:true state:true year:true]
+&{[state author_type label_count year has_assignee label] map[author_type:true has_assignee:true label:true label_count:true state:true year:true] [state author_type label_count year has_assignee] map[label_count:0] map[author_type:[] has_assignee:[] label_count:[] state:[] year:[]] map[]}
+✓ Test 6: Round-trip server URL
+order [state author_type label]
+sorting map[author_type:true label:true state:true]
+&{[state author_type label] map[author_type:true label:true state:true] [state] map[] map[state:["CLOSED"]] map[]}
+✓ Test 7: Column names clean (no spaces)
+
+All tests passed!
+ToggleSortDirection x
+x false
+grouped false
+>> x true
+ToggleSortDirection a
+a false
+grouped true
+>> a false
+ToggleSortDirection b
+b false
+grouped true
+>> b false
+ToggleSortDirection c
+c false
+grouped true
+>> c false
+ToggleSortDirection x
+x false
+grouped false
+>> x true
+ToggleSortDirection a
+a true
+grouped false
+>> a false
+ToggleSortDirection b
+b true
+grouped false
+>> b false
+ToggleSortDirection c
+c true
+grouped false
+>> c false
+Loaded 1000 GitHub issues
+Server starting on http://127.0.0.1:8090
+
+Apply []
+0s
+sort.asc map[author:true label:true state:true year:true]
+2.125ms
+ToggleSortDirection year
+year true
+grouped false
+>> year false
+ToggleSortDirection state
+state true
+grouped false
+>> state false
+ToggleSortDirection label
+label true
+grouped false
+>> label false
+ToggleSortDirection author
+author true
+grouped false
+>> author false
+5.0799ms
+
+Apply []
+0s
+sort.asc map[author:true label:true state:true year:true]
+2.0033ms
+ToggleSortDirection year
+year true
+grouped false
+>> year false
+ToggleSortDirection state
+state true
+grouped false
+>> state false
+ToggleSortDirection label
+label true
+grouped false
+>> label false
+ToggleSortDirection author
+author true
+grouped false
+>> author false
+14.7008ms
+
+Apply []
+1.9942ms
+sort.asc map[author:true label:true state:true year:true]
+1.572ms
+ToggleSortDirection year
+year true
+grouped false
+>> year false
+ToggleSortDirection state
+state true
+grouped false
+>> state false
+ToggleSortDirection label
+label true
+grouped false
+>> label false
+ToggleSortDirection author
+author true
+grouped false
+>> author false
+15.5108ms
+
+Apply []
+0s
+sort.asc map[author:true label:true state:true year:true]
+9.3751ms
+ToggleSortDirection year
+year true
+grouped false
+>> year false
+ToggleSortDirection state
+state true
+grouped false
+>> state false
+ToggleSortDirection label
+label true
+grouped false
+>> label false
+ToggleSortDirection author
+author true
+grouped false
+>> author false
+19.3693ms
+groupon=year:%22CLOSED%22%3B%22OPEN%22
+&{[] map[] [year] map[] map[year:["CLOSED";"OPEN"]] map[]}
+Apply [year]
+965.1µs
+965.1µs
+
+Apply [year]
+1.3397ms
+1.3397ms
+
+Apply [year]
+0s
+2.0649ms
+groupon=state:%22CLOSED%22%3B%22OPEN%22
+&{[] map[] [state] map[] map[state:["CLOSED";"OPEN"]] map[]}
+Apply [state]
+600.1µs
+600.1µs
+
+Apply [state]
+0s
+0s

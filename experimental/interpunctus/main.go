@@ -18,13 +18,30 @@ limitations under the License.
 
 package main
 
-import (
-	"fmt"
-)
+func runTests() {
+	TestSort()
+	TestGroup2()
 
-func main(){
-	fmt.Println("ping")
-	Test()
-	testGrouping()
+	testParseQuery()
+	testToQuery()
+	testLeftShiftSortLevel()
+	testRightShiftSortLevel()
+	testToggleSortDirection()
+	//testOrderFirst()
+	testHide()
+	testMoveLeftMost()
+	testMoveLeft()
+	testMoveRight()
+	testGroupFirst()
+	testToggleGrouping()
+
 	testMatch()
+
+	// testAggregation() // DISABLED: requires Table.Apply() to use group2() instead of old group() function
+}
+
+func main() {
+	runTests()
+
+	serve()
 }

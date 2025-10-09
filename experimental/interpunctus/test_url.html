@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>URL Encoding Test</title>
+</head>
+<body>
+    <h1>URL Encoding Test</h1>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        // Simulate what happens when user enters filter
+        function testURLGeneration() {
+            const tests = [];
+
+            // Test 1: Server-generated URL
+            const serverURL = 'columns=state+,author_type+,label_count+&sortby=&groupon=';
+            tests.push({
+                name: 'Server URL (no filter)',
+                url: serverURL,
+                parsed: new URLSearchParams(serverURL)
+            });
+
+            // Test 2: User enters "CLOSED"||"OPEN" filter
+            // Simulate what our JavaScript does
+            const params2 = new URLSearchParams('columns=state+,author_type+,label_count+&sortby=&groupon=');
+            const grouponParts = [];
+            const filters = '"CLOSED"||"OPEN"';
+            const cleaned = filters.replace(/\|\|/g, ';');
+            grouponParts.push('state:' + encodeURIComponent(cleaned));
+
+            // OLD WAY (broken - uses params.toString())
+            const oldParams = new URLSearchParams(params2);
+            oldParams.set('groupon', grouponParts.join(','));
+            const oldURL = oldParams.toString();
+            tests.push({
+                name: 'OLD: URLSearchParams.toString()',
+                url: oldURL,
+                parsed: new URLSearchParams(oldURL)
+            });
+
+            // NEW WAY (fixed - manual query string)
+            const currentSearch = 'columns=state+,author_type+,label_count+&sortby=&groupon=';
+            const searchParts = currentSearch.split('&');
+            let rawColumns = '';
+            for (let part of searchParts) {
+                if (part.startsWith('columns=')) {
+                    rawColumns = part.substring(8);
+                    break;
+                }
+            }
+
+            const queryParts = [];
+            for (const [key, value] of params2.entries()) {
+                if (key === 'columns' || key === 'groupon') {
+                    continue;
+                }
+                queryParts.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+            }
+
+            if (rawColumns) {
+                queryParts.push('columns=' + rawColumns);
+            }
+
+            if (grouponParts.length > 0) {
+                queryParts.push('groupon=' + grouponParts.join(','));
+            }
+
+            const newURL = queryParts.join('&');
+            tests.push({
+                name: 'NEW: Manual query string',
+                url: newURL,
+                parsed: new URLSearchParams(newURL)
+            });
+
+            // Display results
+            let html = '<table border="1" cellpadding="5">';
+            html += '<tr><th>Test</th><th>URL</th><th>columns param</th><th>groupon param</th></tr>';
+
+            tests.forEach(test => {
+                html += '<tr>';
+                html += '<td>' + test.name + '</td>';
+                html += '<td style="font-family:monospace; font-size:10px">' + test.url + '</td>';
+                html += '<td style="font-family:monospace">' + (test.parsed.get('columns') || '') + '</td>';
+                html += '<td style="font-family:monospace">' + (test.parsed.get('groupon') || '') + '</td>';
+                html += '</tr>';
+            });
+
+            html += '</table>';
+
+            html += '<h2>Analysis</h2>';
+            html += '<p><strong>OLD WAY Problem:</strong> URLSearchParams.toString() encodes commas in the columns parameter as %2C</p>';
+            html += '<p><strong>NEW WAY Solution:</strong> Extract raw columns value and build query string manually</p>';
+            html += '<p><strong>Expected columns:</strong> <code>state+,author_type+,label_count+</code></p>';
+            html += '<p><strong>Expected groupon:</strong> <code>state:%22CLOSED%22%3B%22OPEN%22</code></p>';
+
+            output.innerHTML = html;
+        }
+
+        testURLGeneration();
+    </script>
+</body>
+</html>
