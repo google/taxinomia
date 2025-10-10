@@ -41,9 +41,9 @@ type Group struct {
 
 	// leafs
 	indices map[uint32][]uint32
-	// for every column we need a list of sums, one per grouping level
-	sums     map[string]int
-	leafsums map[string]map[string]int
+	// for every column we need a list of aggregates, one per grouping level
+	aggregates     map[string]int
+	leafaggregates map[string]map[string]int
 	//keyToOrder map[string]map[uint32]uint32
 	asc bool
 }
@@ -94,10 +94,10 @@ func group(t *Table, columnViews map[string]*ColumnView, indices []uint32, colum
 			//value:     int64(value),
 			indices: column.group2(indices, columnViews[column.ColumnDef().name]),
 			//keyToOrder: column.ColumnDef().keyToOrder,
-			asc:      asc[column.ColumnDef().name],
-			sums:     map[string]int{},
-			groups:   map[uint32]*Group{},
-			leafsums: map[string]map[string]int{},
+			asc:            asc[column.ColumnDef().name],
+			aggregates:     map[string]int{},
+			groups:         map[uint32]*Group{},
+			leafaggregates: map[string]map[string]int{},
 		}
 		// for i, ii := range g.indices {
 		// 	fmt.Println("GROUP", i, len(ii))
@@ -105,7 +105,7 @@ func group(t *Table, columnViews map[string]*ColumnView, indices []uint32, colum
 		g.counts = []int{len(g.indices), len(indices)}
 
 		for vv, ii := range g.indices {
-			sums := map[string]int{}
+			aggregates := map[string]int{}
 			for _, c := range aggregatedColumns {
 				col := t.columns[c]
 				if col.summable() {
@@ -116,20 +116,20 @@ func group(t *Table, columnViews map[string]*ColumnView, indices []uint32, colum
 							sum += val
 						}
 					}
-					sums[c] = sum
-					g.sums[c] += sum
+					aggregates[c] = sum
+					g.aggregates[c] += sum
 				}
 			}
 
 			g.groups[vv] = &Group{
-				sums:       sums,
+				aggregates: aggregates,
 				columnDef:  g.columnDef,
 				ColumnView: g.ColumnView,
 				counts:     append(g.counts, len(ii)), // I think the goal is to have a new slice here...
 			}
 
 		}
-		// go through non grouped column and calculate sums for summable columns
+		// go through non grouped column and calculate aggregates for summable columns
 		return g
 	} else {
 		//fmt.Println(strings.Repeat("  ", level), "Group "+column.ColumnDef().name)
@@ -140,7 +140,7 @@ func group(t *Table, columnViews map[string]*ColumnView, indices []uint32, colum
 			value:      value,
 			groups:     map[uint32]*Group{},
 			counts:     make([]int, len(columns)+1),
-			sums:       map[string]int{},
+			aggregates: map[string]int{},
 			//keyToOrder: keyToOrder,
 		}
 		groups := column.group2(indices, columnViews[column.ColumnDef().name])
@@ -158,7 +158,7 @@ func group(t *Table, columnViews map[string]*ColumnView, indices []uint32, colum
 				continue
 			}
 			for _, gg := range g.groups {
-				g.sums[c] += gg.sums[c]
+				g.aggregates[c] += gg.aggregates[c]
 			}
 
 		}

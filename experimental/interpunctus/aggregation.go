@@ -147,11 +147,11 @@ func testSingleGrouping(table *Table) {
 	}
 
 	// Validate root sums
-	if group.sums["amount"] != 1350 {
-		panic(fmt.Sprintf("Expected root amount sum=1350, got %d", group.sums["amount"]))
+	if group.aggregates["amount"] != 1350 {
+		panic(fmt.Sprintf("Expected root amount aggregate=1350, got %d", group.aggregates["amount"]))
 	}
-	if group.sums["quantity"] != 68 {
-		panic(fmt.Sprintf("Expected root quantity sum=68, got %d", group.sums["quantity"]))
+	if group.aggregates["quantity"] != 68 {
+		panic(fmt.Sprintf("Expected root quantity aggregate=68, got %d", group.aggregates["quantity"]))
 	}
 
 	// Validate region groups
@@ -173,18 +173,18 @@ func testSingleGrouping(table *Table) {
 		panic("South group not found")
 	}
 
-	if northGroup.sums["amount"] != 450 {
-		panic(fmt.Sprintf("Expected North amount sum=450, got %d", northGroup.sums["amount"]))
+	if northGroup.aggregates["amount"] != 450 {
+		panic(fmt.Sprintf("Expected North amount aggregate=450, got %d", northGroup.aggregates["amount"]))
 	}
-	if northGroup.sums["quantity"] != 23 {
-		panic(fmt.Sprintf("Expected North quantity sum=23, got %d", northGroup.sums["quantity"]))
+	if northGroup.aggregates["quantity"] != 23 {
+		panic(fmt.Sprintf("Expected North quantity aggregate=23, got %d", northGroup.aggregates["quantity"]))
 	}
 
-	if southGroup.sums["amount"] != 900 {
-		panic(fmt.Sprintf("Expected South amount sum=900, got %d", southGroup.sums["amount"]))
+	if southGroup.aggregates["amount"] != 900 {
+		panic(fmt.Sprintf("Expected South amount aggregate=900, got %d", southGroup.aggregates["amount"]))
 	}
-	if southGroup.sums["quantity"] != 45 {
-		panic(fmt.Sprintf("Expected South quantity sum=45, got %d", southGroup.sums["quantity"]))
+	if southGroup.aggregates["quantity"] != 45 {
+		panic(fmt.Sprintf("Expected South quantity aggregate=45, got %d", southGroup.aggregates["quantity"]))
 	}
 
 	fmt.Println("  ✓ Single level grouping correct")
@@ -216,11 +216,11 @@ func testTwoLevelGrouping(table *Table) {
 	}
 
 	// Validate root sums
-	if group.sums["amount"] != 1350 {
-		panic(fmt.Sprintf("Expected root amount sum=1350, got %d", group.sums["amount"]))
+	if group.aggregates["amount"] != 1350 {
+		panic(fmt.Sprintf("Expected root amount aggregate=1350, got %d", group.aggregates["amount"]))
 	}
-	if group.sums["quantity"] != 68 {
-		panic(fmt.Sprintf("Expected root quantity sum=68, got %d", group.sums["quantity"]))
+	if group.aggregates["quantity"] != 68 {
+		panic(fmt.Sprintf("Expected root quantity aggregate=68, got %d", group.aggregates["quantity"]))
 	}
 
 	// Find region groups
@@ -239,19 +239,19 @@ func testTwoLevelGrouping(table *Table) {
 	}
 
 	// Validate North subtotals
-	if northGroup.sums["amount"] != 450 {
-		panic(fmt.Sprintf("Expected North amount sum=450, got %d", northGroup.sums["amount"]))
+	if northGroup.aggregates["amount"] != 450 {
+		panic(fmt.Sprintf("Expected North amount aggregate=450, got %d", northGroup.aggregates["amount"]))
 	}
-	if northGroup.sums["quantity"] != 23 {
-		panic(fmt.Sprintf("Expected North quantity sum=23, got %d", northGroup.sums["quantity"]))
+	if northGroup.aggregates["quantity"] != 23 {
+		panic(fmt.Sprintf("Expected North quantity aggregate=23, got %d", northGroup.aggregates["quantity"]))
 	}
 
 	// Validate South subtotals
-	if southGroup.sums["amount"] != 900 {
-		panic(fmt.Sprintf("Expected South amount sum=900, got %d", southGroup.sums["amount"]))
+	if southGroup.aggregates["amount"] != 900 {
+		panic(fmt.Sprintf("Expected South amount aggregate=900, got %d", southGroup.aggregates["amount"]))
 	}
-	if southGroup.sums["quantity"] != 45 {
-		panic(fmt.Sprintf("Expected South quantity sum=45, got %d", southGroup.sums["quantity"]))
+	if southGroup.aggregates["quantity"] != 45 {
+		panic(fmt.Sprintf("Expected South quantity aggregate=45, got %d", southGroup.aggregates["quantity"]))
 	}
 
 	// Find status subgroups for North
@@ -269,18 +269,18 @@ func testTwoLevelGrouping(table *Table) {
 		panic("North status subgroups not found")
 	}
 
-	if northOpen.sums["amount"] != 300 {
-		panic(fmt.Sprintf("Expected North/Open amount sum=300, got %d", northOpen.sums["amount"]))
+	if northOpen.aggregates["amount"] != 300 {
+		panic(fmt.Sprintf("Expected North/Open amount aggregate=300, got %d", northOpen.aggregates["amount"]))
 	}
-	if northOpen.sums["quantity"] != 15 {
-		panic(fmt.Sprintf("Expected North/Open quantity sum=15, got %d", northOpen.sums["quantity"]))
+	if northOpen.aggregates["quantity"] != 15 {
+		panic(fmt.Sprintf("Expected North/Open quantity aggregate=15, got %d", northOpen.aggregates["quantity"]))
 	}
 
-	if northClosed.sums["amount"] != 150 {
-		panic(fmt.Sprintf("Expected North/Closed amount sum=150, got %d", northClosed.sums["amount"]))
+	if northClosed.aggregates["amount"] != 150 {
+		panic(fmt.Sprintf("Expected North/Closed amount aggregate=150, got %d", northClosed.aggregates["amount"]))
 	}
-	if northClosed.sums["quantity"] != 8 {
-		panic(fmt.Sprintf("Expected North/Closed quantity sum=8, got %d", northClosed.sums["quantity"]))
+	if northClosed.aggregates["quantity"] != 8 {
+		panic(fmt.Sprintf("Expected North/Closed quantity aggregate=8, got %d", northClosed.aggregates["quantity"]))
 	}
 
 	// Find status subgroups for South
@@ -298,18 +298,18 @@ func testTwoLevelGrouping(table *Table) {
 		panic("South status subgroups not found")
 	}
 
-	if southOpen.sums["amount"] != 300 {
-		panic(fmt.Sprintf("Expected South/Open amount sum=300, got %d", southOpen.sums["amount"]))
+	if southOpen.aggregates["amount"] != 300 {
+		panic(fmt.Sprintf("Expected South/Open amount aggregate=300, got %d", southOpen.aggregates["amount"]))
 	}
-	if southOpen.sums["quantity"] != 15 {
-		panic(fmt.Sprintf("Expected South/Open quantity sum=15, got %d", southOpen.sums["quantity"]))
+	if southOpen.aggregates["quantity"] != 15 {
+		panic(fmt.Sprintf("Expected South/Open quantity aggregate=15, got %d", southOpen.aggregates["quantity"]))
 	}
 
-	if southClosed.sums["amount"] != 600 {
-		panic(fmt.Sprintf("Expected South/Closed amount sum=600, got %d", southClosed.sums["amount"]))
+	if southClosed.aggregates["amount"] != 600 {
+		panic(fmt.Sprintf("Expected South/Closed amount aggregate=600, got %d", southClosed.aggregates["amount"]))
 	}
-	if southClosed.sums["quantity"] != 30 {
-		panic(fmt.Sprintf("Expected South/Closed quantity sum=30, got %d", southClosed.sums["quantity"]))
+	if southClosed.aggregates["quantity"] != 30 {
+		panic(fmt.Sprintf("Expected South/Closed quantity aggregate=30, got %d", southClosed.aggregates["quantity"]))
 	}
 
 	fmt.Println("  ✓ Two level grouping correct")
@@ -339,11 +339,11 @@ func testGroupingWithFilter(table *Table) {
 
 	// With filter for Closed only, we should see:
 	// Total: amount=750 (150+250+350), quantity=38 (8+12+18)
-	if group.sums["amount"] != 750 {
-		panic(fmt.Sprintf("Expected filtered root amount sum=750, got %d", group.sums["amount"]))
+	if group.aggregates["amount"] != 750 {
+		panic(fmt.Sprintf("Expected filtered root amount aggregate=750, got %d", group.aggregates["amount"]))
 	}
-	if group.sums["quantity"] != 38 {
-		panic(fmt.Sprintf("Expected filtered root quantity sum=38, got %d", group.sums["quantity"]))
+	if group.aggregates["quantity"] != 38 {
+		panic(fmt.Sprintf("Expected filtered root quantity aggregate=38, got %d", group.aggregates["quantity"]))
 	}
 
 	// Find region groups
@@ -362,19 +362,19 @@ func testGroupingWithFilter(table *Table) {
 	}
 
 	// North should only have Closed rows
-	if northGroup.sums["amount"] != 150 {
-		panic(fmt.Sprintf("Expected North (filtered) amount sum=150, got %d", northGroup.sums["amount"]))
+	if northGroup.aggregates["amount"] != 150 {
+		panic(fmt.Sprintf("Expected North (filtered) amount aggregate=150, got %d", northGroup.aggregates["amount"]))
 	}
-	if northGroup.sums["quantity"] != 8 {
-		panic(fmt.Sprintf("Expected North (filtered) quantity sum=8, got %d", northGroup.sums["quantity"]))
+	if northGroup.aggregates["quantity"] != 8 {
+		panic(fmt.Sprintf("Expected North (filtered) quantity aggregate=8, got %d", northGroup.aggregates["quantity"]))
 	}
 
 	// South should only have Closed rows
-	if southGroup.sums["amount"] != 600 {
-		panic(fmt.Sprintf("Expected South (filtered) amount sum=600, got %d", southGroup.sums["amount"]))
+	if southGroup.aggregates["amount"] != 600 {
+		panic(fmt.Sprintf("Expected South (filtered) amount aggregate=600, got %d", southGroup.aggregates["amount"]))
 	}
-	if southGroup.sums["quantity"] != 30 {
-		panic(fmt.Sprintf("Expected South (filtered) quantity sum=30, got %d", southGroup.sums["quantity"]))
+	if southGroup.aggregates["quantity"] != 30 {
+		panic(fmt.Sprintf("Expected South (filtered) quantity aggregate=30, got %d", southGroup.aggregates["quantity"]))
 	}
 
 	fmt.Println("  ✓ Grouping with filter correct")

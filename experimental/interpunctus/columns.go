@@ -58,15 +58,20 @@ type ColumnView struct {
 
 	groupKeyToOrder map[uint32]uint32
 	// example
-	//  column values: aa ab ac bb dd dd aa ab
+	//  column values: aa ab ac dd
 	//  valueToKey : aa:0 ab:1 ac:2 dd:3
 	//  keyToValue : 0:aa 1:ab 2:ac 3:dd
-	//  groupOn: a dd
+	//  groupOn: 'a' "dd"
 	//  aa -> a, ab -> a, ac -> a, dd -> dd
 	// filter to groupKey: a:1 dd:2
 	// keyToGroupKey 0:1 1:1 2:1 3:2
+	// what is the value zero for groupKey used for? Used for keys that do not match any filter
 	// reads as      aa:a ab:a ac:a dd:dd
 	// for default grouping, the keyToGroupKey is the identity map...?
+
+	// groupKeyToOrder - defines the order of groups when sorting
+	// e.g. groupKeyToOrder 0:0 1:1 2:2
+	// means that groupKey 0 is first, groupKey 1 is second, groupKey 2 is third
 }
 
 type Column[T Unsigned] struct {

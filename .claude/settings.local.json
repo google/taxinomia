@@ -4,7 +4,13 @@
       "Bash(go run:*)",
       "Bash(go test:*)",
       "Bash(/bashes)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(go build:*)",
+      "Bash(interpunctus)",
+      "Bash(.interpunctus.exe)",
+      "Bash(set PORT=8091)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []
