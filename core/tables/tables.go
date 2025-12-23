@@ -42,3 +42,12 @@ func (dt *DataTable) AddColumn(col columns.IDataColumn) {
 func (dt *DataTable) GetColumn(name string) columns.IDataColumn {
 	return dt.columns[name]
 }
+
+// GetColumnNames returns all column names in the table
+func (dt *DataTable) GetColumnNames() []string {
+	names := make([]string, 0, len(dt.columns))
+	for name := range dt.columns {
+		names = append(names, name)
+	}
+	return names
+}

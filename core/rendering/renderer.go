@@ -19,10 +19,12 @@ limitations under the License.
 package rendering
 
 import (
+	_ "embed"
 	"embed"
 	"io"
 
 	"github.com/google/safehtml/template"
+	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/views"
 )
 
@@ -37,9 +39,14 @@ type TableRenderer struct {
 // NewTableRenderer creates a new table renderer
 func NewTableRenderer() (*TableRenderer, error) {
 	trustedFS := template.TrustedFSFromEmbed(templateFS)
-	// Use ParseFS to parse embedded templates with safehtml
-	// The template name should match the file name for proper execution
-	tmpl, err := template.ParseFS(trustedFS, "templates/table.html")
+
+	// Define custom functions for the template
+	funcMap := template.FuncMap{
+		"toggleColumn": query.ToggleColumnURL,
+	}
+
+	// Parse the template with custom functions
+	tmpl, err := template.New("table.html").Funcs(funcMap).ParseFS(trustedFS, "templates/table.html")
 	if err != nil {
 		return nil, err
 	}

@@ -5,37 +5,289 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
     <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            margin: 40px;
+            color: #333;
         }
-        .stats {
+
+        /* Container layout */
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar styles */
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 0;
+            position: fixed;
+            height: 100%;
+            left: 0;
+            top: 0;
+            transform: translateX(0);
+            transition: transform 0.3s ease-in-out;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #1a252f;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar-header h2 {
+            margin: 0;
+            font-size: 1.2em;
+        }
+
+        .sidebar-toggle {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+            transition: opacity 0.3s;
+        }
+
+        .sidebar-toggle:hover {
+            opacity: 0.7;
+        }
+
+        .sidebar-content {
             padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid #ccc;
         }
+
+        .sidebar-content ul {
+            list-style: none;
+            margin: 0;
+        }
+
+        .sidebar-content li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar-content a {
+            display: block;
+            color: #bdc3c7;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .sidebar-content a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .sidebar-content a.visible {
+            color: white;
+        }
+
+        /* Draggable column styles */
+        .column-item {
+            cursor: move;
+            user-select: none;
+            transition: transform 0.2s ease;
+        }
+
+        .column-item.dragging {
+            opacity: 0.5;
+        }
+
+        /* Main content styles */
+        .main-content {
+            flex: 1;
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s ease-in-out;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+        }
+
+        /* Sidebar open button */
+        .sidebar-open-btn {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 999;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar-open-btn:hover {
+            background-color: #1a252f;
+        }
+
+        .sidebar-open-btn.visible {
+            display: block;
+        }
+
+        /* Table styles */
         table {
             width: 100%;
             border-collapse: collapse;
             border: 1px solid #ccc;
+            background-color: white;
         }
+
         th {
             background-color: #f0f0f0;
             padding: 8px;
             text-align: left;
             border: 1px solid #ccc;
         }
+
         td {
             padding: 8px;
             border: 1px solid #ccc;
         }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin-bottom: 15px;
+        }
     </style>
+    <script>
+        // Toggle sidebar visibility
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('main-content');
+            const openBtn = document.getElementById('sidebar-open-btn');
+
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+            openBtn.classList.toggle('visible');
+        }
+
+        // Drag and drop functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            let draggedElement = null;
+
+            const columnList = document.querySelector('.sidebar-content ul');
+            const columnItems = columnList.querySelectorAll('.column-item');
+
+            // Add dragover to the container for smooth dragging
+            columnList.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(columnList, e.clientY);
+                if (afterElement == null) {
+                    columnList.appendChild(draggedElement);
+                } else {
+                    columnList.insertBefore(draggedElement, afterElement);
+                }
+            });
+
+            columnItems.forEach((item) => {
+                item.draggable = true;
+
+                item.addEventListener('dragstart', function(e) {
+                    draggedElement = this;
+                    this.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+
+                item.addEventListener('dragend', function() {
+                    this.classList.remove('dragging');
+
+                    // Get the new order of columns
+                    const newOrder = [];
+                    columnList.querySelectorAll('.column-item').forEach(item => {
+                        const link = item.querySelector('a');
+                        const columnName = item.dataset.column;
+                        if (link.classList.contains('visible')) {
+                            newOrder.push(columnName);
+                        }
+                    });
+
+                    // Update URL with new column order
+                    if (newOrder.length > 0) {
+                        window.location.href = '?columns=' + newOrder.join(',');
+                    }
+                });
+
+                item.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                });
+            });
+
+            function getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('.column-item:not(.dragging)')];
+
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+        });
+    </script>
 </head>
 <body>
-    <h1>{{.Title}}</h1>
+    <div class="container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Columns</h2>
+                <button class="sidebar-toggle" onclick="toggleSidebar()">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <ul>
+                    {{range .AllColumns}}
+                    <li class="column-item" data-column="{{.Name}}">
+                        <a href="{{toggleColumn $.Columns .Name}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}">
+                            {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}
+                        </a>
+                    </li>
+                    {{end}}
+                </ul>
+            </div>
+        </aside>
+        <main class="main-content" id="main-content">
+            <button class="sidebar-open-btn" id="sidebar-open-btn" onclick="toggleSidebar()">
+                <span>☰</span> Menu
+            </button>
+            <h1>{{.Title}}</h1>
 
-    <h2>Data Table</h2>
-    <table>
+            <h2>Data Table</h2>
+            <table>
         <thead>
             <tr>
                 {{range .Headers}}
@@ -53,5 +305,7 @@
             {{end}}
         </tbody>
     </table>
+        </main>
+    </div>
 </body>
 </html>

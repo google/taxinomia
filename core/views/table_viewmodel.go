@@ -24,19 +24,63 @@ import (
 
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
-	Title    string
-	Headers  []string              // Column display names
-	Columns  []string              // Column names (for data access)
-	Rows     []map[string]string   // Each row is a map of column name to value
+	Title         string
+	Headers       []string              // Column display names
+	Columns       []string              // Column names (for data access)
+	Rows          []map[string]string   // Each row is a map of column name to value
+	AllColumns    []ColumnInfo          // All available columns with metadata
+	CurrentQuery  string                // Current query string
+}
+
+// ColumnInfo contains information about a column for UI display
+type ColumnInfo struct {
+	Name        string // Column internal name
+	DisplayName string // Column display name
+	IsVisible   bool   // Whether column is currently visible
 }
 
 // BuildViewModel creates a ViewModel from a Table using the specified View
 func BuildViewModel(table *tables.DataTable, view TableView, title string) TableViewModel {
 	vm := TableViewModel{
-		Title:   title,
-		Headers: []string{},
-		Columns: []string{},
-		Rows:    []map[string]string{},
+		Title:      title,
+		Headers:    []string{},
+		Columns:    []string{},
+		Rows:       []map[string]string{},
+		AllColumns: []ColumnInfo{},
+	}
+
+	// Create a map of visible columns for quick lookup
+	visibleCols := make(map[string]bool)
+	for _, colName := range view.Columns {
+		visibleCols[colName] = true
+	}
+
+	// Build all columns info - order matters for drag and drop
+	// First add visible columns in their specified order
+	for _, colName := range view.Columns {
+		col := table.GetColumn(colName)
+		if col != nil {
+			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
+				Name:        colName,
+				DisplayName: col.ColumnDef().DisplayName(),
+				IsVisible:   true,
+			})
+		}
+	}
+
+	// Then add non-visible columns
+	allColumnNames := table.GetColumnNames()
+	for _, colName := range allColumnNames {
+		if !visibleCols[colName] {
+			col := table.GetColumn(colName)
+			if col != nil {
+				vm.AllColumns = append(vm.AllColumns, ColumnInfo{
+					Name:        colName,
+					DisplayName: col.ColumnDef().DisplayName(),
+					IsVisible:   false,
+				})
+			}
+		}
 	}
 
 	// Build headers and columns from view

@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/rendering"
 	"github.com/google/taxinomia/core/tables"
 	"github.com/google/taxinomia/core/views"
@@ -69,9 +70,13 @@ func main() {
 
 	// Start web server
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Parse columns from query parameter
+		defaultColumns := []string{"status", "region", "category", "amount"}
+		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
-			Columns: []string{"status", "region", "category", "amount"},
+			Columns: columns,
 		}
 
 		// Build the view model from the table
@@ -80,7 +85,9 @@ func main() {
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := renderer.Render(w, viewModel); err != nil {
-			http.Error(w, fmt.Sprintf("Template rendering failed: %v", err), http.StatusInternalServerError)
+			// Log the error instead of trying to write an error response
+			// since the renderer may have already written to the response
+			log.Printf("Template rendering error: %v", err)
 			return
 		}
 	})
