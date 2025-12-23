@@ -16,12 +16,12 @@ func main() {
 
 	t := tables.NewDataTable()
 
-	// Create StringColumns for each field
+	// Create StringColumns for text fields
 	statusCol := columns.NewStringColumn(columns.NewColumnDef("status", "Status"))
 	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region"))
 	categoryCol := columns.NewStringColumn(columns.NewColumnDef("category", "Category"))
-	// For amount, we'll still use StringColumn but store string representations
-	amountCol := columns.NewStringColumn(columns.NewColumnDef("amount", "Amount"))
+	// Use Uint32Column for numeric amount field
+	amountCol := columns.NewUint32Column(columns.NewColumnDef("amount", "Amount"))
 
 	t.AddColumn(statusCol)
 	t.AddColumn(regionCol)
@@ -36,7 +36,7 @@ func main() {
 		statusCol.Append(row.Status)
 		regionCol.Append(row.Region)
 		categoryCol.Append(row.Category)
-		amountCol.Append(fmt.Sprintf("%d", row.Amount))
+		amountCol.Append(uint32(row.Amount))
 	}
 
 	// Create renderer

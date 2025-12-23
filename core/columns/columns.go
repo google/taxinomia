@@ -54,6 +54,8 @@ func (cd *ColumnDef) DisplayName() string {
 
 type IDataColumn interface {
 	ColumnDef() *ColumnDef
+	Length() int
+	GetString(i int) (string, error)
 }
 
 type DataColumn[T any] struct {

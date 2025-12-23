@@ -1,7 +1,6 @@
 package views
 
 import (
-	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/tables"
 )
 
@@ -36,10 +35,7 @@ func BuildViewModel(table *tables.DataTable, view TableView, title string) Table
 	if len(view.Columns) > 0 {
 		firstCol := table.GetColumn(view.Columns[0])
 		if firstCol != nil {
-			// Type assert to StringColumn to get length
-			if strCol, ok := firstCol.(*columns.StringColumn); ok {
-				numRows = strCol.Length()
-			}
+			numRows = firstCol.Length()
 		}
 	}
 
@@ -48,8 +44,8 @@ func BuildViewModel(table *tables.DataTable, view TableView, title string) Table
 		row := make(map[string]string)
 		for _, colName := range view.Columns {
 			col := table.GetColumn(colName)
-			if strCol, ok := col.(*columns.StringColumn); ok {
-				value, _ := strCol.GetString(i)
+			if col != nil {
+				value, _ := col.GetString(i)
 				row[colName] = value
 			}
 		}
