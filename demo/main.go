@@ -23,40 +23,19 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/rendering"
-	"github.com/google/taxinomia/core/tables"
 	"github.com/google/taxinomia/core/views"
 )
 
 func main() {
 	fmt.Println("Starting Interpunctus V2...")
 
-	t := tables.NewDataTable()
-
-	// Create StringColumns for text fields
-	statusCol := columns.NewStringColumn(columns.NewColumnDef("status", "Status"))
-	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region"))
-	categoryCol := columns.NewStringColumn(columns.NewColumnDef("category", "Category"))
-	// Use Uint32Column for numeric amount field
-	amountCol := columns.NewUint32Column(columns.NewColumnDef("amount", "Amount"))
-
-	t.AddColumn(statusCol)
-	t.AddColumn(regionCol)
-	t.AddColumn(categoryCol)
-	t.AddColumn(amountCol)
-
-	// Create demo data and populate columns
-	data := createDemoData()
-
-	// Populate the columns
-	for _, row := range data {
-		statusCol.Append(row.Status)
-		regionCol.Append(row.Region)
-		categoryCol.Append(row.Category)
-		amountCol.Append(uint32(row.Amount))
-	}
+	// Create demo tables with sample data
+	ordersTable := CreateDemoTable()
+	regionsTable := CreateRegionsTable()
+	capitalsTable := CreateCapitalsTable()
+	itemsTable := CreateItemsTable()
 
 	// Create renderer
 	renderer, err := rendering.NewTableRenderer()
@@ -64,12 +43,61 @@ func main() {
 		log.Fatalf("Failed to create renderer: %v", err)
 	}
 
-	// Print demo output
-	fmt.Println("\nDemo Data:")
-	printDemoData(data)
-
-	// Start web server
+	// Landing page with links to tables
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		landingVM := views.LandingViewModel{
+			Title:    "Taxinomia Demo Tables",
+			Subtitle: "Explore the power of dynamic table rendering with column visibility and drag-and-drop ordering",
+			Tables: []views.TableInfo{
+				{
+					Name:           "Orders Table",
+					Description:    "Track orders with status, region, category, and amount data. Perfect for analyzing sales patterns and order fulfillment.",
+					URL:            "/orders",
+					RecordCount:    30,
+					ColumnCount:    4,
+					DefaultColumns: "4 columns",
+					Categories:     "Sales, Logistics",
+				},
+				{
+					Name:           "Regions Table",
+					Description:    "Geographic and economic information about different regions including population, area, capital cities, and GDP.",
+					URL:            "/regions",
+					RecordCount:    4,
+					ColumnCount:    8,
+					DefaultColumns: "5 columns",
+					Categories:     "Geographic, Economic",
+				},
+				{
+					Name:           "Capitals Table",
+					Description:    "Detailed information about capital cities including population, founding year, elevation, and civic infrastructure.",
+					URL:            "/capitals",
+					RecordCount:    4,
+					ColumnCount:    11,
+					DefaultColumns: "6 columns",
+					Categories:     "Cities, Demographics",
+				},
+				{
+					Name:           "Items Table",
+					Description:    "Product catalog with category hierarchy, pricing, inventory levels, and supplier information.",
+					URL:            "/items",
+					RecordCount:    15,
+					ColumnCount:    11,
+					DefaultColumns: "6 columns",
+					Categories:     "Inventory, Products",
+				},
+			},
+		}
+
+		// Render using the landing template
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := renderer.RenderLanding(w, landingVM); err != nil {
+			log.Printf("Landing page rendering error: %v", err)
+			return
+		}
+	})
+
+	// Orders table handler
+	http.HandleFunc("/orders", func(w http.ResponseWriter, r *http.Request) {
 		// Parse columns from query parameter
 		defaultColumns := []string{"status", "region", "category", "amount"}
 		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
@@ -80,7 +108,79 @@ func main() {
 		}
 
 		// Build the view model from the table
-		viewModel := views.BuildViewModel(t, view, "Interpunctus V2 - Data Table Example")
+		viewModel := views.BuildViewModel(ordersTable, view, "Orders Table - Taxinomia Demo")
+
+		// Render using the renderer
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := renderer.Render(w, viewModel); err != nil {
+			// Log the error instead of trying to write an error response
+			// since the renderer may have already written to the response
+			log.Printf("Template rendering error: %v", err)
+			return
+		}
+	})
+
+	// Regions table handler
+	http.HandleFunc("/regions", func(w http.ResponseWriter, r *http.Request) {
+		// Parse columns from query parameter
+		defaultColumns := []string{"region", "population", "capital", "timezone", "gdp"}
+		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
+
+		// Define the view - which columns to display and in what order
+		view := views.TableView{
+			Columns: columns,
+		}
+
+		// Build the view model from the table
+		viewModel := views.BuildViewModel(regionsTable, view, "Regions Table - Taxinomia Demo")
+
+		// Render using the renderer
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := renderer.Render(w, viewModel); err != nil {
+			// Log the error instead of trying to write an error response
+			// since the renderer may have already written to the response
+			log.Printf("Template rendering error: %v", err)
+			return
+		}
+	})
+
+	// Capitals table handler
+	http.HandleFunc("/capitals", func(w http.ResponseWriter, r *http.Request) {
+		// Parse columns from query parameter
+		defaultColumns := []string{"capital", "region", "population", "founded", "mayor", "universities"}
+		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
+
+		// Define the view - which columns to display and in what order
+		view := views.TableView{
+			Columns: columns,
+		}
+
+		// Build the view model from the table
+		viewModel := views.BuildViewModel(capitalsTable, view, "Capitals Table - Taxinomia Demo")
+
+		// Render using the renderer
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := renderer.Render(w, viewModel); err != nil {
+			// Log the error instead of trying to write an error response
+			// since the renderer may have already written to the response
+			log.Printf("Template rendering error: %v", err)
+			return
+		}
+	})
+
+	// Items table handler
+	http.HandleFunc("/items", func(w http.ResponseWriter, r *http.Request) {
+		// Parse columns from query parameter
+		defaultColumns := []string{"item_id", "item_name", "category", "subcategory", "price", "stock"}
+		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
+
+		// Define the view - which columns to display and in what order
+		view := views.TableView{
+			Columns: columns,
+		}
+
+		// Build the view model from the table
+		viewModel := views.BuildViewModel(itemsTable, view, "Items Table - Taxinomia Demo")
 
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -94,74 +194,4 @@ func main() {
 
 	fmt.Println("\nServer starting on http://127.0.0.1:8097")
 	log.Fatal(http.ListenAndServe("127.0.0.1:8097", nil))
-}
-
-// Demo data structure
-type Row struct {
-	Status   string
-	Region   string
-	Category string
-	Amount   int
-}
-
-func createDemoData() []Row {
-	return []Row{
-		// Cancelled - East (2)
-		{Status: "Cancelled", Region: "East", Category: "Electronics", Amount: 1300},
-		{Status: "Cancelled", Region: "East", Category: "Electronics", Amount: 1250},
-
-		// Delivered - East (2)
-		{Status: "Delivered", Region: "East", Category: "Office Supplies", Amount: 15},
-		{Status: "Delivered", Region: "East", Category: "Electronics", Amount: 350},
-
-		// Delivered - North (8)
-		{Status: "Delivered", Region: "North", Category: "Electronics", Amount: 1200},
-		{Status: "Delivered", Region: "North", Category: "Electronics", Amount: 25},
-		{Status: "Delivered", Region: "North", Category: "Electronics", Amount: 75},
-		{Status: "Delivered", Region: "North", Category: "Furniture", Amount: 250},
-		{Status: "Delivered", Region: "North", Category: "Electronics", Amount: 80},
-		{Status: "Delivered", Region: "North", Category: "Electronics", Amount: 30},
-		{Status: "Delivered", Region: "North", Category: "Office Supplies", Amount: 20},
-		{Status: "Delivered", Region: "North", Category: "Electronics", Amount: 550},
-
-		// Delivered - South (3)
-		{Status: "Delivered", Region: "South", Category: "Electronics", Amount: 1150},
-		{Status: "Delivered", Region: "South", Category: "Furniture", Amount: 160},
-		{Status: "Delivered", Region: "South", Category: "Electronics", Amount: 1400},
-
-		// Delivered - West (5)
-		{Status: "Delivered", Region: "West", Category: "Electronics", Amount: 300},
-		{Status: "Delivered", Region: "West", Category: "Office Supplies", Amount: 10},
-		{Status: "Delivered", Region: "West", Category: "Office Supplies", Amount: 5},
-		{Status: "Delivered", Region: "West", Category: "Electronics", Amount: 120},
-		{Status: "Delivered", Region: "West", Category: "Office Supplies", Amount: 8},
-
-		// Processing - East (1)
-		{Status: "Processing", Region: "East", Category: "Furniture", Amount: 180},
-
-		// Processing - North (1)
-		{Status: "Processing", Region: "North", Category: "Furniture", Amount: 280},
-
-		// Processing - South (3)
-		{Status: "Processing", Region: "South", Category: "Furniture", Amount: 450},
-		{Status: "Processing", Region: "South", Category: "Furniture", Amount: 500},
-		{Status: "Processing", Region: "South", Category: "Electronics", Amount: 90},
-
-		// Shipped - East (1)
-		{Status: "Shipped", Region: "East", Category: "Furniture", Amount: 480},
-
-		// Shipped - South (2)
-		{Status: "Shipped", Region: "South", Category: "Furniture", Amount: 150},
-		{Status: "Shipped", Region: "South", Category: "Electronics", Amount: 600},
-
-		// Shipped - West (2)
-		{Status: "Shipped", Region: "West", Category: "Furniture", Amount: 200},
-		{Status: "Shipped", Region: "West", Category: "Electronics", Amount: 70},
-	}
-}
-
-func printDemoData(data []Row) {
-	for i, row := range data {
-		fmt.Printf("%2d: %s - %s - %s - %d\n", i, row.Status, row.Region, row.Category, row.Amount)
-	}
 }

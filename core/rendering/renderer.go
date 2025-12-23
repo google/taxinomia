@@ -33,7 +33,8 @@ var templateFS embed.FS
 
 // TableRenderer handles rendering of table view models to HTML
 type TableRenderer struct {
-	tmpl *template.Template
+	tableTemplate   *template.Template
+	landingTemplate *template.Template
 }
 
 // NewTableRenderer creates a new table renderer
@@ -45,18 +46,30 @@ func NewTableRenderer() (*TableRenderer, error) {
 		"toggleColumn": query.ToggleColumnURL,
 	}
 
-	// Parse the template with custom functions
-	tmpl, err := template.New("table.html").Funcs(funcMap).ParseFS(trustedFS, "templates/table.html")
+	// Parse the table template with custom functions
+	tableTemplate, err := template.New("table.html").Funcs(funcMap).ParseFS(trustedFS, "templates/table.html")
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the landing page template
+	landingTemplate, err := template.New("landing.html").ParseFS(trustedFS, "templates/landing.html")
 	if err != nil {
 		return nil, err
 	}
 
 	return &TableRenderer{
-		tmpl: tmpl,
+		tableTemplate:   tableTemplate,
+		landingTemplate: landingTemplate,
 	}, nil
 }
 
 // Render renders a TableViewModel to the provided writer
 func (r *TableRenderer) Render(w io.Writer, vm views.TableViewModel) error {
-	return r.tmpl.Execute(w, vm)
+	return r.tableTemplate.Execute(w, vm)
+}
+
+// RenderLanding renders a LandingViewModel to the provided writer
+func (r *TableRenderer) RenderLanding(w io.Writer, vm views.LandingViewModel) error {
+	return r.landingTemplate.Execute(w, vm)
 }

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f7;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .tables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-top: 50px;
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .table-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .table-card-header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+        }
+
+        .table-card-header h2 {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        .table-card-header .record-count {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .table-card-body {
+            padding: 20px;
+        }
+
+        .table-card-body p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .table-info {
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9em;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #666;
+        }
+
+        .info-value {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .view-table-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            text-align: center;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .view-table-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .features-section {
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        .features-section h3 {
+            color: #2c3e50;
+            font-size: 1.8em;
+            margin-bottom: 30px;
+        }
+
+        .features-list {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+
+        .feature-item {
+            flex: 1;
+            min-width: 200px;
+            max-width: 300px;
+        }
+
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 15px;
+        }
+
+        .feature-title {
+            color: #2c3e50;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .feature-description {
+            color: #666;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{.Title}}</h1>
+            <p class="subtitle">{{.Subtitle}}</p>
+        </header>
+
+        <div class="tables-grid">
+            {{range .Tables}}
+            <div class="table-card">
+                <div class="table-card-header">
+                    <h2>{{.Name}}</h2>
+                    <p class="record-count">{{.RecordCount}} records</p>
+                </div>
+                <div class="table-card-body">
+                    <p>{{.Description}}</p>
+                    <div class="table-info">
+                        <div class="info-item">
+                            <span class="info-label">Columns:</span>
+                            <span class="info-value">{{.ColumnCount}}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Default View:</span>
+                            <span class="info-value">{{.DefaultColumns}}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Categories:</span>
+                            <span class="info-value">{{.Categories}}</span>
+                        </div>
+                    </div>
+                    <a href="{{.URL}}" class="view-table-btn">View Table</a>
+                </div>
+            </div>
+            {{end}}
+        </div>
+
+        <div class="features-section">
+            <h3>Table Features</h3>
+            <div class="features-list">
+                <div class="feature-item">
+                    <div class="feature-icon">👁️</div>
+                    <div class="feature-title">Column Visibility</div>
+                    <div class="feature-description">Toggle columns on/off to customize your view</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">↕️</div>
+                    <div class="feature-title">Drag & Drop Ordering</div>
+                    <div class="feature-description">Reorder columns by dragging them in the sidebar</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">🔗</div>
+                    <div class="feature-title">URL-based State</div>
+                    <div class="feature-description">Column preferences are saved in the URL for easy sharing</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
