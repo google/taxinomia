@@ -23,19 +23,34 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/rendering"
 	"github.com/google/taxinomia/core/views"
+	"github.com/google/taxinomia/demo"
 )
 
 func main() {
 	fmt.Println("Starting Interpunctus V2...")
 
+	// Create a DataModel to manage tables and entity types
+	dataModel := models.NewDataModel()
+
 	// Create demo tables with sample data
-	ordersTable := CreateDemoTable()
-	regionsTable := CreateRegionsTable()
-	capitalsTable := CreateCapitalsTable()
-	itemsTable := CreateItemsTable()
+	ordersTable := demo.CreateDemoTable()
+	regionsTable := demo.CreateRegionsTable()
+	capitalsTable := demo.CreateCapitalsTable()
+	itemsTable := demo.CreateItemsTable()
+
+	// Register tables in the data model
+	// Note: Entity types are automatically registered when tables are added
+	dataModel.AddTable("orders", ordersTable)
+	dataModel.AddTable("regions", regionsTable)
+	dataModel.AddTable("capitals", capitalsTable)
+	dataModel.AddTable("items", itemsTable)
+
+	// Print entity type usage report
+	printEntityTypeUsageReport(dataModel)
 
 	// Create renderer
 	renderer, err := rendering.NewTableRenderer()
@@ -194,4 +209,92 @@ func main() {
 
 	fmt.Println("\nServer starting on http://127.0.0.1:8097")
 	log.Fatal(http.ListenAndServe("127.0.0.1:8097", nil))
+}
+
+// printEntityTypeUsageReport prints a comprehensive report of all entity types
+// and shows which tables and columns use each entity type
+func printEntityTypeUsageReport(dm *models.DataModel) {
+	fmt.Println("\n=== Entity Type Usage Report ===")
+	fmt.Println("This report shows all entity types and where they are used across tables.")
+	fmt.Println("(Empty entity types are not included)\n")
+
+	// Get all entity types and their usage
+	entityUsages := dm.GetAllEntityTypes()
+
+	// Filter out empty entity types
+	var filteredUsages []models.EntityTypeUsage
+	for _, usage := range entityUsages {
+		if usage.EntityType != "" {
+			filteredUsages = append(filteredUsages, usage)
+		}
+	}
+
+	// Sort by entity type name for consistent output
+	for i := 0; i < len(filteredUsages)-1; i++ {
+		for j := i + 1; j < len(filteredUsages); j++ {
+			if filteredUsages[i].EntityType > filteredUsages[j].EntityType {
+				filteredUsages[i], filteredUsages[j] = filteredUsages[j], filteredUsages[i]
+			}
+		}
+	}
+
+	// Print each entity type and its usage
+	for _, usage := range filteredUsages {
+		fmt.Printf("Entity Type: '%s'\n", usage.EntityType)
+		fmt.Printf("  Used in %d location(s):\n", len(usage.Usage))
+
+		// Print each usage with table.column format
+		for _, ref := range usage.Usage {
+			fmt.Printf("    - %s.%s\n", ref.TableName, ref.ColumnName)
+		}
+		fmt.Println()
+	}
+
+	// Print summary statistics
+	fmt.Println("=== Summary ===")
+	fmt.Printf("Total unique entity types: %d\n", len(filteredUsages))
+
+	// Count total usages
+	totalUsages := 0
+	for _, usage := range filteredUsages {
+		totalUsages += len(usage.Usage)
+	}
+	fmt.Printf("Total entity type usages: %d\n", totalUsages)
+
+	// Find entity types used across multiple tables
+	crossTableEntities := []string{}
+	for _, usage := range filteredUsages {
+		tables := make(map[string]bool)
+		for _, ref := range usage.Usage {
+			tables[ref.TableName] = true
+		}
+		if len(tables) > 1 {
+			crossTableEntities = append(crossTableEntities, usage.EntityType)
+		}
+	}
+
+	if len(crossTableEntities) > 0 {
+		fmt.Printf("\nEntity types used across multiple tables: %v\n", crossTableEntities)
+		fmt.Println("These entity types can be used to establish relationships between tables.")
+	}
+
+	// Count columns without entity types
+	totalColumns := 0
+	columnsWithoutEntityType := 0
+	for _, table := range dm.GetAllTables() {
+		columnNames := table.GetColumnNames()
+		for _, colName := range columnNames {
+			totalColumns++
+			col := table.GetColumn(colName)
+			if col != nil && col.ColumnDef().EntityType() == "" {
+				columnsWithoutEntityType++
+			}
+		}
+	}
+
+	if columnsWithoutEntityType > 0 {
+		fmt.Printf("\nNote: %d out of %d columns have no entity type assigned.\n", columnsWithoutEntityType, totalColumns)
+	}
+
+	fmt.Println("\n================================")
 }

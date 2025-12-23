@@ -29,18 +29,22 @@ type Unsigned interface {
 type IColumnDef interface {
 	Name() string // must not contain any of the following characters: & = : ,
 	DisplayName() string
+	// entity type of the column, primary or foreign key
+	EntityType() string
 }
 
 type ColumnDef struct {
 	name        string // must not contain any of the following characters: & = : ,
 	displayName string
+	entityType  string
 }
 
 // NewColumnDef creates a new ColumnDef with the given name and display name
-func NewColumnDef(name, displayName string) *ColumnDef {
+func NewColumnDef(name, displayName, entityType string) *ColumnDef {
 	return &ColumnDef{
 		name:        name,
 		displayName: displayName,
+		entityType:  entityType,
 	}
 }
 
@@ -50,6 +54,10 @@ func (cd *ColumnDef) Name() string {
 
 func (cd *ColumnDef) DisplayName() string {
 	return cd.displayName
+}
+
+func (cd *ColumnDef) EntityType() string {
+	return cd.entityType
 }
 
 type IDataColumn interface {

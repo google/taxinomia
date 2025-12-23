@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package demo
 
 import (
 	"fmt"
@@ -80,11 +80,11 @@ func CreateDemoTable() *tables.DataTable {
 	t := tables.NewDataTable()
 
 	// Create StringColumns for text fields
-	statusCol := columns.NewStringColumn(columns.NewColumnDef("status", "Status"))
-	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region"))
-	categoryCol := columns.NewStringColumn(columns.NewColumnDef("category", "Category"))
+	statusCol := columns.NewStringColumn(columns.NewColumnDef("status", "Status", ""))
+	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region", "region"))
+	categoryCol := columns.NewStringColumn(columns.NewColumnDef("category", "Category", "category"))
 	// Use Uint32Column for numeric amount field
-	amountCol := columns.NewUint32Column(columns.NewColumnDef("amount", "Amount"))
+	amountCol := columns.NewUint32Column(columns.NewColumnDef("amount", "Amount", ""))
 
 	t.AddColumn(statusCol)
 	t.AddColumn(regionCol)
@@ -176,14 +176,14 @@ func CreateRegionsTable() *tables.DataTable {
 	t := tables.NewDataTable()
 
 	// Create columns for region properties
-	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region"))
-	populationCol := columns.NewUint32Column(columns.NewColumnDef("population", "Population (millions)"))
-	areaCol := columns.NewUint32Column(columns.NewColumnDef("area", "Area (km²)"))
-	capitalCol := columns.NewStringColumn(columns.NewColumnDef("capital", "Capital"))
-	timezoneCol := columns.NewStringColumn(columns.NewColumnDef("timezone", "Time Zone"))
-	currencyCol := columns.NewStringColumn(columns.NewColumnDef("currency", "Currency"))
-	languageCol := columns.NewStringColumn(columns.NewColumnDef("language", "Primary Language"))
-	gdpCol := columns.NewUint32Column(columns.NewColumnDef("gdp", "GDP (billions $)"))
+	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region", "region"))
+	populationCol := columns.NewUint32Column(columns.NewColumnDef("population", "Population (millions)", ""))
+	areaCol := columns.NewUint32Column(columns.NewColumnDef("area", "Area (km²)", ""))
+	capitalCol := columns.NewStringColumn(columns.NewColumnDef("capital", "Capital", "capital"))
+	timezoneCol := columns.NewStringColumn(columns.NewColumnDef("timezone", "Time Zone", ""))
+	currencyCol := columns.NewStringColumn(columns.NewColumnDef("currency", "Currency", ""))
+	languageCol := columns.NewStringColumn(columns.NewColumnDef("language", "Primary Language", ""))
+	gdpCol := columns.NewUint32Column(columns.NewColumnDef("gdp", "GDP (billions $)", ""))
 
 	t.AddColumn(regionCol)
 	t.AddColumn(populationCol)
@@ -273,17 +273,17 @@ func CreateCapitalsTable() *tables.DataTable {
 	t := tables.NewDataTable()
 
 	// Create columns for capital properties
-	capitalCol := columns.NewStringColumn(columns.NewColumnDef("capital", "Capital City"))
-	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region"))
-	populationCol := columns.NewUint32Column(columns.NewColumnDef("population", "Population (millions)"))
-	foundedCol := columns.NewUint32Column(columns.NewColumnDef("founded", "Year Founded"))
-	elevationCol := columns.NewUint32Column(columns.NewColumnDef("elevation", "Elevation (m)"))
-	latitudeCol := columns.NewStringColumn(columns.NewColumnDef("latitude", "Latitude"))
-	longitudeCol := columns.NewStringColumn(columns.NewColumnDef("longitude", "Longitude"))
-	mayorCol := columns.NewStringColumn(columns.NewColumnDef("mayor", "Mayor"))
-	universitiesCol := columns.NewUint32Column(columns.NewColumnDef("universities", "Universities"))
-	museumsCol := columns.NewUint32Column(columns.NewColumnDef("museums", "Museums"))
-	airportsCol := columns.NewUint32Column(columns.NewColumnDef("airports", "Airports"))
+	capitalCol := columns.NewStringColumn(columns.NewColumnDef("capital", "Capital City", "capital"))
+	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region", "region"))
+	populationCol := columns.NewUint32Column(columns.NewColumnDef("population", "Population (millions)", ""))
+	foundedCol := columns.NewUint32Column(columns.NewColumnDef("founded", "Year Founded", ""))
+	elevationCol := columns.NewUint32Column(columns.NewColumnDef("elevation", "Elevation (m)", ""))
+	latitudeCol := columns.NewStringColumn(columns.NewColumnDef("latitude", "Latitude", ""))
+	longitudeCol := columns.NewStringColumn(columns.NewColumnDef("longitude", "Longitude", ""))
+	mayorCol := columns.NewStringColumn(columns.NewColumnDef("mayor", "Mayor", ""))
+	universitiesCol := columns.NewUint32Column(columns.NewColumnDef("universities", "Universities", ""))
+	museumsCol := columns.NewUint32Column(columns.NewColumnDef("museums", "Museums", ""))
+	airportsCol := columns.NewUint32Column(columns.NewColumnDef("airports", "Airports", ""))
 
 	t.AddColumn(capitalCol)
 	t.AddColumn(regionCol)
@@ -391,17 +391,17 @@ func CreateItemsTable() *tables.DataTable {
 	t := tables.NewDataTable()
 
 	// Create columns for item properties
-	itemIDCol := columns.NewStringColumn(columns.NewColumnDef("item_id", "Item ID"))
-	itemNameCol := columns.NewStringColumn(columns.NewColumnDef("item_name", "Item Name"))
-	categoryCol := columns.NewStringColumn(columns.NewColumnDef("category", "Category"))
-	subcategoryCol := columns.NewStringColumn(columns.NewColumnDef("subcategory", "Subcategory"))
-	brandCol := columns.NewStringColumn(columns.NewColumnDef("brand", "Brand"))
-	priceCol := columns.NewUint32Column(columns.NewColumnDef("price", "Price ($)"))
-	stockCol := columns.NewUint32Column(columns.NewColumnDef("stock", "Stock"))
-	weightCol := columns.NewStringColumn(columns.NewColumnDef("weight", "Weight (kg)"))
-	ratingCol := columns.NewStringColumn(columns.NewColumnDef("rating", "Rating"))
-	reviewsCol := columns.NewUint32Column(columns.NewColumnDef("reviews", "Reviews"))
-	supplierCol := columns.NewStringColumn(columns.NewColumnDef("supplier", "Supplier"))
+	itemIDCol := columns.NewStringColumn(columns.NewColumnDef("item_id", "Item ID", "item_id"))
+	itemNameCol := columns.NewStringColumn(columns.NewColumnDef("item_name", "Item Name", ""))
+	categoryCol := columns.NewStringColumn(columns.NewColumnDef("category", "Category", "category"))
+	subcategoryCol := columns.NewStringColumn(columns.NewColumnDef("subcategory", "Subcategory", ""))
+	brandCol := columns.NewStringColumn(columns.NewColumnDef("brand", "Brand", ""))
+	priceCol := columns.NewUint32Column(columns.NewColumnDef("price", "Price ($)", ""))
+	stockCol := columns.NewUint32Column(columns.NewColumnDef("stock", "Stock", ""))
+	weightCol := columns.NewStringColumn(columns.NewColumnDef("weight", "Weight (kg)", ""))
+	ratingCol := columns.NewStringColumn(columns.NewColumnDef("rating", "Rating", ""))
+	reviewsCol := columns.NewUint32Column(columns.NewColumnDef("reviews", "Reviews", ""))
+	supplierCol := columns.NewStringColumn(columns.NewColumnDef("supplier", "Supplier", ""))
 
 	t.AddColumn(itemIDCol)
 	t.AddColumn(itemNameCol)
