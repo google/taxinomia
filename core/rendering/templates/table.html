@@ -102,16 +102,6 @@
             color: white;
         }
 
-        /* Draggable column styles */
-        .column-item {
-            cursor: move;
-            user-select: none;
-            transition: transform 0.2s ease;
-        }
-
-        .column-item.dragging {
-            opacity: 0.5;
-        }
 
         /* Main content styles */
         .main-content {
@@ -190,73 +180,6 @@
             openBtn.classList.toggle('visible');
         }
 
-        // Drag and drop functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            let draggedElement = null;
-
-            const columnList = document.querySelector('.sidebar-content ul');
-            const columnItems = columnList.querySelectorAll('.column-item');
-
-            // Add dragover to the container for smooth dragging
-            columnList.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                const afterElement = getDragAfterElement(columnList, e.clientY);
-                if (afterElement == null) {
-                    columnList.appendChild(draggedElement);
-                } else {
-                    columnList.insertBefore(draggedElement, afterElement);
-                }
-            });
-
-            columnItems.forEach((item) => {
-                item.draggable = true;
-
-                item.addEventListener('dragstart', function(e) {
-                    draggedElement = this;
-                    this.classList.add('dragging');
-                    e.dataTransfer.effectAllowed = 'move';
-                });
-
-                item.addEventListener('dragend', function() {
-                    this.classList.remove('dragging');
-
-                    // Get the new order of columns
-                    const newOrder = [];
-                    columnList.querySelectorAll('.column-item').forEach(item => {
-                        const link = item.querySelector('a');
-                        const columnName = item.dataset.column;
-                        if (link.classList.contains('visible')) {
-                            newOrder.push(columnName);
-                        }
-                    });
-
-                    // Update URL with new column order
-                    if (newOrder.length > 0) {
-                        window.location.href = '?columns=' + newOrder.join(',');
-                    }
-                });
-
-                item.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                });
-            });
-
-            function getDragAfterElement(container, y) {
-                const draggableElements = [...container.querySelectorAll('.column-item:not(.dragging)')];
-
-                return draggableElements.reduce((closest, child) => {
-                    const box = child.getBoundingClientRect();
-                    const offset = y - box.top - box.height / 2;
-
-                    if (offset < 0 && offset > closest.offset) {
-                        return { offset: offset, element: child };
-                    } else {
-                        return closest;
-                    }
-                }, { offset: Number.NEGATIVE_INFINITY }).element;
-            }
-        });
     </script>
 </head>
 <body>
@@ -271,7 +194,7 @@
             <div class="sidebar-content">
                 <ul>
                     {{range .AllColumns}}
-                    <li class="column-item" data-column="{{.Name}}">
+                    <li>
                         <a href="{{toggleColumn $.Columns .Name}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}">
                             {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}
                         </a>
