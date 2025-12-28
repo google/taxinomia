@@ -35,9 +35,11 @@ type TableViewModel struct {
 
 // ColumnInfo contains information about a column for UI display
 type ColumnInfo struct {
-	Name        string // Column internal name
-	DisplayName string // Column display name
-	IsVisible   bool   // Whether column is currently visible
+	Name         string // Column internal name
+	DisplayName  string // Column display name
+	IsVisible    bool   // Whether column is currently visible
+	HasEntityType bool   // Whether column defines an entity type
+	IsKey        bool   // Whether column has all unique values
 }
 
 // BuildViewModel creates a ViewModel from a Table using the specified View
@@ -61,10 +63,18 @@ func BuildViewModel(table *tables.DataTable, view TableView, title string) Table
 	for _, colName := range allColumnNames {
 		col := table.GetColumn(colName)
 		if col != nil {
+			// Check if column has an entity type
+			hasEntityType := col.ColumnDef().EntityType() != ""
+
+			// Use the column's IsKey property
+			isKey := col.IsKey()
+
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-				Name:        colName,
-				DisplayName: col.ColumnDef().DisplayName(),
-				IsVisible:   visibleCols[colName],
+				Name:         colName,
+				DisplayName:  col.ColumnDef().DisplayName(),
+				IsVisible:    visibleCols[colName],
+				HasEntityType: hasEntityType,
+				IsKey:        isKey && hasEntityType, // Only mark as key if it's also an entity type
 			})
 		}
 	}

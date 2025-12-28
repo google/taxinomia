@@ -21,8 +21,10 @@ package columns
 // StringColumn is optimized for high-cardinality string data where most values are distinct.
 // It stores strings directly without key mapping overhead.
 type StringColumn struct {
-	columnDef *ColumnDef
-	data      []string
+	columnDef  *ColumnDef
+	data       []string
+	isKey      bool
+	valueIndex map[string]int // value -> rowIndex, only populated if isKey is true
 }
 
 // NewStringColumn creates a new string column optimized for distinct values
@@ -115,4 +117,36 @@ type StringColumnStats struct {
 	Count        int
 	UniqueCount  int
 	AvgStringLen float64
+}
+
+// IsKey returns whether all values in the column are unique
+func (c *StringColumn) IsKey() bool {
+	return c.isKey
+}
+
+
+// FinalizeColumn should be called after all data has been added to detect uniqueness
+// and build indexes if the column contains unique values
+func (c *StringColumn) FinalizeColumn() {
+	// Build a temporary index to check for uniqueness
+	tempIndex := make(map[string]int)
+	isUnique := true
+
+	for i, value := range c.data {
+		if _, exists := tempIndex[value]; exists {
+			// Duplicate found
+			isUnique = false
+			break
+		}
+		tempIndex[value] = i
+	}
+
+	c.isKey = isUnique
+
+	// Only keep the index if values are unique and it's an entity type column
+	if isUnique && c.columnDef.EntityType() != "" {
+		c.valueIndex = tempIndex
+	} else {
+		c.valueIndex = nil
+	}
 }

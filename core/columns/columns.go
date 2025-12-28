@@ -64,6 +64,7 @@ type IDataColumn interface {
 	ColumnDef() *ColumnDef
 	Length() int
 	GetString(i int) (string, error)
+	IsKey() bool
 }
 
 type DataColumn[T any] struct {

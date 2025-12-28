@@ -195,8 +195,8 @@
                 <ul>
                     {{range .AllColumns}}
                     <li>
-                        <a href="{{toggleColumn $.Columns .Name}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}">
-                            {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}
+                        <a href="{{toggleColumn $.Columns .Name}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}" title="{{if .IsKey}}Unique entity column{{else if .HasEntityType}}Entity column (non-unique){{else}}Regular column{{end}}">
+                            {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
                         </a>
                     </li>
                     {{end}}

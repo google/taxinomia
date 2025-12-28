@@ -102,6 +102,12 @@ func CreateDemoTable() *tables.DataTable {
 		amountCol.Append(uint32(row.Amount))
 	}
 
+	// Finalize columns to detect uniqueness and build indexes
+	statusCol.FinalizeColumn()
+	regionCol.FinalizeColumn()
+	categoryCol.FinalizeColumn()
+	amountCol.FinalizeColumn()
+
 	// Print demo output
 	fmt.Println("\nDemo Data:")
 	printDemoData(data)
@@ -209,6 +215,16 @@ func CreateRegionsTable() *tables.DataTable {
 		gdpCol.Append(uint32(region.GDP))
 	}
 
+	// Finalize columns to detect uniqueness and build indexes
+	regionCol.FinalizeColumn()
+	populationCol.FinalizeColumn()
+	areaCol.FinalizeColumn()
+	capitalCol.FinalizeColumn()
+	timezoneCol.FinalizeColumn()
+	currencyCol.FinalizeColumn()
+	languageCol.FinalizeColumn()
+	gdpCol.FinalizeColumn()
+
 	// Print region info
 	fmt.Println("\nRegion Data:")
 	printRegionData(regions)
@@ -314,6 +330,19 @@ func CreateCapitalsTable() *tables.DataTable {
 		museumsCol.Append(uint32(capital.Museums))
 		airportsCol.Append(uint32(capital.Airports))
 	}
+
+	// Finalize columns to detect uniqueness and build indexes
+	capitalCol.FinalizeColumn()
+	regionCol.FinalizeColumn()
+	populationCol.FinalizeColumn()
+	foundedCol.FinalizeColumn()
+	elevationCol.FinalizeColumn()
+	latitudeCol.FinalizeColumn()
+	longitudeCol.FinalizeColumn()
+	mayorCol.FinalizeColumn()
+	universitiesCol.FinalizeColumn()
+	museumsCol.FinalizeColumn()
+	airportsCol.FinalizeColumn()
 
 	// Print capital info
 	fmt.Println("\nCapital City Data:")
@@ -432,6 +461,19 @@ func CreateItemsTable() *tables.DataTable {
 		reviewsCol.Append(uint32(item.Reviews))
 		supplierCol.Append(item.Supplier)
 	}
+
+	// Finalize columns to detect uniqueness and build indexes
+	itemIDCol.FinalizeColumn()
+	itemNameCol.FinalizeColumn()
+	categoryCol.FinalizeColumn()
+	subcategoryCol.FinalizeColumn()
+	brandCol.FinalizeColumn()
+	priceCol.FinalizeColumn()
+	stockCol.FinalizeColumn()
+	weightCol.FinalizeColumn()
+	ratingCol.FinalizeColumn()
+	reviewsCol.FinalizeColumn()
+	supplierCol.FinalizeColumn()
 
 	// Print item info
 	fmt.Println("\nItem Data:")

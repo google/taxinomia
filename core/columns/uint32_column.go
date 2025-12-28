@@ -23,8 +23,10 @@ import "fmt"
 // Uint32Column is optimized for uint32 numeric data.
 // It stores uint32 values directly without key mapping overhead.
 type Uint32Column struct {
-	columnDef *ColumnDef
-	data      []uint32
+	columnDef  *ColumnDef
+	data       []uint32
+	isKey      bool
+	valueIndex map[uint32]int // value -> rowIndex, only populated if isKey is true
 }
 
 // NewUint32Column creates a new uint32 column
@@ -117,4 +119,36 @@ type Uint32ColumnStats struct {
 	Count       int
 	UniqueCount int
 	AvgValue    float64
+}
+
+// IsKey returns whether all values in the column are unique
+func (c *Uint32Column) IsKey() bool {
+	return c.isKey
+}
+
+
+// FinalizeColumn should be called after all data has been added to detect uniqueness
+// and build indexes if the column contains unique values
+func (c *Uint32Column) FinalizeColumn() {
+	// Build a temporary index to check for uniqueness
+	tempIndex := make(map[uint32]int)
+	isUnique := true
+
+	for i, value := range c.data {
+		if _, exists := tempIndex[value]; exists {
+			// Duplicate found
+			isUnique = false
+			break
+		}
+		tempIndex[value] = i
+	}
+
+	c.isKey = isUnique
+
+	// Only keep the index if values are unique and it's an entity type column
+	if isUnique && c.columnDef.EntityType() != "" {
+		c.valueIndex = tempIndex
+	} else {
+		c.valueIndex = nil
+	}
 }
