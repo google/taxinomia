@@ -20,6 +20,7 @@ package views
 
 // TableView defines which columns to display and their order
 type TableView struct {
-	Columns  []string            // Column names in display order
-	Expanded map[string]bool     // Set of expanded paths (e.g., "column1", "column1/table2.column2")
+	Columns     []string            // Column names in display order
+	Expanded    map[string]bool     // Set of expanded paths (e.g., "column1", "column1/table2.column2")
+	JoinedPaths []string            // List of join paths that should be included in the view (e.g., "region/regions.region")
 }

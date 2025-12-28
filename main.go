@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
@@ -124,16 +126,30 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
+		// Parse joined paths from query parameter
+		joinsParam := r.URL.Query().Get("joins")
+		joinedPaths := views.ParseJoinedPaths(joinsParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
-			Columns: columns,
-			Expanded: expandedPaths,
+			Columns:     columns,
+			Expanded:    expandedPaths,
+			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
 		currentURL := r.URL.String()
 		if currentURL == "" {
-			currentURL = "/"
+			currentURL = "/orders"
+		}
+
+		// Ensure default columns are in the URL if not already specified
+		if r.URL.Query().Get("columns") == "" {
+			u, _ := url.Parse(currentURL)
+			q := u.Query()
+			q.Set("columns", strings.Join(columns, ","))
+			u.RawQuery = q.Encode()
+			currentURL = u.String()
 		}
 
 		// Build the view model from the table
@@ -159,16 +175,30 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
+		// Parse joined paths from query parameter
+		joinsParam := r.URL.Query().Get("joins")
+		joinedPaths := views.ParseJoinedPaths(joinsParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
-			Columns: columns,
-			Expanded: expandedPaths,
+			Columns:     columns,
+			Expanded:    expandedPaths,
+			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
 		currentURL := r.URL.String()
 		if currentURL == "" {
 			currentURL = "/regions"
+		}
+
+		// Ensure default columns are in the URL if not already specified
+		if r.URL.Query().Get("columns") == "" {
+			u, _ := url.Parse(currentURL)
+			q := u.Query()
+			q.Set("columns", strings.Join(columns, ","))
+			u.RawQuery = q.Encode()
+			currentURL = u.String()
 		}
 
 		// Build the view model from the table
@@ -194,16 +224,30 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
+		// Parse joined paths from query parameter
+		joinsParam := r.URL.Query().Get("joins")
+		joinedPaths := views.ParseJoinedPaths(joinsParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
-			Columns: columns,
-			Expanded: expandedPaths,
+			Columns:     columns,
+			Expanded:    expandedPaths,
+			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
 		currentURL := r.URL.String()
 		if currentURL == "" {
 			currentURL = "/capitals"
+		}
+
+		// Ensure default columns are in the URL if not already specified
+		if r.URL.Query().Get("columns") == "" {
+			u, _ := url.Parse(currentURL)
+			q := u.Query()
+			q.Set("columns", strings.Join(columns, ","))
+			u.RawQuery = q.Encode()
+			currentURL = u.String()
 		}
 
 		// Build the view model from the table
@@ -229,16 +273,30 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
+		// Parse joined paths from query parameter
+		joinsParam := r.URL.Query().Get("joins")
+		joinedPaths := views.ParseJoinedPaths(joinsParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
-			Columns: columns,
-			Expanded: expandedPaths,
+			Columns:     columns,
+			Expanded:    expandedPaths,
+			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
 		currentURL := r.URL.String()
 		if currentURL == "" {
 			currentURL = "/items"
+		}
+
+		// Ensure default columns are in the URL if not already specified
+		if r.URL.Query().Get("columns") == "" {
+			u, _ := url.Parse(currentURL)
+			q := u.Query()
+			q.Set("columns", strings.Join(columns, ","))
+			u.RawQuery = q.Encode()
+			currentURL = u.String()
 		}
 
 		// Build the view model from the table

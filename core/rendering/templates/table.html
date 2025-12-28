@@ -8,7 +8,7 @@
         <div class="join-target-item{{if .IsBlocked}} join-target-blocked{{end}}">
             <div class="join-target-header">
                 <span class="join-target-text" title="{{if .IsBlocked}}Already visited - cycle prevented{{else}}Join target: {{.TableName}} table{{end}}">
-                    → {{.DisplayName}}{{if .IsBlocked}}<span class="blocked-icon" title="Cycle prevented">⛔</span>{{end}}
+                    {{.DisplayName}}{{if .IsBlocked}}<span class="blocked-icon" title="Cycle prevented">⛔</span>{{end}}
                 </span>
                 {{if not .IsBlocked}}
                 <a href="{{.ToggleURL}}" class="columns-toggle" title="Show/hide available columns">
@@ -21,9 +21,9 @@
                 {{range .AvailableColumns}}
                 <div class="column-summary">
                     <div class="column-summary-header">
-                        <span title="{{if .IsKey}}Key column{{else if .HasEntityType}}Entity column{{else}}Regular column{{end}}">
-                            {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
-                        </span>
+                        <a href="{{.AddColumnURL}}" class="column-link{{if .IsSelected}} selected{{end}}" title="{{if .IsSelected}}Click to remove this column from view{{else}}Click to add this column to view{{end}}">
+                            {{if .IsSelected}}✓{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
+                        </a>
                         {{if .JoinTargets}}
                         <a href="{{.ToggleURL}}" class="join-expand-btn" title="Show/hide join targets">
                             <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
@@ -76,6 +76,8 @@
             transition: transform 0.3s ease-in-out;
             z-index: 1000;
             overflow-y: auto;
+            font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+            font-size: 14px;
         }
 
         .sidebar.collapsed {
@@ -120,14 +122,14 @@
         }
 
         .sidebar-content li {
-            margin-bottom: 8px;
+            margin-bottom: 2px;
         }
 
         .sidebar-content a {
             display: block;
             color: #bdc3c7;
             text-decoration: none;
-            padding: 8px 12px;
+            padding: 4px 12px;
             border-radius: 4px;
             transition: background-color 0.3s, color 0.3s;
         }
@@ -169,7 +171,7 @@
 
         .join-list {
             margin-left: 20px;
-            margin-top: 5px;
+            margin-top: 1px;
             font-size: 0.9em;
             border-left: 2px solid rgba(255, 255, 255, 0.1);
             padding-left: 15px;
@@ -177,7 +179,7 @@
 
         .join-list .join-item {
             color: #95a5a6;
-            padding: 3px 0;
+            padding: 1px 0;
             display: block;
             text-decoration: none;
         }
@@ -199,7 +201,7 @@
 
         .join-target-text {
             color: #95a5a6;
-            padding: 3px 0;
+            padding: 1px 0;
             flex-grow: 1;
             display: inline-block;
         }
@@ -207,7 +209,7 @@
         .join-target-link {
             color: #95a5a6;
             text-decoration: none;
-            padding: 3px 0;
+            padding: 1px 0;
             flex-grow: 1;
         }
 
@@ -238,9 +240,10 @@
             color: #bdc3c7;
         }
 
+
         .columns-list {
             margin-left: 15px;
-            margin-top: 5px;
+            margin-top: 1px;
             font-size: 0.85em;
             border-left: 1px dotted rgba(255, 255, 255, 0.2);
             padding-left: 10px;
@@ -248,8 +251,28 @@
 
         .column-summary {
             color: #7f8c8d;
-            padding: 2px 0;
+            padding: 1px 0;
             display: block;
+        }
+
+        .column-link {
+            color: #7f8c8d;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .column-link:hover {
+            color: #bdc3c7;
+            text-decoration: underline;
+        }
+
+        .column-link.selected {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .column-link.selected:hover {
+            color: #2ecc71;
         }
 
         .column-summary-header {
@@ -274,7 +297,7 @@
 
         .nested-join-targets {
             margin-left: 15px;
-            margin-top: 3px;
+            margin-top: 1px;
             font-size: 0.85em;
             border-left: 1px dotted rgba(255, 255, 255, 0.2);
             padding-left: 10px;
@@ -375,7 +398,7 @@
                     {{range .AllColumns}}
                     <li class="column-item">
                         <div class="column-main">
-                            <a href="{{toggleColumn $.Columns .Name}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}" title="{{if .IsKey}}Unique entity column{{else if .HasEntityType}}Entity column (non-unique){{else}}Regular column{{end}}">
+                            <a href="{{.ToggleColumnURL}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}" title="{{if .IsKey}}Unique entity column{{else if .HasEntityType}}Entity column (non-unique){{else}}Regular column{{end}}">
                                 {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
                             </a>
                             {{if .JoinTargets}}
