@@ -91,33 +91,6 @@ func (c *StringColumn) Unique() []string {
 	return unique
 }
 
-// Stats returns statistics about the column
-func (c *StringColumn) Stats() StringColumnStats {
-	uniqueCount := len(c.Unique())
-
-	// Calculate average string length
-	totalLen := 0
-	for _, s := range c.data {
-		totalLen += len(s)
-	}
-	avgLen := 0.0
-	if len(c.data) > 0 {
-		avgLen = float64(totalLen) / float64(len(c.data))
-	}
-
-	return StringColumnStats{
-		Count:        len(c.data),
-		UniqueCount:  uniqueCount,
-		AvgStringLen: avgLen,
-	}
-}
-
-// StringColumnStats contains statistics about a StringColumn
-type StringColumnStats struct {
-	Count        int
-	UniqueCount  int
-	AvgStringLen float64
-}
 
 // IsKey returns whether all values in the column are unique
 func (c *StringColumn) IsKey() bool {

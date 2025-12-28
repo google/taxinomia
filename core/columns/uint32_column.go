@@ -93,33 +93,6 @@ func (c *Uint32Column) Unique() []uint32 {
 	return unique
 }
 
-// Stats returns statistics about the column
-func (c *Uint32Column) Stats() Uint32ColumnStats {
-	uniqueCount := len(c.Unique())
-
-	// For uint32, instead of average length, we calculate average value
-	var sum uint64
-	for _, v := range c.data {
-		sum += uint64(v)
-	}
-	avg := 0.0
-	if len(c.data) > 0 {
-		avg = float64(sum) / float64(len(c.data))
-	}
-
-	return Uint32ColumnStats{
-		Count:       len(c.data),
-		UniqueCount: uniqueCount,
-		AvgValue:    avg,
-	}
-}
-
-// Uint32ColumnStats contains statistics about a Uint32Column
-type Uint32ColumnStats struct {
-	Count       int
-	UniqueCount int
-	AvgValue    float64
-}
 
 // IsKey returns whether all values in the column are unique
 func (c *Uint32Column) IsKey() bool {
