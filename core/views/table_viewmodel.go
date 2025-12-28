@@ -19,7 +19,11 @@ limitations under the License.
 package views
 
 import (
+	"fmt"
 	"sort"
+	"strings"
+	"net/url"
+	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/tables"
 )
 
@@ -31,6 +35,7 @@ type TableViewModel struct {
 	Rows          []map[string]string   // Each row is a map of column name to value
 	AllColumns    []ColumnInfo          // All available columns with metadata
 	CurrentQuery  string                // Current query string
+	CurrentURL    string                // Current URL for building toggle links
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -40,16 +45,179 @@ type ColumnInfo struct {
 	IsVisible    bool   // Whether column is currently visible
 	HasEntityType bool   // Whether column defines an entity type
 	IsKey        bool   // Whether column has all unique values
+	JoinTargets  []JoinTarget // Tables/columns this column can join to
+	IsExpanded   bool   // Whether this column's join list is expanded
+	Path         string // Path for URL encoding (e.g., "column1")
+	ToggleURL    string // URL to toggle expansion
+}
+
+// JoinTarget represents a column that can be joined to
+type JoinTarget struct {
+	TableName        string
+	ColumnName       string
+	DisplayName      string // "TableName.ColumnName" for display
+	AvailableColumns []ColumnSummary // Columns available in the joined table
+	IsBlocked        bool   // True if this target is blocked due to cycle prevention
+	IsExpanded       bool   // Whether this join target is expanded
+	Path             string // Path for URL encoding (e.g., "column1/table2.column2")
+	ToggleURL        string // URL to toggle expansion
+}
+
+// ColumnSummary represents a column in a joined table
+type ColumnSummary struct {
+	Name          string
+	DisplayName   string
+	HasEntityType bool
+	IsKey         bool
+	TableName     string       // The table this column belongs to
+	Path          string       // Path for URL encoding
+	JoinTargets   []JoinTarget // Tables/columns this column can join to
+	IsExpanded    bool         // Whether this column's join list is expanded
+	ToggleURL     string       // URL to toggle expansion
+}
+
+// detectCycle checks if a table appears in the path to prevent infinite loops
+func detectCycle(path string, targetTable string) bool {
+	// Split the path and check if the target table already appears
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		// Each part after the first is in format "table.column"
+		if strings.Contains(part, ".") {
+			tableName := strings.Split(part, ".")[0]
+			if tableName == targetTable {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// buildJoinTargetsForColumn builds join targets for a column (one level only)
+func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, expandedPaths map[string]bool, currentURL string) []JoinTarget {
+
+	var joinTargets []JoinTarget
+	columnJoins := dataModel.GetJoinsForColumn(tableName, columnName)
+
+	for _, join := range columnJoins {
+		var target JoinTarget
+		var targetTableName, targetColumnName string
+
+		if join.FromTable == tableName && join.FromColumn == columnName {
+			// This is an outgoing join
+			targetTableName = join.ToTable
+			targetColumnName = join.ToColumn
+		} else if join.ToTable == tableName && join.ToColumn == columnName {
+			// This is an incoming join (reverse)
+			targetTableName = join.FromTable
+			targetColumnName = join.FromColumn
+		} else {
+			continue
+		}
+
+		// Build the path for this target
+		targetPath := fmt.Sprintf("%s/%s.%s", basePath, targetTableName, targetColumnName)
+
+		// Check for cycles
+		isBlocked := detectCycle(basePath, targetTableName)
+
+		target = JoinTarget{
+			TableName:   targetTableName,
+			ColumnName:  targetColumnName,
+			DisplayName: fmt.Sprintf("%s.%s", targetTableName, targetColumnName),
+			IsBlocked:   isBlocked,
+			IsExpanded:  expandedPaths[targetPath] && !isBlocked,
+			Path:        targetPath,
+			ToggleURL:   BuildToggleExpansionURL(currentURL, targetPath),
+		}
+
+		// Always check if the target table has columns (to show expansion toggle)
+		targetTable := dataModel.GetTable(targetTableName)
+		if targetTable != nil && !isBlocked {
+			// Get available columns from the target table only if expanded
+			if target.IsExpanded {
+				var availableColumns []ColumnSummary
+				targetColumnNames := targetTable.GetColumnNames()
+
+			for _, targetColName := range targetColumnNames {
+				targetCol := targetTable.GetColumn(targetColName)
+				if targetCol != nil {
+					entityType := targetCol.ColumnDef().EntityType()
+					colPath := fmt.Sprintf("%s/%s", targetPath, targetColName)
+					isExpanded := expandedPaths[colPath]
+
+					colSummary := ColumnSummary{
+						Name:          targetColName,
+						DisplayName:   targetCol.ColumnDef().DisplayName(),
+						HasEntityType: entityType != "",
+						IsKey:         targetCol.IsKey() && entityType != "",
+						TableName:     targetTableName,
+						Path:          colPath,
+						IsExpanded:    isExpanded,
+						ToggleURL:     BuildToggleExpansionURL(currentURL, colPath),
+					}
+
+					// Check if this column can join to other tables
+					if entityType != "" {
+						// Check for joins but avoid building them if they would create cycles
+						columnJoins := dataModel.GetJoinsForColumn(targetTableName, targetColName)
+						hasValidJoins := false
+
+						// Check if any joins would be valid (not creating cycles)
+						for _, join := range columnJoins {
+							var checkTable string
+							if join.FromTable == targetTableName && join.FromColumn == targetColName {
+								checkTable = join.ToTable
+							} else if join.ToTable == targetTableName && join.ToColumn == targetColName {
+								checkTable = join.FromTable
+							}
+
+							if checkTable != "" && !detectCycle(colPath, checkTable) {
+								hasValidJoins = true
+								break
+							}
+						}
+
+						if hasValidJoins {
+							if isExpanded {
+								// Recursively build join targets for this column
+								colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, expandedPaths, currentURL)
+							} else {
+								// Just mark that joins are available without building them
+								colSummary.JoinTargets = []JoinTarget{} // Empty slice indicates joins exist but not expanded
+							}
+						}
+					}
+
+					availableColumns = append(availableColumns, colSummary)
+				}
+			}
+
+				// Sort available columns alphabetically
+				sort.Slice(availableColumns, func(i, j int) bool {
+					return availableColumns[i].DisplayName < availableColumns[j].DisplayName
+				})
+				target.AvailableColumns = availableColumns
+			} else {
+				// Not expanded, but mark that columns are available
+				target.AvailableColumns = []ColumnSummary{} // Empty slice indicates columns exist but not expanded
+			}
+		}
+
+		joinTargets = append(joinTargets, target)
+	}
+
+	return joinTargets
 }
 
 // BuildViewModel creates a ViewModel from a Table using the specified View
-func BuildViewModel(table *tables.DataTable, view TableView, title string) TableViewModel {
+func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables.DataTable, view TableView, title string, currentURL string) TableViewModel {
 	vm := TableViewModel{
 		Title:      title,
 		Headers:    []string{},
 		Columns:    []string{},
 		Rows:       []map[string]string{},
 		AllColumns: []ColumnInfo{},
+		CurrentURL: currentURL,
 	}
 
 	// Create a map of visible columns for quick lookup
@@ -69,12 +237,30 @@ func BuildViewModel(table *tables.DataTable, view TableView, title string) Table
 			// Use the column's IsKey property
 			isKey := col.IsKey()
 
+			// Find join targets for this column
+			var joinTargets []JoinTarget
+			if hasEntityType {
+				// Build the base path for this column
+				basePath := colName
+				joinTargets = buildJoinTargetsForColumn(dataModel, tableName, colName, basePath, view.Expanded, currentURL)
+			}
+
+			// Check if this column is expanded
+			isExpanded := false
+			if view.Expanded != nil {
+				isExpanded = view.Expanded[colName]
+			}
+
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 				Name:         colName,
 				DisplayName:  col.ColumnDef().DisplayName(),
 				IsVisible:    visibleCols[colName],
 				HasEntityType: hasEntityType,
 				IsKey:        isKey && hasEntityType, // Only mark as key if it's also an entity type
+				JoinTargets:  joinTargets,
+				IsExpanded:   isExpanded,
+				Path:         colName,
+				ToggleURL:    BuildToggleExpansionURL(currentURL, colName),
 			})
 		}
 	}
@@ -116,4 +302,62 @@ func BuildViewModel(table *tables.DataTable, view TableView, title string) Table
 	}
 
 	return vm
+}
+
+// BuildToggleExpansionURL creates a URL that toggles the expansion state of a path
+func BuildToggleExpansionURL(currentURL string, togglePath string) string {
+	// Parse the current URL
+	u, err := url.Parse(currentURL)
+	if err != nil {
+		return currentURL
+	}
+
+	// Get current expanded paths
+	q := u.Query()
+	expandedStr := q.Get("expanded")
+	expandedPaths := make(map[string]bool)
+
+	if expandedStr != "" {
+		for _, path := range strings.Split(expandedStr, ",") {
+			if path != "" {
+				expandedPaths[path] = true
+			}
+		}
+	}
+
+	// Toggle the path
+	if expandedPaths[togglePath] {
+		delete(expandedPaths, togglePath)
+	} else {
+		expandedPaths[togglePath] = true
+	}
+
+	// Build new expanded parameter
+	var paths []string
+	for path := range expandedPaths {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths) // Consistent ordering
+
+	if len(paths) > 0 {
+		q.Set("expanded", strings.Join(paths, ","))
+	} else {
+		q.Del("expanded")
+	}
+
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// ParseExpandedPaths extracts the expanded paths from URL parameters
+func ParseExpandedPaths(expandedParam string) map[string]bool {
+	expandedPaths := make(map[string]bool)
+	if expandedParam != "" {
+		for _, path := range strings.Split(expandedParam, ",") {
+			if path != "" {
+				expandedPaths[path] = true
+			}
+		}
+	}
+	return expandedPaths
 }

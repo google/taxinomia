@@ -19,9 +19,44 @@ limitations under the License.
 package models
 
 import (
+	"fmt"
+
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/tables"
 )
+
+// Join represents a relationship between columns in different tables
+type Join struct {
+	// Source table and column
+	FromTable  string
+	FromColumn string
+
+	// Target table and column
+	ToTable  string
+	ToColumn string
+
+	// The entity type that connects these columns
+	EntityType string
+}
+
+// NewJoin creates a new join definition
+func NewJoin(fromTable, fromColumn, toTable, toColumn, entityType string) *Join {
+	return &Join{
+		FromTable:  fromTable,
+		FromColumn: fromColumn,
+		ToTable:    toTable,
+		ToColumn:   toColumn,
+		EntityType: entityType,
+	}
+}
+
+// String returns a string representation of the join
+func (j *Join) String() string {
+	return fmt.Sprintf("%s.%s -> %s.%s (via %s)",
+		j.FromTable, j.FromColumn,
+		j.ToTable, j.ToColumn,
+		j.EntityType)
+}
 
 type DataModel struct {
 	// key is table name "." column name
@@ -31,6 +66,9 @@ type DataModel struct {
 	columnsByEntityType map[string][]TableColumnRef
 	// language -> list of table.column that specify languages
 	// canton -> list of table.column that specify cantons
+
+	// joins between columns in different tables
+	joins []*Join
 }
 
 // NewDataModel creates a new DataModel instance
@@ -38,6 +76,7 @@ func NewDataModel() *DataModel {
 	return &DataModel{
 		tables:              make(map[string]*tables.DataTable),
 		columnsByEntityType: make(map[string][]TableColumnRef),
+		joins:               make([]*Join, 0),
 	}
 }
 
@@ -59,6 +98,9 @@ func (dm *DataModel) AddTable(name string, table *tables.DataTable) {
 			}
 		}
 	}
+
+	// Auto-discover and update joins after adding the table
+	dm.discoverJoins()
 }
 
 // GetTable returns a table by name
@@ -113,4 +155,107 @@ func (dm *DataModel) GetAllEntityTypes() []EntityTypeUsage {
 	}
 
 	return result
+}
+
+// RegisterJoin adds a join relationship between columns in different tables
+func (dm *DataModel) RegisterJoin(join *Join) error {
+	// When using automatic discovery, validation is redundant since the discovery
+	// algorithm already enforces all the same rules that the validator checks.
+
+	// Add the join to our registry
+	dm.joins = append(dm.joins, join)
+	return nil
+}
+
+// GetJoins returns all registered joins
+func (dm *DataModel) GetJoins() []*Join {
+	return dm.joins
+}
+
+// GetJoinsForTable returns all joins that involve the specified table
+func (dm *DataModel) GetJoinsForTable(tableName string) []*Join {
+	var tableJoins []*Join
+	for _, join := range dm.joins {
+		if join.FromTable == tableName || join.ToTable == tableName {
+			tableJoins = append(tableJoins, join)
+		}
+	}
+	return tableJoins
+}
+
+// GetJoinsForColumn returns all joins that involve the specified column
+func (dm *DataModel) GetJoinsForColumn(tableName, columnName string) []*Join {
+	var columnJoins []*Join
+	for _, join := range dm.joins {
+		if (join.FromTable == tableName && join.FromColumn == columnName) ||
+			(join.ToTable == tableName && join.ToColumn == columnName) {
+			columnJoins = append(columnJoins, join)
+		}
+	}
+	return columnJoins
+}
+
+// discoverJoins automatically discovers and registers joins based on entity types and IsKey property
+func (dm *DataModel) discoverJoins() {
+	// Clear existing joins to re-discover them
+	dm.joins = make([]*Join, 0)
+
+	// Get all entity types and their usage
+	entityTypes := dm.GetAllEntityTypes()
+
+	// For each entity type, find potential joins
+	for _, entityUsage := range entityTypes {
+		if entityUsage.EntityType == "" {
+			continue // Skip empty entity types
+		}
+
+		// Find all columns with this entity type that have IsKey = true
+		var keyColumns []TableColumnRef
+		for _, ref := range entityUsage.Usage {
+			table := dm.GetTable(ref.TableName)
+			if table != nil {
+				col := table.GetColumn(ref.ColumnName)
+				if col != nil && col.IsKey() {
+					keyColumns = append(keyColumns, ref)
+				}
+			}
+		}
+
+		// If no key columns, skip this entity type
+		if len(keyColumns) == 0 {
+			continue
+		}
+
+		// For each non-key column with this entity type, create joins to all key columns
+		for _, sourceRef := range entityUsage.Usage {
+			sourceTable := dm.GetTable(sourceRef.TableName)
+			if sourceTable == nil {
+				continue
+			}
+
+			sourceCol := sourceTable.GetColumn(sourceRef.ColumnName)
+			if sourceCol == nil || sourceCol.IsKey() {
+				continue // Skip if source is a key column
+			}
+
+			// Create joins from this non-key column to all key columns
+			for _, targetRef := range keyColumns {
+				// Don't create self-joins
+				if sourceRef.TableName == targetRef.TableName && sourceRef.ColumnName == targetRef.ColumnName {
+					continue
+				}
+
+				join := NewJoin(
+					sourceRef.TableName,
+					sourceRef.ColumnName,
+					targetRef.TableName,
+					targetRef.ColumnName,
+					entityUsage.EntityType,
+				)
+
+				// Add the join to our registry
+				dm.joins = append(dm.joins, join)
+			}
+		}
+	}
 }

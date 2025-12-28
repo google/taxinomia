@@ -43,7 +43,7 @@ func main() {
 	itemsTable := demo.CreateItemsTable()
 
 	// Register tables in the data model
-	// Note: Entity types are automatically registered when tables are added
+	// Note: Entity types and joins are automatically discovered when tables are added
 	dataModel.AddTable("orders", ordersTable)
 	dataModel.AddTable("regions", regionsTable)
 	dataModel.AddTable("capitals", capitalsTable)
@@ -51,6 +51,9 @@ func main() {
 
 	// Print entity type usage report
 	printEntityTypeUsageReport(dataModel)
+
+	// Print join discovery report
+	printJoinDiscoveryReport(dataModel)
 
 	// Create renderer
 	renderer, err := rendering.NewTableRenderer()
@@ -117,13 +120,24 @@ func main() {
 		defaultColumns := []string{"status", "region", "category", "amount"}
 		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
 
+		// Parse expanded paths from query parameter
+		expandedParam := r.URL.Query().Get("expanded")
+		expandedPaths := views.ParseExpandedPaths(expandedParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns: columns,
+			Expanded: expandedPaths,
+		}
+
+		// Build the current URL
+		currentURL := r.URL.String()
+		if currentURL == "" {
+			currentURL = "/"
 		}
 
 		// Build the view model from the table
-		viewModel := views.BuildViewModel(ordersTable, view, "Orders Table - Taxinomia Demo")
+		viewModel := views.BuildViewModel(dataModel, "orders", ordersTable, view, "Orders Table - Taxinomia Demo", currentURL)
 
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -141,13 +155,24 @@ func main() {
 		defaultColumns := []string{"region", "population", "capital", "timezone", "gdp"}
 		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
 
+		// Parse expanded paths from query parameter
+		expandedParam := r.URL.Query().Get("expanded")
+		expandedPaths := views.ParseExpandedPaths(expandedParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns: columns,
+			Expanded: expandedPaths,
+		}
+
+		// Build the current URL
+		currentURL := r.URL.String()
+		if currentURL == "" {
+			currentURL = "/regions"
 		}
 
 		// Build the view model from the table
-		viewModel := views.BuildViewModel(regionsTable, view, "Regions Table - Taxinomia Demo")
+		viewModel := views.BuildViewModel(dataModel, "regions", regionsTable, view, "Regions Table - Taxinomia Demo", currentURL)
 
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -165,13 +190,24 @@ func main() {
 		defaultColumns := []string{"capital", "region", "population", "founded", "mayor", "universities"}
 		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
 
+		// Parse expanded paths from query parameter
+		expandedParam := r.URL.Query().Get("expanded")
+		expandedPaths := views.ParseExpandedPaths(expandedParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns: columns,
+			Expanded: expandedPaths,
+		}
+
+		// Build the current URL
+		currentURL := r.URL.String()
+		if currentURL == "" {
+			currentURL = "/capitals"
 		}
 
 		// Build the view model from the table
-		viewModel := views.BuildViewModel(capitalsTable, view, "Capitals Table - Taxinomia Demo")
+		viewModel := views.BuildViewModel(dataModel, "capitals", capitalsTable, view, "Capitals Table - Taxinomia Demo", currentURL)
 
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -189,13 +225,24 @@ func main() {
 		defaultColumns := []string{"item_id", "item_name", "category", "subcategory", "price", "stock"}
 		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
 
+		// Parse expanded paths from query parameter
+		expandedParam := r.URL.Query().Get("expanded")
+		expandedPaths := views.ParseExpandedPaths(expandedParam)
+
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns: columns,
+			Expanded: expandedPaths,
+		}
+
+		// Build the current URL
+		currentURL := r.URL.String()
+		if currentURL == "" {
+			currentURL = "/items"
 		}
 
 		// Build the view model from the table
-		viewModel := views.BuildViewModel(itemsTable, view, "Items Table - Taxinomia Demo")
+		viewModel := views.BuildViewModel(dataModel, "items", itemsTable, view, "Items Table - Taxinomia Demo", currentURL)
 
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -294,6 +341,50 @@ func printEntityTypeUsageReport(dm *models.DataModel) {
 
 	if columnsWithoutEntityType > 0 {
 		fmt.Printf("\nNote: %d out of %d columns have no entity type assigned.\n", columnsWithoutEntityType, totalColumns)
+	}
+
+	fmt.Println("\n================================")
+}
+
+// printJoinDiscoveryReport prints information about automatically discovered joins
+func printJoinDiscoveryReport(dm *models.DataModel) {
+	fmt.Println("\n=== Auto-discovered Joins Report ===")
+	fmt.Println("Joins are automatically discovered based on entity types and unique value columns (IsKey).")
+
+	// Get all joins that were automatically discovered
+	allJoins := dm.GetJoins()
+	fmt.Printf("\nTotal auto-discovered joins: %d\n", len(allJoins))
+
+	if len(allJoins) > 0 {
+		// Group joins by entity type for better readability
+		joinsByEntityType := make(map[string][]*models.Join)
+		for _, join := range allJoins {
+			joinsByEntityType[join.EntityType] = append(joinsByEntityType[join.EntityType], join)
+		}
+
+		// Print joins grouped by entity type
+		for entityType, joins := range joinsByEntityType {
+			fmt.Printf("\nEntity Type '%s' joins:\n", entityType)
+			for _, j := range joins {
+				fmt.Printf("  %s\n", j)
+			}
+		}
+
+		// Print joins by table
+		fmt.Println("\nJoins by table:")
+		for tableName := range dm.GetAllTables() {
+			tableJoins := dm.GetJoinsForTable(tableName)
+			if len(tableJoins) > 0 {
+				fmt.Printf("\nTable '%s':\n", tableName)
+				for _, j := range tableJoins {
+					if j.FromTable == tableName {
+						fmt.Printf("  -> %s.%s (outgoing)\n", j.ToTable, j.ToColumn)
+					} else {
+						fmt.Printf("  <- %s.%s (incoming)\n", j.FromTable, j.FromColumn)
+					}
+				}
+			}
+		}
 	}
 
 	fmt.Println("\n================================")

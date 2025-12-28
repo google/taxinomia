@@ -4,6 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
+    {{define "renderJoinTarget"}}
+        <div class="join-target-item{{if .IsBlocked}} join-target-blocked{{end}}">
+            <div class="join-target-header">
+                <span class="join-target-text" title="{{if .IsBlocked}}Already visited - cycle prevented{{else}}Join target: {{.TableName}} table{{end}}">
+                    → {{.DisplayName}}{{if .IsBlocked}}<span class="blocked-icon" title="Cycle prevented">⛔</span>{{end}}
+                </span>
+                {{if not .IsBlocked}}
+                <a href="{{.ToggleURL}}" class="columns-toggle" title="Show/hide available columns">
+                    <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
+                </a>
+                {{end}}
+            </div>
+            {{if and .AvailableColumns .IsExpanded}}
+            <div class="columns-list">
+                {{range .AvailableColumns}}
+                <div class="column-summary">
+                    <div class="column-summary-header">
+                        <span title="{{if .IsKey}}Key column{{else if .HasEntityType}}Entity column{{else}}Regular column{{end}}">
+                            {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
+                        </span>
+                        {{if .JoinTargets}}
+                        <a href="{{.ToggleURL}}" class="join-expand-btn" title="Show/hide join targets">
+                            <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
+                        </a>
+                        {{end}}
+                    </div>
+                    {{if and .JoinTargets .IsExpanded}}
+                    <div class="nested-join-targets">
+                        {{range .JoinTargets}}
+                            {{template "renderJoinTarget" .}}
+                        {{end}}
+                    </div>
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+    {{end}}
     <style>
         /* Reset and base styles */
         * {
@@ -102,6 +141,145 @@
             color: white;
         }
 
+        /* Column item styling */
+        .column-item {
+            position: relative;
+            margin-bottom: 5px;
+        }
+
+        .column-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .join-toggle {
+            color: #bdc3c7;
+            font-size: 16px;
+            text-decoration: none;
+            padding: 5px;
+            margin-left: 10px;
+            transition: color 0.3s;
+            display: inline-block;
+        }
+
+        .join-toggle:hover {
+            color: white;
+        }
+
+        .join-list {
+            margin-left: 20px;
+            margin-top: 5px;
+            font-size: 0.9em;
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+            padding-left: 15px;
+        }
+
+        .join-list .join-item {
+            color: #95a5a6;
+            padding: 3px 0;
+            display: block;
+            text-decoration: none;
+        }
+
+        .join-list .join-item:hover {
+            color: white;
+        }
+
+        /* Nested join target styling */
+        .join-target-item {
+            position: relative;
+        }
+
+        .join-target-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .join-target-text {
+            color: #95a5a6;
+            padding: 3px 0;
+            flex-grow: 1;
+            display: inline-block;
+        }
+
+        .join-target-link {
+            color: #95a5a6;
+            text-decoration: none;
+            padding: 3px 0;
+            flex-grow: 1;
+        }
+
+        .join-target-link:hover {
+            color: white;
+        }
+
+        .join-target-blocked {
+            opacity: 0.6;
+        }
+
+        .blocked-icon {
+            color: #e74c3c;
+            margin-left: 5px;
+        }
+
+        .columns-toggle {
+            color: #7f8c8d;
+            font-size: 14px;
+            text-decoration: none;
+            padding: 2px 5px;
+            margin-left: 5px;
+            transition: color 0.3s;
+            display: inline-block;
+        }
+
+        .columns-toggle:hover {
+            color: #bdc3c7;
+        }
+
+        .columns-list {
+            margin-left: 15px;
+            margin-top: 5px;
+            font-size: 0.85em;
+            border-left: 1px dotted rgba(255, 255, 255, 0.2);
+            padding-left: 10px;
+        }
+
+        .column-summary {
+            color: #7f8c8d;
+            padding: 2px 0;
+            display: block;
+        }
+
+        .column-summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .join-expand-btn {
+            color: #7f8c8d;
+            font-size: 12px;
+            text-decoration: none;
+            padding: 2px 4px;
+            margin-left: 5px;
+            transition: color 0.3s;
+            display: inline-block;
+        }
+
+        .join-expand-btn:hover {
+            color: #bdc3c7;
+        }
+
+        .nested-join-targets {
+            margin-left: 15px;
+            margin-top: 3px;
+            font-size: 0.85em;
+            border-left: 1px dotted rgba(255, 255, 255, 0.2);
+            padding-left: 10px;
+        }
+
 
         /* Main content styles */
         .main-content {
@@ -180,6 +358,7 @@
             openBtn.classList.toggle('visible');
         }
 
+
     </script>
 </head>
 <body>
@@ -194,10 +373,24 @@
             <div class="sidebar-content">
                 <ul>
                     {{range .AllColumns}}
-                    <li>
-                        <a href="{{toggleColumn $.Columns .Name}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}" title="{{if .IsKey}}Unique entity column{{else if .HasEntityType}}Entity column (non-unique){{else}}Regular column{{end}}">
-                            {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
-                        </a>
+                    <li class="column-item">
+                        <div class="column-main">
+                            <a href="{{toggleColumn $.Columns .Name}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}" title="{{if .IsKey}}Unique entity column{{else if .HasEntityType}}Entity column (non-unique){{else}}Regular column{{end}}">
+                                {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
+                            </a>
+                            {{if .JoinTargets}}
+                            <a href="{{.ToggleURL}}" class="join-toggle" title="Show/hide join targets">
+                                <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
+                            </a>
+                            {{end}}
+                        </div>
+                        {{if and .JoinTargets .IsExpanded}}
+                        <div class="join-list">
+                            {{range .JoinTargets}}
+                                {{template "renderJoinTarget" .}}
+                            {{end}}
+                        </div>
+                        {{end}}
                     </li>
                     {{end}}
                 </ul>
@@ -230,5 +423,6 @@
     </table>
         </main>
     </div>
+
 </body>
 </html>
