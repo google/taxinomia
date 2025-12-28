@@ -19,6 +19,7 @@ limitations under the License.
 package views
 
 import (
+	"sort"
 	"github.com/google/taxinomia/core/tables"
 )
 
@@ -55,33 +56,23 @@ func BuildViewModel(table *tables.DataTable, view TableView, title string) Table
 		visibleCols[colName] = true
 	}
 
-	// Build all columns info - order matters for drag and drop
-	// First add visible columns in their specified order
-	for _, colName := range view.Columns {
+	// Build all columns info
+	allColumnNames := table.GetColumnNames()
+	for _, colName := range allColumnNames {
 		col := table.GetColumn(colName)
 		if col != nil {
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 				Name:        colName,
 				DisplayName: col.ColumnDef().DisplayName(),
-				IsVisible:   true,
+				IsVisible:   visibleCols[colName],
 			})
 		}
 	}
 
-	// Then add non-visible columns
-	allColumnNames := table.GetColumnNames()
-	for _, colName := range allColumnNames {
-		if !visibleCols[colName] {
-			col := table.GetColumn(colName)
-			if col != nil {
-				vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-					Name:        colName,
-					DisplayName: col.ColumnDef().DisplayName(),
-					IsVisible:   false,
-				})
-			}
-		}
-	}
+	// Sort all columns alphabetically by DisplayName
+	sort.Slice(vm.AllColumns, func(i, j int) bool {
+		return vm.AllColumns[i].DisplayName < vm.AllColumns[j].DisplayName
+	})
 
 	// Build headers and columns from view
 	for _, colName := range view.Columns {
