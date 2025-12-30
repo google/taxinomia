@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/models"
+	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/tables"
 )
 
@@ -98,7 +99,7 @@ func detectCycle(path string, targetTable string) bool {
 }
 
 // buildJoinTargetsForColumn builds join targets for a column (one level only)
-func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, expandedPaths map[string]bool, currentURL string) []JoinTarget {
+func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, expandedPaths map[string]bool, q *query.Query) []JoinTarget {
 
 	var joinTargets []JoinTarget
 	allJoins := dataModel.GetJoins()
@@ -152,7 +153,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 			IsBlocked:   isBlocked,
 			IsExpanded:  expandedPaths[targetPath] && !isBlocked,
 			Path:        targetPath,
-			ToggleURL:   BuildToggleExpansionURL(currentURL, targetPath),
+			ToggleURL:   BuildToggleExpansionURL(q, targetPath),
 		}
 
 		// Always check if the target table has columns (to show expansion toggle)
@@ -172,21 +173,14 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 
 						// Build column name using new format: fromColumn.toTable.toColumn.selectedColumn
 						columnFullName := fmt.Sprintf("%s.%s.%s.%s", fromColumnName, targetTableName, targetColumnName, targetColName)
-						addColumnURL := BuildAddColumnURL(currentURL, columnFullName)
+						addColumnURL := BuildAddColumnURL(q, columnFullName)
 
 						// Check if this column is already selected
 						isSelected := false
-						u, err := url.Parse(currentURL)
-						if err == nil {
-							q := u.Query()
-							columnsStr := q.Get("columns")
-							if columnsStr != "" {
-								for _, col := range strings.Split(columnsStr, ",") {
-									if col == columnFullName {
-										isSelected = true
-										break
-									}
-								}
+						for _, col := range q.Columns {
+							if col == columnFullName {
+								isSelected = true
+								break
 							}
 						}
 
@@ -198,7 +192,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 							TableName:     targetTableName,
 							Path:          colPath,
 							IsExpanded:    isExpanded,
-							ToggleURL:     BuildToggleExpansionURL(currentURL, colPath),
+							ToggleURL:     BuildToggleExpansionURL(q, colPath),
 							AddColumnURL:  addColumnURL,
 							IsSelected:    isSelected,
 						}
@@ -237,7 +231,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 							if hasValidJoins {
 								if isExpanded {
 									// Recursively build join targets for this column
-									colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, expandedPaths, currentURL)
+									colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, expandedPaths, q)
 								} else {
 									// Just mark that joins are available without building them
 									colSummary.JoinTargets = []JoinTarget{} // Empty slice indicates joins exist but not expanded
@@ -267,7 +261,10 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 }
 
 // BuildViewModel creates a ViewModel from a Table using the specified View
-func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables.DataTable, view TableView, title string, currentURL string) TableViewModel {
+func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables.DataTable, view TableView, title string, q *query.Query) TableViewModel {
+	// Generate currentURL from Query
+	currentURL := q.ToURL()
+
 	vm := TableViewModel{
 		Title:      title,
 		Headers:    []string{},
@@ -304,7 +301,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 			if hasEntityType {
 				// Build the base path for this column
 				basePath := colName
-				joinTargets = buildJoinTargetsForColumn(dataModel, tableName, colName, basePath, view.Expanded, currentURL)
+				joinTargets = buildJoinTargetsForColumn(dataModel, tableName, colName, basePath, view.Expanded, q)
 			}
 
 			// Check if this column is expanded
@@ -322,8 +319,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 				JoinTargets:     joinTargets,
 				IsExpanded:      isExpanded,
 				Path:            colName,
-				ToggleURL:       BuildToggleExpansionURL(currentURL, colName),
-				ToggleColumnURL: BuildToggleColumnURL(currentURL, view.Columns, colName),
+				ToggleURL:       BuildToggleExpansionURL(q, colName),
+				ToggleColumnURL: BuildToggleColumnURL(q, colName),
 			})
 		}
 	}
@@ -357,8 +354,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 						JoinTargets:     nil,
 						IsExpanded:      false,
 						Path:            colName,
-						ToggleURL:       BuildToggleExpansionURL(currentURL, colName),
-						ToggleColumnURL: BuildToggleColumnURL(currentURL, view.Columns, colName),
+						ToggleURL:       BuildToggleExpansionURL(q, colName),
+						ToggleColumnURL: BuildToggleColumnURL(q, colName),
 					})
 				}
 			}
@@ -435,48 +432,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 }
 
 // BuildToggleExpansionURL creates a URL that toggles the expansion state of a path
-func BuildToggleExpansionURL(currentURL string, togglePath string) string {
-	// Parse the current URL
-	u, err := url.Parse(currentURL)
-	if err != nil {
-		return currentURL
-	}
-
-	// Get current expanded paths
-	q := u.Query()
-	expandedStr := q.Get("expanded")
-	expandedPaths := make(map[string]bool)
-
-	if expandedStr != "" {
-		for _, path := range strings.Split(expandedStr, ",") {
-			if path != "" {
-				expandedPaths[path] = true
-			}
-		}
-	}
-
-	// Toggle the path
-	if expandedPaths[togglePath] {
-		delete(expandedPaths, togglePath)
-	} else {
-		expandedPaths[togglePath] = true
-	}
-
-	// Build new expanded parameter
-	var paths []string
-	for path := range expandedPaths {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths) // Consistent ordering
-
-	if len(paths) > 0 {
-		q.Set("expanded", strings.Join(paths, ","))
-	} else {
-		q.Del("expanded")
-	}
-
-	u.RawQuery = q.Encode()
-	return u.String()
+func BuildToggleExpansionURL(q *query.Query, togglePath string) string {
+	return q.WithExpandedToggled(togglePath)
 }
 
 // ParseExpandedPaths extracts the expanded paths from URL parameters
@@ -596,60 +553,8 @@ func ProcessJoinsAndUpdateColumns(tableName string, table *tables.DataTable, vie
 }
 
 // BuildAddColumnURL creates a URL that toggles a column
-func BuildAddColumnURL(currentURL string, columnName string) string {
-	// Parse the current URL
-	u, err := url.Parse(currentURL)
-	if err != nil {
-		return currentURL
-	}
-
-	q := u.Query()
-
-	// Get current columns
-	columnsStr := q.Get("columns")
-	columns := make(map[string]bool)
-	var columnOrder []string
-
-	if columnsStr != "" {
-		for _, col := range strings.Split(columnsStr, ",") {
-			if col != "" {
-				columns[col] = true
-				columnOrder = append(columnOrder, col)
-			}
-		}
-	}
-
-	// Toggle the column
-	if columns[columnName] {
-		// Remove the column
-		delete(columns, columnName)
-		// Remove from order
-		var newOrder []string
-		for _, col := range columnOrder {
-			if col != columnName {
-				newOrder = append(newOrder, col)
-			}
-		}
-		columnOrder = newOrder
-	} else {
-		// Add the column
-		columns[columnName] = true
-		columnOrder = append(columnOrder, columnName)
-	}
-
-	// Update columns parameter
-	if len(columnOrder) > 0 {
-		q.Set("columns", strings.Join(columnOrder, ","))
-	} else {
-		q.Del("columns")
-	}
-
-	// IMPORTANT: Preserve the expanded parameter to maintain UI state
-	// The expanded parameter controls which join targets are expanded in the sidebar
-	// and should not be affected by adding/removing columns
-
-	u.RawQuery = q.Encode()
-	return u.String()
+func BuildAddColumnURL(q *query.Query, columnName string) string {
+	return q.WithColumnToggled(columnName)
 }
 
 // BuildAddColumnAndJoinURL creates a URL that toggles a column and manages its join
@@ -813,45 +718,6 @@ func BuildToggleJoinedURL(currentURL string, joinPath string) string {
 }
 
 // BuildToggleColumnURL creates a URL that toggles the visibility of a column while preserving all other query parameters
-func BuildToggleColumnURL(currentURL string, currentColumns []string, toggleColumn string) string {
-	// Parse the current URL
-	u, err := url.Parse(currentURL)
-	if err != nil {
-		// If parsing fails, fall back to simple behavior
-		return "?columns=" + toggleColumn
-	}
-
-	// Get all query parameters
-	q := u.Query()
-
-	// Create a new column list with the toggled column
-	newCols := []string{}
-	found := false
-
-	// Check if column exists in current list
-	for _, col := range currentColumns {
-		if col == toggleColumn {
-			found = true
-		} else {
-			newCols = append(newCols, col)
-		}
-	}
-
-	// If not found, add it
-	if !found {
-		newCols = append(newCols, toggleColumn)
-	}
-
-	// Update the columns parameter
-	if len(newCols) > 0 {
-		q.Set("columns", strings.Join(newCols, ","))
-	} else {
-		q.Del("columns")
-	}
-
-	// IMPORTANT: All other parameters (expanded, joins, etc.) are preserved
-	// because we're using q := u.Query() which gets all existing parameters
-
-	u.RawQuery = q.Encode()
-	return u.String()
+func BuildToggleColumnURL(q *query.Query, toggleColumn string) string {
+	return q.WithColumnToggled(toggleColumn)
 }

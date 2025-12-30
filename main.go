@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/google/taxinomia/core/models"
@@ -65,17 +64,19 @@ func main() {
 
 	// Generic table handler
 	http.HandleFunc("/table", func(w http.ResponseWriter, r *http.Request) {
-		// Get table name from query parameter
-		tableName := r.URL.Query().Get("table")
-		if tableName == "" {
+		// Parse URL into Query
+		q := query.NewQuery(r.URL)
+
+		// Validate table parameter
+		if q.Table == "" {
 			http.Error(w, "Table parameter is required", http.StatusBadRequest)
 			return
 		}
 
 		// Get the table from data model
-		table := dataModel.GetTable(tableName)
+		table := dataModel.GetTable(q.Table)
 		if table == nil {
-			http.Error(w, fmt.Sprintf("Table '%s' not found", tableName), http.StatusNotFound)
+			http.Error(w, fmt.Sprintf("Table '%s' not found", q.Table), http.StatusNotFound)
 			return
 		}
 
@@ -88,7 +89,7 @@ func main() {
 		}
 
 		// Get default columns for this table, or use first few columns if not defined
-		defaultColumns, ok := defaultColumnsByTable[tableName]
+		defaultColumns, ok := defaultColumnsByTable[q.Table]
 		if !ok {
 			// Use first 4 columns as default
 			allCols := table.GetColumnNames()
@@ -99,40 +100,29 @@ func main() {
 			}
 		}
 
-		// Parse columns from query parameter
-		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
+		// Use default columns if none specified
+		if len(q.Columns) == 0 {
+			q.Columns = defaultColumns
+		}
 
-		// Parse expanded paths from query parameter
-		expandedParam := r.URL.Query().Get("expanded")
-		expandedPaths := views.ParseExpandedPaths(expandedParam)
+		// Convert expanded paths to map for compatibility
+		expandedPaths := make(map[string]bool)
+		for _, path := range q.Expanded {
+			expandedPaths[path] = true
+		}
 
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
-			Columns:  columns,
+			Columns:  q.Columns,
 			Expanded: expandedPaths,
 		}
 
-		// Build the current URL
-		currentURL := r.URL.String()
-		if currentURL == "" {
-			currentURL = fmt.Sprintf("/table?table=%s", tableName)
-		}
-
-		// Ensure default columns are in the URL if not already specified
-		if r.URL.Query().Get("columns") == "" {
-			u, _ := url.Parse(currentURL)
-			q := u.Query()
-			q.Set("columns", strings.Join(columns, ","))
-			u.RawQuery = q.Encode()
-			currentURL = u.String()
-		}
-
 		// Process joins and update columns before building the view model
-		views.ProcessJoinsAndUpdateColumns(tableName, table, &view, dataModel)
+		views.ProcessJoinsAndUpdateColumns(q.Table, table, &view, dataModel)
 
 		// Build the view model from the table
-		title := fmt.Sprintf("%s Table - Taxinomia Demo", strings.Title(tableName))
-		viewModel := views.BuildViewModel(dataModel, tableName, table, view, title, currentURL)
+		title := fmt.Sprintf("%s Table - Taxinomia Demo", strings.Title(q.Table))
+		viewModel := views.BuildViewModel(dataModel, q.Table, table, view, title, q)
 
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

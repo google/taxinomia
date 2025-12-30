@@ -24,7 +24,6 @@ import (
 	"io"
 
 	"github.com/google/safehtml/template"
-	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/views"
 )
 
@@ -41,13 +40,8 @@ type TableRenderer struct {
 func NewTableRenderer() (*TableRenderer, error) {
 	trustedFS := template.TrustedFSFromEmbed(templateFS)
 
-	// Define custom functions for the template
-	funcMap := template.FuncMap{
-		"toggleColumn": query.ToggleColumnURL,
-	}
-
-	// Parse the table template with custom functions
-	tableTemplate, err := template.New("table.html").Funcs(funcMap).ParseFS(trustedFS, "templates/table.html")
+	// Parse the table template
+	tableTemplate, err := template.New("table.html").ParseFS(trustedFS, "templates/table.html")
 	if err != nil {
 		return nil, err
 	}
