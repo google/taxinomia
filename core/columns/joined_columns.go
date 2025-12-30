@@ -62,14 +62,12 @@ func (c *JoinedStringColumn) IsKey() bool {
 	return c.sourceColumn.IsKey()
 }
 
-// JoinedUint32Column represents a column that gets its data by joining to a uint32 column in another table
 type JoinedUint32Column struct {
 	columnDef    *ColumnDef
 	sourceColumn IDataColumnT[uint32]
 	joiner       IJoiner
 }
 
-// NewJoinedUint32Column creates a new joined column for uint32 data
 func NewJoinedUint32Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn IDataColumnT[uint32]) *JoinedUint32Column {
 	return &JoinedUint32Column{
 		columnDef:    columnDef,
@@ -79,7 +77,6 @@ func NewJoinedUint32Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn ID
 }
 
 func (c *JoinedUint32Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
-	// the joiner is based on the columns on which the join is based
 	return nil
 }
 

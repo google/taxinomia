@@ -63,6 +63,87 @@ func main() {
 		log.Fatalf("Failed to create renderer: %v", err)
 	}
 
+	// Generic table handler
+	http.HandleFunc("/table", func(w http.ResponseWriter, r *http.Request) {
+		// Get table name from query parameter
+		tableName := r.URL.Query().Get("table")
+		if tableName == "" {
+			http.Error(w, "Table parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		// Get the table from data model
+		table := dataModel.GetTable(tableName)
+		if table == nil {
+			http.Error(w, fmt.Sprintf("Table '%s' not found", tableName), http.StatusNotFound)
+			return
+		}
+
+		// Define default columns for each table
+		defaultColumnsByTable := map[string][]string{
+			"orders":   {"status", "region", "category", "amount"},
+			"regions":  {"region", "population", "capital", "timezone", "gdp"},
+			"capitals": {"capital", "region", "population", "founded", "mayor", "universities"},
+			"items":    {"item_id", "item_name", "category", "subcategory", "price", "stock"},
+		}
+
+		// Get default columns for this table, or use first few columns if not defined
+		defaultColumns, ok := defaultColumnsByTable[tableName]
+		if !ok {
+			// Use first 4 columns as default
+			allCols := table.GetColumnNames()
+			if len(allCols) > 4 {
+				defaultColumns = allCols[:4]
+			} else {
+				defaultColumns = allCols
+			}
+		}
+
+		// Parse columns from query parameter
+		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
+
+		// Parse expanded paths from query parameter
+		expandedParam := r.URL.Query().Get("expanded")
+		expandedPaths := views.ParseExpandedPaths(expandedParam)
+
+		// Define the view - which columns to display and in what order
+		view := views.TableView{
+			Columns:  columns,
+			Expanded: expandedPaths,
+		}
+
+		// Build the current URL
+		currentURL := r.URL.String()
+		if currentURL == "" {
+			currentURL = fmt.Sprintf("/table?table=%s", tableName)
+		}
+
+		// Ensure default columns are in the URL if not already specified
+		if r.URL.Query().Get("columns") == "" {
+			u, _ := url.Parse(currentURL)
+			q := u.Query()
+			q.Set("columns", strings.Join(columns, ","))
+			u.RawQuery = q.Encode()
+			currentURL = u.String()
+		}
+
+		// Process joins and update columns before building the view model
+		views.ProcessJoinsAndUpdateColumns(tableName, table, &view, dataModel)
+
+		// Build the view model from the table
+		title := fmt.Sprintf("%s Table - Taxinomia Demo", strings.Title(tableName))
+		viewModel := views.BuildViewModel(dataModel, tableName, table, view, title, currentURL)
+
+		// Render using the renderer
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := renderer.Render(w, viewModel); err != nil {
+			// Log the error instead of trying to write an error response
+			// since the renderer may have already written to the response
+			log.Printf("Template rendering error: %v", err)
+			return
+		}
+	})
+
 	// Landing page with links to tables
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		landingVM := views.LandingViewModel{
@@ -72,7 +153,7 @@ func main() {
 				{
 					Name:           "Orders Table",
 					Description:    "Track orders with status, region, category, and amount data. Perfect for analyzing sales patterns and order fulfillment.",
-					URL:            "/orders",
+					URL:            "/table?table=orders",
 					RecordCount:    30,
 					ColumnCount:    4,
 					DefaultColumns: "4 columns",
@@ -81,7 +162,7 @@ func main() {
 				{
 					Name:           "Regions Table",
 					Description:    "Geographic and economic information about different regions including population, area, capital cities, and GDP.",
-					URL:            "/regions",
+					URL:            "/table?table=regions",
 					RecordCount:    4,
 					ColumnCount:    8,
 					DefaultColumns: "5 columns",
@@ -90,7 +171,7 @@ func main() {
 				{
 					Name:           "Capitals Table",
 					Description:    "Detailed information about capital cities including population, founding year, elevation, and civic infrastructure.",
-					URL:            "/capitals",
+					URL:            "/table?table=capitals",
 					RecordCount:    4,
 					ColumnCount:    11,
 					DefaultColumns: "6 columns",
@@ -99,7 +180,7 @@ func main() {
 				{
 					Name:           "Items Table",
 					Description:    "Product catalog with category hierarchy, pricing, inventory levels, and supplier information.",
-					URL:            "/items",
+					URL:            "/table?table=items",
 					RecordCount:    15,
 					ColumnCount:    11,
 					DefaultColumns: "6 columns",
@@ -112,194 +193,6 @@ func main() {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := renderer.RenderLanding(w, landingVM); err != nil {
 			log.Printf("Landing page rendering error: %v", err)
-			return
-		}
-	})
-
-	// Orders table handler
-	http.HandleFunc("/orders", func(w http.ResponseWriter, r *http.Request) {
-		// Parse columns from query parameter
-		defaultColumns := []string{"status", "region", "category", "amount"}
-		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
-
-		// Parse expanded paths from query parameter
-		expandedParam := r.URL.Query().Get("expanded")
-		expandedPaths := views.ParseExpandedPaths(expandedParam)
-
-		// Define the view - which columns to display and in what order
-		view := views.TableView{
-			Columns:     columns,
-			Expanded:    expandedPaths,
-		}
-
-		// Build the current URL
-		currentURL := r.URL.String()
-		if currentURL == "" {
-			currentURL = "/orders"
-		}
-
-		// Ensure default columns are in the URL if not already specified
-		if r.URL.Query().Get("columns") == "" {
-			u, _ := url.Parse(currentURL)
-			q := u.Query()
-			q.Set("columns", strings.Join(columns, ","))
-			u.RawQuery = q.Encode()
-			currentURL = u.String()
-		}
-
-		// Process joins and update columns before building the view model
-		views.ProcessJoinsAndUpdateColumns("orders", ordersTable, &view, dataModel)
-
-		// Build the view model from the table
-		viewModel := views.BuildViewModel(dataModel, "orders", ordersTable, view, "Orders Table - Taxinomia Demo", currentURL)
-
-		// Render using the renderer
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := renderer.Render(w, viewModel); err != nil {
-			// Log the error instead of trying to write an error response
-			// since the renderer may have already written to the response
-			log.Printf("Template rendering error: %v", err)
-			return
-		}
-	})
-
-	// Regions table handler
-	http.HandleFunc("/regions", func(w http.ResponseWriter, r *http.Request) {
-		// Parse columns from query parameter
-		defaultColumns := []string{"region", "population", "capital", "timezone", "gdp"}
-		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
-
-		// Parse expanded paths from query parameter
-		expandedParam := r.URL.Query().Get("expanded")
-		expandedPaths := views.ParseExpandedPaths(expandedParam)
-
-		// Define the view - which columns to display and in what order
-		view := views.TableView{
-			Columns:     columns,
-			Expanded:    expandedPaths,
-		}
-
-		// Build the current URL
-		currentURL := r.URL.String()
-		if currentURL == "" {
-			currentURL = "/regions"
-		}
-
-		// Ensure default columns are in the URL if not already specified
-		if r.URL.Query().Get("columns") == "" {
-			u, _ := url.Parse(currentURL)
-			q := u.Query()
-			q.Set("columns", strings.Join(columns, ","))
-			u.RawQuery = q.Encode()
-			currentURL = u.String()
-		}
-
-		// Process joins and update columns before building the view model
-		views.ProcessJoinsAndUpdateColumns("regions", regionsTable, &view, dataModel)
-
-		// Build the view model from the table
-		viewModel := views.BuildViewModel(dataModel, "regions", regionsTable, view, "Regions Table - Taxinomia Demo", currentURL)
-
-		// Render using the renderer
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := renderer.Render(w, viewModel); err != nil {
-			// Log the error instead of trying to write an error response
-			// since the renderer may have already written to the response
-			log.Printf("Template rendering error: %v", err)
-			return
-		}
-	})
-
-	// Capitals table handler
-	http.HandleFunc("/capitals", func(w http.ResponseWriter, r *http.Request) {
-		// Parse columns from query parameter
-		defaultColumns := []string{"capital", "region", "population", "founded", "mayor", "universities"}
-		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
-
-		// Parse expanded paths from query parameter
-		expandedParam := r.URL.Query().Get("expanded")
-		expandedPaths := views.ParseExpandedPaths(expandedParam)
-
-		// Define the view - which columns to display and in what order
-		view := views.TableView{
-			Columns:     columns,
-			Expanded:    expandedPaths,
-		}
-
-		// Build the current URL
-		currentURL := r.URL.String()
-		if currentURL == "" {
-			currentURL = "/capitals"
-		}
-
-		// Ensure default columns are in the URL if not already specified
-		if r.URL.Query().Get("columns") == "" {
-			u, _ := url.Parse(currentURL)
-			q := u.Query()
-			q.Set("columns", strings.Join(columns, ","))
-			u.RawQuery = q.Encode()
-			currentURL = u.String()
-		}
-
-		// Process joins and update columns before building the view model
-		views.ProcessJoinsAndUpdateColumns("capitals", capitalsTable, &view, dataModel)
-
-		// Build the view model from the table
-		viewModel := views.BuildViewModel(dataModel, "capitals", capitalsTable, view, "Capitals Table - Taxinomia Demo", currentURL)
-
-		// Render using the renderer
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := renderer.Render(w, viewModel); err != nil {
-			// Log the error instead of trying to write an error response
-			// since the renderer may have already written to the response
-			log.Printf("Template rendering error: %v", err)
-			return
-		}
-	})
-
-	// Items table handler
-	http.HandleFunc("/items", func(w http.ResponseWriter, r *http.Request) {
-		// Parse columns from query parameter
-		defaultColumns := []string{"item_id", "item_name", "category", "subcategory", "price", "stock"}
-		columns := query.ParseColumns(r.URL.Query(), defaultColumns)
-
-		// Parse expanded paths from query parameter
-		expandedParam := r.URL.Query().Get("expanded")
-		expandedPaths := views.ParseExpandedPaths(expandedParam)
-
-		// Define the view - which columns to display and in what order
-		view := views.TableView{
-			Columns:     columns,
-			Expanded:    expandedPaths,
-		}
-
-		// Build the current URL
-		currentURL := r.URL.String()
-		if currentURL == "" {
-			currentURL = "/items"
-		}
-
-		// Ensure default columns are in the URL if not already specified
-		if r.URL.Query().Get("columns") == "" {
-			u, _ := url.Parse(currentURL)
-			q := u.Query()
-			q.Set("columns", strings.Join(columns, ","))
-			u.RawQuery = q.Encode()
-			currentURL = u.String()
-		}
-
-		// Process joins and update columns before building the view model
-		views.ProcessJoinsAndUpdateColumns("items", itemsTable, &view, dataModel)
-
-		// Build the view model from the table
-		viewModel := views.BuildViewModel(dataModel, "items", itemsTable, view, "Items Table - Taxinomia Demo", currentURL)
-
-		// Render using the renderer
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := renderer.Render(w, viewModel); err != nil {
-			// Log the error instead of trying to write an error response
-			// since the renderer may have already written to the response
-			log.Printf("Template rendering error: %v", err)
 			return
 		}
 	})
