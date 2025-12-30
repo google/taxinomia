@@ -21,6 +21,8 @@ package query
 import (
 	"net/url"
 	"strings"
+
+	"github.com/google/safehtml"
 )
 
 // Query represents the parsed state of a table view URL
@@ -39,6 +41,9 @@ type Query struct {
 
 // NewQuery creates a Query from a URL
 func NewQuery(u *url.URL) *Query {
+	// The URL is already parsed and safe to use since it comes from http.Request
+	// No additional sanitization needed here as we're just extracting query parameters
+
 	state := &Query{
 		Path:        u.Path,
 		OtherParams: make(map[string][]string),
@@ -102,22 +107,22 @@ func (s *Query) Clone() *Query {
 }
 
 // WithColumn returns a URL with the column added (if not already present)
-func (s *Query) WithColumn(column string) string {
+func (s *Query) WithColumn(column string) safehtml.URL {
 	// Check if already present
 	for _, col := range s.Columns {
 		if col == column {
-			return s.ToURL() // Already present, return current URL
+			return s.ToSafeURL() // Already present, return current URL
 		}
 	}
 
 	// Clone and add
 	newState := s.Clone()
 	newState.Columns = append(newState.Columns, column)
-	return newState.ToURL()
+	return newState.ToSafeURL()
 }
 
 // WithoutColumn returns a URL with the column removed
-func (s *Query) WithoutColumn(column string) string {
+func (s *Query) WithoutColumn(column string) safehtml.URL {
 	// Clone and filter
 	newState := s.Clone()
 	newColumns := make([]string, 0, len(s.Columns))
@@ -127,11 +132,11 @@ func (s *Query) WithoutColumn(column string) string {
 		}
 	}
 	newState.Columns = newColumns
-	return newState.ToURL()
+	return newState.ToSafeURL()
 }
 
 // WithColumnToggled returns a URL with the column toggled (added if not present, removed if present)
-func (s *Query) WithColumnToggled(column string) string {
+func (s *Query) WithColumnToggled(column string) safehtml.URL {
 	// Clone and toggle
 	newState := s.Clone()
 	found := false
@@ -150,26 +155,26 @@ func (s *Query) WithColumnToggled(column string) string {
 		newState.Columns = append(s.Columns, column)
 	}
 
-	return newState.ToURL()
+	return newState.ToSafeURL()
 }
 
 // WithExpanded returns a URL with the expanded path added (if not already present)
-func (s *Query) WithExpanded(path string) string {
+func (s *Query) WithExpanded(path string) safehtml.URL {
 	// Check if already present
 	for _, exp := range s.Expanded {
 		if exp == path {
-			return s.ToURL() // Already present, return current URL
+			return s.ToSafeURL() // Already present, return current URL
 		}
 	}
 
 	// Clone and add
 	newState := s.Clone()
 	newState.Expanded = append(newState.Expanded, path)
-	return newState.ToURL()
+	return newState.ToSafeURL()
 }
 
 // WithoutExpanded returns a URL with the expanded path removed
-func (s *Query) WithoutExpanded(path string) string {
+func (s *Query) WithoutExpanded(path string) safehtml.URL {
 	// Clone and filter
 	newState := s.Clone()
 	newExpanded := make([]string, 0, len(s.Expanded))
@@ -179,11 +184,11 @@ func (s *Query) WithoutExpanded(path string) string {
 		}
 	}
 	newState.Expanded = newExpanded
-	return newState.ToURL()
+	return newState.ToSafeURL()
 }
 
 // WithExpandedToggled returns a URL with the expanded path toggled
-func (s *Query) WithExpandedToggled(path string) string {
+func (s *Query) WithExpandedToggled(path string) safehtml.URL {
 	// Clone and toggle
 	newState := s.Clone()
 	found := false
@@ -202,7 +207,7 @@ func (s *Query) WithExpandedToggled(path string) string {
 		newState.Expanded = append(s.Expanded, path)
 	}
 
-	return newState.ToURL()
+	return newState.ToSafeURL()
 }
 
 // ToURL converts the Query back to a URL string
@@ -237,6 +242,13 @@ func (s *Query) ToURL() string {
 
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+// ToSafeURL converts the Query to a safehtml.URL
+func (s *Query) ToSafeURL() safehtml.URL {
+	urlStr := s.ToURL()
+	// URLSanitized sanitizes the input string and returns a URL
+	return safehtml.URLSanitized(urlStr)
 }
 
 // IsColumnVisible checks if a column is in the visible columns list

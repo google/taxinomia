@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/google/safehtml"
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
@@ -38,7 +39,7 @@ type TableViewModel struct {
 	Rows         []map[string]string // Each row is a map of column name to value
 	AllColumns   []ColumnInfo        // All available columns with metadata
 	CurrentQuery string              // Current query string
-	CurrentURL   string              // Current URL for building toggle links
+	CurrentURL   safehtml.URL        // Current URL for building toggle links
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -51,8 +52,8 @@ type ColumnInfo struct {
 	JoinTargets     []JoinTarget // Tables/columns this column can join to
 	IsExpanded      bool         // Whether this column's join list is expanded
 	Path            string       // Path for URL encoding (e.g., "column1")
-	ToggleURL       string       // URL to toggle expansion
-	ToggleColumnURL string       // URL to toggle column visibility (preserves all query params)
+	ToggleURL       safehtml.URL // URL to toggle expansion
+	ToggleColumnURL safehtml.URL // URL to toggle column visibility (preserves all query params)
 }
 
 // JoinTarget represents a column that can be joined to
@@ -64,7 +65,7 @@ type JoinTarget struct {
 	IsBlocked        bool            // True if this target is blocked due to cycle prevention
 	IsExpanded       bool            // Whether this join target is expanded
 	Path             string          // Path for URL encoding (e.g., "column1/table2.column2")
-	ToggleURL        string          // URL to toggle expansion
+	ToggleURL        safehtml.URL    // URL to toggle expansion
 }
 
 // ColumnSummary represents a column in a joined table
@@ -77,8 +78,8 @@ type ColumnSummary struct {
 	Path          string       // Path for URL encoding
 	JoinTargets   []JoinTarget // Tables/columns this column can join to
 	IsExpanded    bool         // Whether this column's join list is expanded
-	ToggleURL     string       // URL to toggle expansion
-	AddColumnURL  string       // URL to add this column and its join to the view
+	ToggleURL     safehtml.URL // URL to toggle expansion
+	AddColumnURL  safehtml.URL // URL to add this column and its join to the view
 	IsSelected    bool         // Whether this column is already in the current view
 }
 
@@ -263,7 +264,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 // BuildViewModel creates a ViewModel from a Table using the specified View
 func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables.DataTable, view TableView, title string, q *query.Query) TableViewModel {
 	// Generate currentURL from Query
-	currentURL := q.ToURL()
+	currentURL := q.ToSafeURL()
 
 	vm := TableViewModel{
 		Title:      title,
@@ -432,7 +433,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 }
 
 // BuildToggleExpansionURL creates a URL that toggles the expansion state of a path
-func BuildToggleExpansionURL(q *query.Query, togglePath string) string {
+func BuildToggleExpansionURL(q *query.Query, togglePath string) safehtml.URL {
 	return q.WithExpandedToggled(togglePath)
 }
 
@@ -553,7 +554,7 @@ func ProcessJoinsAndUpdateColumns(tableName string, table *tables.DataTable, vie
 }
 
 // BuildAddColumnURL creates a URL that toggles a column
-func BuildAddColumnURL(q *query.Query, columnName string) string {
+func BuildAddColumnURL(q *query.Query, columnName string) safehtml.URL {
 	return q.WithColumnToggled(columnName)
 }
 
@@ -718,6 +719,6 @@ func BuildToggleJoinedURL(currentURL string, joinPath string) string {
 }
 
 // BuildToggleColumnURL creates a URL that toggles the visibility of a column while preserving all other query parameters
-func BuildToggleColumnURL(q *query.Query, toggleColumn string) string {
+func BuildToggleColumnURL(q *query.Query, toggleColumn string) safehtml.URL {
 	return q.WithColumnToggled(toggleColumn)
 }
