@@ -26,29 +26,29 @@ import (
 )
 
 // Join represents a relationship between columns in different tables
-type Join struct {
-	// Source table and column
-	FromTable  string
-	FromColumn string
+// type Join struct {
+// 	// Source table and column
+// 	FromTable  string
+// 	FromColumn string
 
-	// Target table and column
-	ToTable  string
-	ToColumn string
+// 	// Target table and column
+// 	ToTable  string
+// 	ToColumn string
 
-	// The entity type that connects these columns
-	EntityType string
-}
+// 	// The entity type that connects these columns
+// 	EntityType string
+// }
 
-// NewJoin creates a new join definition
-func NewJoin(fromTable, fromColumn, toTable, toColumn, entityType string) *Join {
-	return &Join{
-		FromTable:  fromTable,
-		FromColumn: fromColumn,
-		ToTable:    toTable,
-		ToColumn:   toColumn,
-		EntityType: entityType,
-	}
-}
+// // NewJoin creates a new join definition
+// func NewJoin(fromTable, fromColumn, toTable, toColumn, entityType string) *Join {
+// 	return &Join{
+// 		FromTable:  fromTable,
+// 		FromColumn: fromColumn,
+// 		ToTable:    toTable,
+// 		ToColumn:   toColumn,
+// 		EntityType: entityType,
+// 	}
+// }
 
 // String returns a string representation of the join
 func (j *Join) String() string {
@@ -68,7 +68,8 @@ type DataModel struct {
 	// canton -> list of table.column that specify cantons
 
 	// joins between columns in different tables
-	joins []*Join
+	// key is the join key (e.g., "orders.region->regions.region")
+	joins map[string]*Join
 }
 
 // NewDataModel creates a new DataModel instance
@@ -76,7 +77,7 @@ func NewDataModel() *DataModel {
 	return &DataModel{
 		tables:              make(map[string]*tables.DataTable),
 		columnsByEntityType: make(map[string][]TableColumnRef),
-		joins:               make([]*Join, 0),
+		joins:               make(map[string]*Join),
 	}
 }
 
@@ -163,42 +164,51 @@ func (dm *DataModel) RegisterJoin(join *Join) error {
 	// algorithm already enforces all the same rules that the validator checks.
 
 	// Add the join to our registry
-	dm.joins = append(dm.joins, join)
+	dm.joins[join.Key] = join
 	return nil
 }
 
 // GetJoins returns all registered joins
 func (dm *DataModel) GetJoins() []*Join {
-	return dm.joins
+	joins := make([]*Join, 0, len(dm.joins))
+	for _, join := range dm.joins {
+		joins = append(joins, join)
+	}
+	return joins
+}
+
+// GetJoin returns a specific join by its key
+func (dm *DataModel) GetJoin(key string) *Join {
+	return dm.joins[key]
 }
 
 // GetJoinsForTable returns all joins that involve the specified table
-func (dm *DataModel) GetJoinsForTable(tableName string) []*Join {
-	var tableJoins []*Join
-	for _, join := range dm.joins {
-		if join.FromTable == tableName || join.ToTable == tableName {
-			tableJoins = append(tableJoins, join)
-		}
-	}
-	return tableJoins
-}
+// func (dm *DataModel) GetJoinsForTable(tableName string) []*Join {
+// 	var tableJoins []*Join
+// 	for _, join := range dm.joins {
+// 		if join.FromTable == tableName || join.ToTable == tableName {
+// 			tableJoins = append(tableJoins, join)
+// 		}
+// 	}
+// 	return tableJoins
+// }
 
 // GetJoinsForColumn returns all joins that involve the specified column
-func (dm *DataModel) GetJoinsForColumn(tableName, columnName string) []*Join {
-	var columnJoins []*Join
-	for _, join := range dm.joins {
-		if (join.FromTable == tableName && join.FromColumn == columnName) ||
-			(join.ToTable == tableName && join.ToColumn == columnName) {
-			columnJoins = append(columnJoins, join)
-		}
-	}
-	return columnJoins
-}
+// func (dm *DataModel) GetJoinsForColumn(tableName, columnName string) []*Join {
+// 	var columnJoins []*Join
+// 	for _, join := range dm.joins {
+// 		if (join.FromTable == tableName && join.FromColumn == columnName) ||
+// 			(join.ToTable == tableName && join.ToColumn == columnName) {
+// 			columnJoins = append(columnJoins, join)
+// 		}
+// 	}
+// 	return columnJoins
+// }
 
 // discoverJoins automatically discovers and registers joins based on entity types and IsKey property
 func (dm *DataModel) discoverJoins() {
 	// Clear existing joins to re-discover them
-	dm.joins = make([]*Join, 0)
+	dm.joins = make(map[string]*Join)
 
 	// Get all entity types and their usage
 	entityTypes := dm.GetAllEntityTypes()
@@ -251,11 +261,58 @@ func (dm *DataModel) discoverJoins() {
 					targetRef.TableName,
 					targetRef.ColumnName,
 					entityUsage.EntityType,
+					dm,
 				)
 
 				// Add the join to our registry
-				dm.joins = append(dm.joins, join)
+				dm.joins[join.Key] = join
 			}
 		}
+	}
+}
+
+func (dm *DataModel) createJoiner(fromColumn columns.IDataColumn, toColumn columns.IDataColumn) columns.IJoiner {
+	switch fromColumn.(type) {
+	case *columns.StringColumn:
+		return &columns.Joiner[string]{
+			FromColumn: fromColumn.(*columns.StringColumn),
+			ToColumn:   toColumn.(*columns.StringColumn),
+		}
+	case *columns.Uint32Column:
+		return &columns.Joiner[uint32]{
+			FromColumn: fromColumn.(*columns.Uint32Column),
+			ToColumn:   toColumn.(*columns.Uint32Column),
+		}
+	}
+	return nil
+}
+
+// Join represents a relationship between columns in different tables
+type Join struct {
+	Key string
+	// Source table and column
+	FromTable  *tables.DataTable
+	FromColumn columns.IDataColumn
+
+	// Target table and column
+	ToTable  *tables.DataTable
+	ToColumn columns.IDataColumn
+
+	// The entity type that connects these columns
+	EntityType string
+
+	Joiner columns.IJoiner
+}
+
+// NewJoin creates a new join definition
+func NewJoin(fromTable, fromColumn, toTable, toColumn, entityType string, dm *DataModel) *Join {
+	return &Join{
+		Key:        fmt.Sprintf("%s.%s->%s.%s", fromTable, fromColumn, toTable, toColumn),
+		FromTable:  dm.GetTable(fromTable),
+		FromColumn: dm.GetTable(fromTable).GetColumn(fromColumn),
+		ToTable:    dm.GetTable(toTable),
+		ToColumn:   dm.GetTable(toTable).GetColumn(toColumn),
+		Joiner:     dm.createJoiner(dm.GetTable(fromTable).GetColumn(fromColumn), dm.GetTable(toTable).GetColumn(toColumn)),
+		EntityType: entityType,
 	}
 }

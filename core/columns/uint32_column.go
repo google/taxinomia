@@ -18,11 +18,14 @@ limitations under the License.
 
 package columns
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Uint32Column is optimized for uint32 numeric data.
 // It stores uint32 values directly without key mapping overhead.
 type Uint32Column struct {
+	//IDataColumnT[uint32]
 	columnDef  *ColumnDef
 	data       []uint32
 	isKey      bool
@@ -37,6 +40,11 @@ func NewUint32Column(columnDef *ColumnDef) *Uint32Column {
 	}
 }
 
+func (c *Uint32Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	// the joiner is based on the columns on which the join is based
+	return NewJoinedUint32Column(columnDef, joiner, c)
+}
+
 func (c *Uint32Column) Append(value uint32) {
 	c.data = append(c.data, value)
 }
@@ -49,12 +57,28 @@ func (c *Uint32Column) ColumnDef() *ColumnDef {
 	return c.columnDef
 }
 
+// func (c *Uint32Column) NewJoiner(onColumn IDataColumnT[uint32]) IJoiner {
+// 	return &Joiner[uint32]{
+// 		FromColumn: c,
+// 		ToColumn:   onColumn,
+// 	}
+// }
+
 // GetString returns the string representation of the value at index i
-func (c *Uint32Column) GetString(i int) (string, error) {
-	if i < 0 || i >= len(c.data) {
-		return "", nil
+func (c *Uint32Column) GetString(i uint32) string {
+	return fmt.Sprintf("%d", c.data[i])
+}
+
+func (c *Uint32Column) GetValue(i uint32) uint32 {
+	return c.data[i]
+}
+
+// GetIndex returns the index of the given value, or -1 if not found
+func (c *Uint32Column) GetIndex(v uint32) uint32 {
+	if idx, exists := c.valueIndex[v]; exists {
+		return uint32(idx)
 	}
-	return fmt.Sprintf("%d", c.data[i]), nil
+	return uint32(0xFFFFFFFF) // Indicate not found
 }
 
 // Filter returns indices where the predicate returns true
@@ -68,37 +92,10 @@ func (c *Uint32Column) Filter(predicate func(uint32) bool) []int {
 	return indices
 }
 
-// Contains returns true if the column contains the value
-func (c *Uint32Column) Contains(value uint32) bool {
-	for _, v := range c.data {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
-
-// Unique returns all unique values in the column
-func (c *Uint32Column) Unique() []uint32 {
-	seen := make(map[uint32]bool)
-	unique := make([]uint32, 0)
-
-	for _, v := range c.data {
-		if !seen[v] {
-			seen[v] = true
-			unique = append(unique, v)
-		}
-	}
-
-	return unique
-}
-
-
 // IsKey returns whether all values in the column are unique
 func (c *Uint32Column) IsKey() bool {
 	return c.isKey
 }
-
 
 // FinalizeColumn should be called after all data has been added to detect uniqueness
 // and build indexes if the column contains unique values
@@ -125,3 +122,33 @@ func (c *Uint32Column) FinalizeColumn() {
 		c.valueIndex = nil
 	}
 }
+
+// type Uint32JoinedColumn struct {
+// 	IJoinedColumn[uint32]
+// 	ColumnDef    *ColumnDef
+// 	join         IJoinedDataColumn
+// 	sourceColumn IDataColumn
+// 	joinColumn   IDataColumn
+// }
+
+// func NewUint32JoinedColumn(columnDef *ColumnDef, join *joins.Join, dataModel *models.DataModel) *Uint32JoinedColumn {
+// 	parts := strings.Split(columnDef.name, ".")
+// 	sourceTable := dataModel.GetTable(parts[0])
+// 	sourceColumn := sourceTable.GetColumn(parts[1])
+// 	joinColumn := sourceTable.GetColumn(join.ToColumn)
+// 	return &Uint32JoinedColumn{
+// 		ColumnDef:    columnDef,
+// 		join:         join,
+// 		sourceColumn: sourceColumn,
+// 		joinColumn:   joinColumn,
+// 	}
+// }
+
+// // let's store more data in here...
+// // in table.colum., table is the joined table, column is the column
+// // the joining is made on the join.fromColumn -> join.toColumn
+// // index is in fromTable, this index is used to find the fromCOlumn value, which is then used to lookup the index in the toTable.toColumn, which is then used to load the toTable.column value
+
+// func (c *Uint32JoinedColumn) GetValue(i uint32) (uint32, error) {
+// 	//
+// }

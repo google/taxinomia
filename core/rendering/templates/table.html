@@ -514,7 +514,22 @@
 
                 const valueSpan = document.createElement('span');
                 valueSpan.className = 'param-value';
-                valueSpan.textContent = decodeURIComponent(value);
+
+                // Special formatting for columns parameter
+                if (key === 'columns') {
+                    const columns = decodeURIComponent(value).split(',');
+                    const formattedColumns = columns.map(col => {
+                        // Check if it's a joined column (format: fromColumn.toTable.toColumn.selectedColumn)
+                        if (col.includes('.') && col.split('.').length === 4) {
+                            const parts = col.split('.');
+                            return `${parts[0]} → ${parts[1]}.${parts[3]}`;
+                        }
+                        return col;
+                    });
+                    valueSpan.textContent = formattedColumns.join(', ');
+                } else {
+                    valueSpan.textContent = decodeURIComponent(value);
+                }
 
                 item.appendChild(nameSpan);
                 item.appendChild(valueSpan);

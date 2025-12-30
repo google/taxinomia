@@ -21,6 +21,7 @@ package columns
 // StringColumn is optimized for high-cardinality string data where most values are distinct.
 // It stores strings directly without key mapping overhead.
 type StringColumn struct {
+	//IDataColumnT[string]
 	columnDef  *ColumnDef
 	data       []string
 	isKey      bool
@@ -35,6 +36,11 @@ func NewStringColumn(columnDef *ColumnDef) *StringColumn {
 	}
 }
 
+func (c *StringColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	// the joiner is based on the columns on which the join is based
+	return NewJoinedStringColumn(columnDef, joiner, c)
+}
+
 func (c *StringColumn) Append(value string) {
 	c.data = append(c.data, value)
 }
@@ -47,12 +53,23 @@ func (c *StringColumn) ColumnDef() *ColumnDef {
 	return c.columnDef
 }
 
-// GetString returns the string value at index i
-func (c *StringColumn) GetString(i int) (string, error) {
-	if i < 0 || i >= len(c.data) {
-		return "", nil
+func (c *StringColumn) GetValue(i uint32) string {
+	if i < 0 || i >= uint32(len(c.data)) {
+		return ""
 	}
-	return c.data[i], nil
+	return c.data[i]
+}
+
+func (c *StringColumn) GetIndex(v string) uint32 {
+	if idx, exists := c.valueIndex[v]; exists {
+		return uint32(idx)
+	}
+	return uint32(0xFFFFFFFF) // Indicate not found
+}
+
+// GetString returns the string value at index i
+func (c *StringColumn) GetString(i uint32) string {
+	return c.data[i]
 }
 
 // Filter returns indices where the predicate returns true
@@ -66,39 +83,12 @@ func (c *StringColumn) Filter(predicate func(string) bool) []int {
 	return indices
 }
 
-// Contains returns true if the column contains the value
-func (c *StringColumn) Contains(value string) bool {
-	for _, v := range c.data {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
-
-// Unique returns all unique values in the column
-func (c *StringColumn) Unique() []string {
-	seen := make(map[string]bool)
-	unique := make([]string, 0)
-
-	for _, v := range c.data {
-		if !seen[v] {
-			seen[v] = true
-			unique = append(unique, v)
-		}
-	}
-
-	return unique
-}
-
-
 // IsKey returns whether all values in the column are unique
 func (c *StringColumn) IsKey() bool {
 	return c.isKey
 }
 
-
-// FinalizeColumn should be called after all data has been added to detect uniqueness
+// Finalizeolumn should be called after all data has been added to detect uniqueness
 // and build indexes if the column contains unique values
 func (c *StringColumn) FinalizeColumn() {
 	// Build a temporary index to check for uniqueness
@@ -123,3 +113,16 @@ func (c *StringColumn) FinalizeColumn() {
 		c.valueIndex = nil
 	}
 }
+
+// type StringJoinedColumn struct {
+// 	IJoinedColumn[string]
+// 	ColumnDef *ColumnDef
+// 	join      IJoinedDataColumn
+// }
+
+// func NewStringJoinedColumn(columnDef *ColumnDef, join IJoinedDataColumn) *StringJoinedColumn {
+// 	return &StringJoinedColumn{
+// 		ColumnDef: columnDef,
+// 		join:      join,
+// 	}
+// }

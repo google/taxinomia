@@ -126,15 +126,10 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
-		// Parse joined paths from query parameter
-		joinsParam := r.URL.Query().Get("joins")
-		joinedPaths := views.ParseJoinedPaths(joinsParam)
-
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns:     columns,
 			Expanded:    expandedPaths,
-			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
@@ -151,6 +146,9 @@ func main() {
 			u.RawQuery = q.Encode()
 			currentURL = u.String()
 		}
+
+		// Process joins and update columns before building the view model
+		views.ProcessJoinsAndUpdateColumns("orders", ordersTable, &view, dataModel)
 
 		// Build the view model from the table
 		viewModel := views.BuildViewModel(dataModel, "orders", ordersTable, view, "Orders Table - Taxinomia Demo", currentURL)
@@ -175,15 +173,10 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
-		// Parse joined paths from query parameter
-		joinsParam := r.URL.Query().Get("joins")
-		joinedPaths := views.ParseJoinedPaths(joinsParam)
-
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns:     columns,
 			Expanded:    expandedPaths,
-			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
@@ -200,6 +193,9 @@ func main() {
 			u.RawQuery = q.Encode()
 			currentURL = u.String()
 		}
+
+		// Process joins and update columns before building the view model
+		views.ProcessJoinsAndUpdateColumns("regions", regionsTable, &view, dataModel)
 
 		// Build the view model from the table
 		viewModel := views.BuildViewModel(dataModel, "regions", regionsTable, view, "Regions Table - Taxinomia Demo", currentURL)
@@ -224,15 +220,10 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
-		// Parse joined paths from query parameter
-		joinsParam := r.URL.Query().Get("joins")
-		joinedPaths := views.ParseJoinedPaths(joinsParam)
-
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns:     columns,
 			Expanded:    expandedPaths,
-			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
@@ -249,6 +240,9 @@ func main() {
 			u.RawQuery = q.Encode()
 			currentURL = u.String()
 		}
+
+		// Process joins and update columns before building the view model
+		views.ProcessJoinsAndUpdateColumns("capitals", capitalsTable, &view, dataModel)
 
 		// Build the view model from the table
 		viewModel := views.BuildViewModel(dataModel, "capitals", capitalsTable, view, "Capitals Table - Taxinomia Demo", currentURL)
@@ -273,15 +267,10 @@ func main() {
 		expandedParam := r.URL.Query().Get("expanded")
 		expandedPaths := views.ParseExpandedPaths(expandedParam)
 
-		// Parse joined paths from query parameter
-		joinsParam := r.URL.Query().Get("joins")
-		joinedPaths := views.ParseJoinedPaths(joinsParam)
-
 		// Define the view - which columns to display and in what order
 		view := views.TableView{
 			Columns:     columns,
 			Expanded:    expandedPaths,
-			JoinedPaths: joinedPaths,
 		}
 
 		// Build the current URL
@@ -298,6 +287,9 @@ func main() {
 			u.RawQuery = q.Encode()
 			currentURL = u.String()
 		}
+
+		// Process joins and update columns before building the view model
+		views.ProcessJoinsAndUpdateColumns("items", itemsTable, &view, dataModel)
 
 		// Build the view model from the table
 		viewModel := views.BuildViewModel(dataModel, "items", itemsTable, view, "Items Table - Taxinomia Demo", currentURL)
@@ -429,20 +421,20 @@ func printJoinDiscoveryReport(dm *models.DataModel) {
 		}
 
 		// Print joins by table
-		fmt.Println("\nJoins by table:")
-		for tableName := range dm.GetAllTables() {
-			tableJoins := dm.GetJoinsForTable(tableName)
-			if len(tableJoins) > 0 {
-				fmt.Printf("\nTable '%s':\n", tableName)
-				for _, j := range tableJoins {
-					if j.FromTable == tableName {
-						fmt.Printf("  -> %s.%s (outgoing)\n", j.ToTable, j.ToColumn)
-					} else {
-						fmt.Printf("  <- %s.%s (incoming)\n", j.FromTable, j.FromColumn)
-					}
-				}
-			}
-		}
+		// fmt.Println("\nJoins by table:")
+		// for tableName := range dm.GetAllTables() {
+		// 	tableJoins := dm.GetJoinsForTable(tableName)
+		// 	if len(tableJoins) > 0 {
+		// 		fmt.Printf("\nTable '%s':\n", tableName)
+		// 		for _, j := range tableJoins {
+		// 			if j.FromTable == tableName {
+		// 				fmt.Printf("  -> %s.%s (outgoing)\n", j.ToTable, j.ToColumn)
+		// 			} else {
+		// 				fmt.Printf("  <- %s.%s (incoming)\n", j.FromTable, j.FromColumn)
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 
 	fmt.Println("\n================================")

@@ -18,12 +18,41 @@ limitations under the License.
 
 package columns
 
-import (
-	"fmt"
-)
-
 type Unsigned interface {
 	uint8 | uint16 | uint32
+}
+
+type IJoiner interface {
+	Lookup(index uint32) uint32
+}
+
+type Joiner[T any] struct {
+	IJoiner
+	FromColumn IDataColumnT[T]
+	ToColumn   IDataColumnT[T]
+}
+type JoinerString struct {
+	Joiner[string]
+}
+type JoinerUint32 struct {
+	Joiner[uint32]
+}
+
+func (j *Joiner[T]) Lookup(index uint32) uint32 {
+	v := j.FromColumn.GetValue(index)
+	return j.ToColumn.GetIndex(v)
+}
+
+func (c *JoinerString) Lookup(index uint32) uint32 {
+	v := c.FromColumn.GetValue(index)
+	// todo handle not found case
+	return c.ToColumn.GetIndex(v)
+}
+
+func (c *JoinerUint32) Lookup(index uint32) uint32 {
+	v := c.FromColumn.GetValue(index)
+	// todo handle not found case
+	return c.ToColumn.GetIndex(v)
 }
 
 type IColumnDef interface {
@@ -63,12 +92,20 @@ func (cd *ColumnDef) EntityType() string {
 type IDataColumn interface {
 	ColumnDef() *ColumnDef
 	Length() int
-	GetString(i int) (string, error)
+	GetString(i uint32) string
 	IsKey() bool
+	//NewJoiner(onColumn IDataColumn) IJoiner
+	CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn
+}
+
+type IDataColumnT[T any] interface {
+	IDataColumn
+	GetValue(uint32) T
+	GetIndex(T) uint32
 }
 
 type DataColumn[T any] struct {
-	IDataColumn
+	IDataColumnT[T]
 	columnDef *ColumnDef
 	data      []T
 }
@@ -89,6 +126,18 @@ func (c DataColumn[T]) Filter(predicate func(T) bool) []int {
 	return []int{}
 }
 
+type IJoinedDataColumn interface {
+	IDataColumn
+	// might need to know the join specifics
+	// fromTable.fromColunm -> toTable.toColumn
+	// the fromColumn will have an index that maps values to indices in the fromTable, these indices can then be used to lookup values in the fromTable. displayed column
+	//Joiner() IJoiner
+}
+
+type IJoinedColumn[T any] interface {
+	IColumn[T]
+}
+
 type IColumn[T any] interface {
 	ColumnDef() *ColumnDef
 	Length() int
@@ -104,24 +153,6 @@ func NewColumn[T Unsigned](columnDef *ColumnDef) *DataColumn[T] {
 
 func (c *DataColumn[T]) Length() int {
 	return len(c.data)
-}
-
-func (c *DataColumn[T]) GetKey(i int) (uint32, error) {
-	if i < 0 || i >= len(c.data) {
-		return 0, fmt.Errorf("index %d out of range [0:%d)", i, len(c.data))
-	}
-	// For DataColumn[uint32], T is already uint32
-	var zero T
-	switch any(zero).(type) {
-	case uint32:
-		return any(c.data[i]).(uint32), nil
-	case uint16:
-		return uint32(any(c.data[i]).(uint16)), nil
-	case uint8:
-		return uint32(any(c.data[i]).(uint8)), nil
-	default:
-		return 0, fmt.Errorf("unsupported type for GetKey")
-	}
 }
 
 func (c *DataColumn[T]) ColumnDef() *ColumnDef {

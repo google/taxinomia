@@ -20,48 +20,50 @@ package views
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
-	"net/url"
+
+	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/tables"
 )
 
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
-	Title         string
-	Headers       []string              // Column display names
-	Columns       []string              // Column names (for data access)
-	Rows          []map[string]string   // Each row is a map of column name to value
-	AllColumns    []ColumnInfo          // All available columns with metadata
-	CurrentQuery  string                // Current query string
-	CurrentURL    string                // Current URL for building toggle links
+	Title        string
+	Headers      []string            // Column display names
+	Columns      []string            // Column names (for data access)
+	Rows         []map[string]string // Each row is a map of column name to value
+	AllColumns   []ColumnInfo        // All available columns with metadata
+	CurrentQuery string              // Current query string
+	CurrentURL   string              // Current URL for building toggle links
 }
 
 // ColumnInfo contains information about a column for UI display
 type ColumnInfo struct {
-	Name         string // Column internal name
-	DisplayName  string // Column display name
-	IsVisible    bool   // Whether column is currently visible
-	HasEntityType bool   // Whether column defines an entity type
-	IsKey        bool   // Whether column has all unique values
-	JoinTargets  []JoinTarget // Tables/columns this column can join to
-	IsExpanded   bool   // Whether this column's join list is expanded
-	Path         string // Path for URL encoding (e.g., "column1")
-	ToggleURL    string // URL to toggle expansion
-	ToggleColumnURL string // URL to toggle column visibility (preserves all query params)
+	Name            string       // Column internal name
+	DisplayName     string       // Column display name
+	IsVisible       bool         // Whether column is currently visible
+	HasEntityType   bool         // Whether column defines an entity type
+	IsKey           bool         // Whether column has all unique values
+	JoinTargets     []JoinTarget // Tables/columns this column can join to
+	IsExpanded      bool         // Whether this column's join list is expanded
+	Path            string       // Path for URL encoding (e.g., "column1")
+	ToggleURL       string       // URL to toggle expansion
+	ToggleColumnURL string       // URL to toggle column visibility (preserves all query params)
 }
 
 // JoinTarget represents a column that can be joined to
 type JoinTarget struct {
 	TableName        string
 	ColumnName       string
-	DisplayName      string // "TableName.ColumnName" for display
+	DisplayName      string          // "TableName.ColumnName" for display
 	AvailableColumns []ColumnSummary // Columns available in the joined table
-	IsBlocked        bool   // True if this target is blocked due to cycle prevention
-	IsExpanded       bool   // Whether this join target is expanded
-	Path             string // Path for URL encoding (e.g., "column1/table2.column2")
-	ToggleURL        string // URL to toggle expansion
+	IsBlocked        bool            // True if this target is blocked due to cycle prevention
+	IsExpanded       bool            // Whether this join target is expanded
+	Path             string          // Path for URL encoding (e.g., "column1/table2.column2")
+	ToggleURL        string          // URL to toggle expansion
 }
 
 // ColumnSummary represents a column in a joined table
@@ -99,20 +101,40 @@ func detectCycle(path string, targetTable string) bool {
 func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, expandedPaths map[string]bool, currentURL string) []JoinTarget {
 
 	var joinTargets []JoinTarget
-	columnJoins := dataModel.GetJoinsForColumn(tableName, columnName)
+	allJoins := dataModel.GetJoins()
 
-	for _, join := range columnJoins {
+	for _, join := range allJoins {
 		var target JoinTarget
 		var targetTableName, targetColumnName string
+		var fromColumnName string
 
-		if join.FromTable == tableName && join.FromColumn == columnName {
+		// Parse join key to get table names (format: "fromTable.fromColumn->toTable.toColumn")
+		keyParts := strings.Split(join.Key, "->")
+		if len(keyParts) != 2 {
+			continue
+		}
+		fromParts := strings.Split(keyParts[0], ".")
+		toParts := strings.Split(keyParts[1], ".")
+		if len(fromParts) != 2 || len(toParts) != 2 {
+			continue
+		}
+
+		fromTableKey := fromParts[0]
+		fromColumnKey := fromParts[1]
+		toTableKey := toParts[0]
+		toColumnKey := toParts[1]
+
+		// Check if this join involves our column
+		if fromTableKey == tableName && fromColumnKey == columnName {
 			// This is an outgoing join
-			targetTableName = join.ToTable
-			targetColumnName = join.ToColumn
-		} else if join.ToTable == tableName && join.ToColumn == columnName {
+			targetTableName = toTableKey
+			targetColumnName = toColumnKey
+			fromColumnName = columnName
+		} else if toTableKey == tableName && toColumnKey == columnName {
 			// This is an incoming join (reverse)
-			targetTableName = join.FromTable
-			targetColumnName = join.FromColumn
+			targetTableName = fromTableKey
+			targetColumnName = fromColumnKey
+			fromColumnName = columnName
 		} else {
 			continue
 		}
@@ -141,82 +163,91 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 				var availableColumns []ColumnSummary
 				targetColumnNames := targetTable.GetColumnNames()
 
-			for _, targetColName := range targetColumnNames {
-				targetCol := targetTable.GetColumn(targetColName)
-				if targetCol != nil {
-					entityType := targetCol.ColumnDef().EntityType()
-					colPath := fmt.Sprintf("%s/%s", targetPath, targetColName)
-					isExpanded := expandedPaths[colPath]
+				for _, targetColName := range targetColumnNames {
+					targetCol := targetTable.GetColumn(targetColName)
+					if targetCol != nil {
+						entityType := targetCol.ColumnDef().EntityType()
+						colPath := fmt.Sprintf("%s/%s", targetPath, targetColName)
+						isExpanded := expandedPaths[colPath]
 
-					// Build AddColumnURL for all columns (this adds both the join and the column)
-					joinPath := fmt.Sprintf("%s.%s,%s.%s", tableName, columnName, targetTableName, targetColumnName)
-					columnFullName := fmt.Sprintf("%s.%s", targetTableName, targetColName)
-					addColumnURL := BuildAddColumnAndJoinURL(currentURL, joinPath, columnFullName)
+						// Build column name using new format: fromColumn.toTable.toColumn.selectedColumn
+						columnFullName := fmt.Sprintf("%s.%s.%s.%s", fromColumnName, targetTableName, targetColumnName, targetColName)
+						addColumnURL := BuildAddColumnURL(currentURL, columnFullName)
 
-					// Check if this column is already selected
-					isSelected := false
-					u, err := url.Parse(currentURL)
-					if err == nil {
-						q := u.Query()
-						columnsStr := q.Get("columns")
-						if columnsStr != "" {
-							for _, col := range strings.Split(columnsStr, ",") {
-								if col == columnFullName {
-									isSelected = true
-									break
+						// Check if this column is already selected
+						isSelected := false
+						u, err := url.Parse(currentURL)
+						if err == nil {
+							q := u.Query()
+							columnsStr := q.Get("columns")
+							if columnsStr != "" {
+								for _, col := range strings.Split(columnsStr, ",") {
+									if col == columnFullName {
+										isSelected = true
+										break
+									}
 								}
 							}
 						}
-					}
 
-					colSummary := ColumnSummary{
-						Name:          targetColName,
-						DisplayName:   targetCol.ColumnDef().DisplayName(),
-						HasEntityType: entityType != "",
-						IsKey:         targetCol.IsKey() && entityType != "",
-						TableName:     targetTableName,
-						Path:          colPath,
-						IsExpanded:    isExpanded,
-						ToggleURL:     BuildToggleExpansionURL(currentURL, colPath),
-						AddColumnURL:  addColumnURL,
-						IsSelected:    isSelected,
-					}
+						colSummary := ColumnSummary{
+							Name:          targetColName,
+							DisplayName:   targetCol.ColumnDef().DisplayName(),
+							HasEntityType: entityType != "",
+							IsKey:         targetCol.IsKey() && entityType != "",
+							TableName:     targetTableName,
+							Path:          colPath,
+							IsExpanded:    isExpanded,
+							ToggleURL:     BuildToggleExpansionURL(currentURL, colPath),
+							AddColumnURL:  addColumnURL,
+							IsSelected:    isSelected,
+						}
 
-					// Check if this column can join to other tables
-					if entityType != "" {
-						// Check for joins but avoid building them if they would create cycles
-						columnJoins := dataModel.GetJoinsForColumn(targetTableName, targetColName)
-						hasValidJoins := false
+						// Check if this column can join to other tables
+						if entityType != "" {
+							// Check for joins but avoid building them if they would create cycles
+							hasValidJoins := false
 
-						// Check if any joins would be valid (not creating cycles)
-						for _, join := range columnJoins {
-							var checkTable string
-							if join.FromTable == targetTableName && join.FromColumn == targetColName {
-								checkTable = join.ToTable
-							} else if join.ToTable == targetTableName && join.ToColumn == targetColName {
-								checkTable = join.FromTable
+							// Check if any joins would be valid (not creating cycles)
+							for _, checkJoin := range allJoins {
+								// Parse join key to check tables
+								checkKeyParts := strings.Split(checkJoin.Key, "->")
+								if len(checkKeyParts) != 2 {
+									continue
+								}
+								checkFromParts := strings.Split(checkKeyParts[0], ".")
+								checkToParts := strings.Split(checkKeyParts[1], ".")
+								if len(checkFromParts) != 2 || len(checkToParts) != 2 {
+									continue
+								}
+
+								var checkTable string
+								if checkFromParts[0] == targetTableName && checkFromParts[1] == targetColName {
+									checkTable = checkToParts[0]
+								} else if checkToParts[0] == targetTableName && checkToParts[1] == targetColName {
+									checkTable = checkFromParts[0]
+								}
+
+								if checkTable != "" && !detectCycle(colPath, checkTable) {
+									hasValidJoins = true
+									break
+								}
 							}
 
-							if checkTable != "" && !detectCycle(colPath, checkTable) {
-								hasValidJoins = true
-								break
+							if hasValidJoins {
+								if isExpanded {
+									// Recursively build join targets for this column
+									colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, expandedPaths, currentURL)
+								} else {
+									// Just mark that joins are available without building them
+									colSummary.JoinTargets = []JoinTarget{} // Empty slice indicates joins exist but not expanded
+								}
 							}
 						}
 
-						if hasValidJoins {
-							if isExpanded {
-								// Recursively build join targets for this column
-								colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, expandedPaths, currentURL)
-							} else {
-								// Just mark that joins are available without building them
-								colSummary.JoinTargets = []JoinTarget{} // Empty slice indicates joins exist but not expanded
-							}
-						}
+						availableColumns = append(availableColumns, colSummary)
 					}
-
-					availableColumns = append(availableColumns, colSummary)
 				}
-			}
 
 				// Sort available columns alphabetically
 				sort.Slice(availableColumns, func(i, j int) bool {
@@ -245,6 +276,11 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 		AllColumns: []ColumnInfo{},
 		CurrentURL: currentURL,
 	}
+
+	// Debug: Print view model building info
+	fmt.Printf("\n=== BuildViewModel Debug Info ===\n")
+	fmt.Printf("Table: %s\n", tableName)
+	fmt.Printf("View Columns to display: %v\n", view.Columns)
 
 	// Create a map of visible columns for quick lookup
 	visibleCols := make(map[string]bool)
@@ -278,17 +314,54 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 			}
 
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-				Name:         colName,
-				DisplayName:  col.ColumnDef().DisplayName(),
-				IsVisible:    visibleCols[colName],
-				HasEntityType: hasEntityType,
-				IsKey:        isKey && hasEntityType, // Only mark as key if it's also an entity type
-				JoinTargets:  joinTargets,
-				IsExpanded:   isExpanded,
-				Path:         colName,
-				ToggleURL:    BuildToggleExpansionURL(currentURL, colName),
+				Name:            colName,
+				DisplayName:     col.ColumnDef().DisplayName(),
+				IsVisible:       visibleCols[colName],
+				HasEntityType:   hasEntityType,
+				IsKey:           isKey && hasEntityType, // Only mark as key if it's also an entity type
+				JoinTargets:     joinTargets,
+				IsExpanded:      isExpanded,
+				Path:            colName,
+				ToggleURL:       BuildToggleExpansionURL(currentURL, colName),
 				ToggleColumnURL: BuildToggleColumnURL(currentURL, view.Columns, colName),
 			})
+		}
+	}
+
+	// Add joined columns to AllColumns if they are in the view
+	for _, colName := range view.Columns {
+		if strings.Contains(colName, ".") {
+			// This is a joined column - format: fromColumn.toTable.toColumn.selectedColumn
+			parts := strings.Split(colName, ".")
+			if len(parts) == 4 {
+				// Check if this column is already in AllColumns (it shouldn't be)
+				found := false
+				for _, col := range vm.AllColumns {
+					if col.Name == colName {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					// Build a better display name
+					displayName := fmt.Sprintf("%s → %s", parts[1], parts[3])
+
+					// Add the joined column info
+					vm.AllColumns = append(vm.AllColumns, ColumnInfo{
+						Name:            colName,
+						DisplayName:     displayName,
+						IsVisible:       visibleCols[colName],
+						HasEntityType:   false, // Joined columns don't have entity types in this context
+						IsKey:           false,
+						JoinTargets:     nil,
+						IsExpanded:      false,
+						Path:            colName,
+						ToggleURL:       BuildToggleExpansionURL(currentURL, colName),
+						ToggleColumnURL: BuildToggleColumnURL(currentURL, view.Columns, colName),
+					})
+				}
+			}
 		}
 	}
 
@@ -299,19 +372,36 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 
 	// Build headers and columns from view
 	for _, colName := range view.Columns {
-		col := table.GetColumn(colName)
-		if col != nil {
-			vm.Headers = append(vm.Headers, col.ColumnDef().DisplayName())
-			vm.Columns = append(vm.Columns, colName)
+		// Check if this is a joined column (format: fromColumn.toTable.toColumn.selectedColumn)
+		if strings.Contains(colName, ".") {
+			// This is a joined column
+			parts := strings.Split(colName, ".")
+			if len(parts) == 4 {
+				// Build a display name: "TableName → ColumnName"
+				displayName := fmt.Sprintf("%s → %s", parts[1], parts[3])
+				vm.Headers = append(vm.Headers, displayName)
+				vm.Columns = append(vm.Columns, colName)
+			}
+		} else {
+			// Regular column from the main table
+			col := table.GetColumn(colName)
+			if col != nil {
+				vm.Headers = append(vm.Headers, col.ColumnDef().DisplayName())
+				vm.Columns = append(vm.Columns, colName)
+			}
 		}
 	}
 
 	// Get the number of rows (assumes all columns have same length)
 	numRows := 0
 	if len(view.Columns) > 0 {
-		firstCol := table.GetColumn(view.Columns[0])
-		if firstCol != nil {
-			numRows = firstCol.Length()
+		// Find the first non-joined column to get row count
+		for _, colName := range view.Columns {
+			firstCol := table.GetColumn(colName)
+			if firstCol != nil {
+				numRows = firstCol.Length()
+				break
+			}
 		}
 	}
 
@@ -321,12 +411,25 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 		for _, colName := range view.Columns {
 			col := table.GetColumn(colName)
 			if col != nil {
-				value, _ := col.GetString(i)
+				value := col.GetString(uint32(i))
 				row[colName] = value
 			}
 		}
 		vm.Rows = append(vm.Rows, row)
 	}
+
+	// Debug: Print final view model info
+	fmt.Printf("Final VM Headers: %v\n", vm.Headers)
+	fmt.Printf("Final VM Columns: %v\n", vm.Columns)
+	fmt.Printf("Number of rows: %d\n", len(vm.Rows))
+
+	// Print all columns info
+	fmt.Printf("All Columns in VM:\n")
+	for _, col := range vm.AllColumns {
+		fmt.Printf("  - %s (visible: %v, entity: %v, key: %v, joins: %d)\n",
+			col.Name, col.IsVisible, col.HasEntityType, col.IsKey, len(col.JoinTargets))
+	}
+	fmt.Printf("=================================\n\n")
 
 	return vm
 }
@@ -402,7 +505,155 @@ func ParseJoinedPaths(joinedParam string) []string {
 	return joinedPaths
 }
 
+// ProcessJoinsAndUpdateColumns processes the columns from the URL and handles joined columns
+// It ensures that:
+// 1. Joined columns (format: fromColumn.toTable.toColumn.selectedColumn) are properly added
+// 2. Columns from tables no longer requested are removed
+// 3. The actual table has joined columns added/removed as needed
+func ProcessJoinsAndUpdateColumns(tableName string, table *tables.DataTable, view *TableView, dataModel *models.DataModel) {
+	// Debug: Print processing info
+	fmt.Printf("\n=== ProcessJoinsAndUpdateColumns Debug Info ===\n")
+	fmt.Printf("Table: %s\n", tableName)
+	fmt.Printf("View Columns before processing: %v\n", view.Columns)
+
+	// Track which joined columns we need
+	neededJoinedColumns := make(map[string]bool)
+
+	// Parse columns to identify joined ones (with dots)
+	for _, colName := range view.Columns {
+		if strings.Contains(colName, ".") {
+			// This is a joined column - format: fromColumn.toTable.toColumn.selectedColumn
+			parts := strings.Split(colName, ".")
+			if len(parts) == 4 {
+				neededJoinedColumns[colName] = true
+			}
+		}
+	}
+
+	// Get current joined columns in the table
+	currentJoinedColumns := make(map[string]bool)
+	for _, colName := range table.GetJoinedColumnNames() {
+		currentJoinedColumns[colName] = true
+	}
+
+	// Add needed joined columns that aren't already in the table
+	for colName := range neededJoinedColumns {
+		if !currentJoinedColumns[colName] {
+			// Parse the column name
+			parts := strings.Split(colName, ".")
+			if len(parts) != 4 {
+				continue
+			}
+
+			fromColumn := parts[0]
+			toTable := parts[1]
+			toColumn := parts[2]
+			selectedColumn := parts[3]
+
+			// Find the join that connects these tables
+			// Build the join key to look up directly
+			joinKey := fmt.Sprintf("%s.%s->%s.%s", tableName, fromColumn, toTable, toColumn)
+			foundJoin := dataModel.GetJoin(joinKey)
+
+			if foundJoin != nil {
+				// Create the joined column
+				targetTable := dataModel.GetTable(toTable)
+				if targetTable != nil {
+					targetDataCol := targetTable.GetColumn(selectedColumn)
+					if targetDataCol != nil {
+						colDef := columns.NewColumnDef(
+							colName,
+							fmt.Sprintf("%s %s", toTable, targetDataCol.ColumnDef().DisplayName()),
+							"", // Joined columns don't have entity types
+						)
+						joinedColumn := targetDataCol.CreateJoinedColumn(colDef, foundJoin.Joiner)
+						// Create column definition for the joined column
+
+						// TODO: Create the actual joined column implementation
+						// This would require implementing the joined column logic
+						fmt.Printf("Would add joined column %s to table (not implemented)\n", colName)
+						table.AddJoinedColumn(joinedColumn)
+					}
+				}
+			}
+		}
+	}
+
+	// Remove joined columns that are no longer needed
+	for colName := range currentJoinedColumns {
+		if !neededJoinedColumns[colName] {
+			table.RemoveJoinedColumn(colName)
+			fmt.Printf("Removed joined column %s from table\n", colName)
+		}
+	}
+
+	// Debug: Print final state
+	fmt.Printf("View Columns after processing: %v\n", view.Columns)
+	fmt.Printf("Regular Table Columns: %v\n", table.GetColumnNames())
+	fmt.Printf("Joined Columns in Table: %v\n", table.GetJoinedColumnNames())
+	fmt.Printf("All Columns in Table: %v\n", table.GetAllColumnNames())
+	fmt.Printf("===============================================\n\n")
+}
+
+// BuildAddColumnURL creates a URL that toggles a column
+func BuildAddColumnURL(currentURL string, columnName string) string {
+	// Parse the current URL
+	u, err := url.Parse(currentURL)
+	if err != nil {
+		return currentURL
+	}
+
+	q := u.Query()
+
+	// Get current columns
+	columnsStr := q.Get("columns")
+	columns := make(map[string]bool)
+	var columnOrder []string
+
+	if columnsStr != "" {
+		for _, col := range strings.Split(columnsStr, ",") {
+			if col != "" {
+				columns[col] = true
+				columnOrder = append(columnOrder, col)
+			}
+		}
+	}
+
+	// Toggle the column
+	if columns[columnName] {
+		// Remove the column
+		delete(columns, columnName)
+		// Remove from order
+		var newOrder []string
+		for _, col := range columnOrder {
+			if col != columnName {
+				newOrder = append(newOrder, col)
+			}
+		}
+		columnOrder = newOrder
+	} else {
+		// Add the column
+		columns[columnName] = true
+		columnOrder = append(columnOrder, columnName)
+	}
+
+	// Update columns parameter
+	if len(columnOrder) > 0 {
+		q.Set("columns", strings.Join(columnOrder, ","))
+	} else {
+		q.Del("columns")
+	}
+
+	// IMPORTANT: Preserve the expanded parameter to maintain UI state
+	// The expanded parameter controls which join targets are expanded in the sidebar
+	// and should not be affected by adding/removing columns
+
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
 // BuildAddColumnAndJoinURL creates a URL that toggles a column and manages its join
+// DEPRECATED: This function is no longer used as joins are now encoded in column names
 func BuildAddColumnAndJoinURL(currentURL string, joinPath string, columnName string) string {
 	// Parse the current URL
 	u, err := url.Parse(currentURL)
@@ -468,7 +719,7 @@ func BuildAddColumnAndJoinURL(currentURL string, joinPath string, columnName str
 	if isRemoving {
 		// Check if we should remove the join
 		// Extract the table name from the join path
-		joinParts := strings.Split(joinPath, ",")
+		joinParts := strings.Split(joinPath, "-")
 		if len(joinParts) == 2 {
 			toTableColumn := strings.Split(joinParts[1], ".")
 			if len(toTableColumn) == 2 {
@@ -477,7 +728,7 @@ func BuildAddColumnAndJoinURL(currentURL string, joinPath string, columnName str
 				// Check if any other columns from this table remain
 				hasOtherColumns := false
 				for col := range columns {
-					if strings.HasPrefix(col, joinedTableName + ".") {
+					if strings.HasPrefix(col, joinedTableName+".") {
 						hasOtherColumns = true
 						break
 					}
@@ -516,6 +767,7 @@ func BuildAddColumnAndJoinURL(currentURL string, joinPath string, columnName str
 }
 
 // BuildToggleJoinedURL creates a URL that toggles a join path
+// DEPRECATED: This function is no longer used as joins are now encoded in column names
 func BuildToggleJoinedURL(currentURL string, joinPath string) string {
 	// Parse the current URL
 	u, err := url.Parse(currentURL)
