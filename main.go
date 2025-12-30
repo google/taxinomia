@@ -143,7 +143,7 @@ func main() {
 				{
 					Name:           "Orders Table",
 					Description:    "Track orders with status, region, category, and amount data. Perfect for analyzing sales patterns and order fulfillment.",
-					URL:            "/table?table=orders",
+					URL:            "/table?table=orders&limit=25",
 					RecordCount:    30,
 					ColumnCount:    4,
 					DefaultColumns: "4 columns",
@@ -152,7 +152,7 @@ func main() {
 				{
 					Name:           "Regions Table",
 					Description:    "Geographic and economic information about different regions including population, area, capital cities, and GDP.",
-					URL:            "/table?table=regions",
+					URL:            "/table?table=regions&limit=25",
 					RecordCount:    4,
 					ColumnCount:    8,
 					DefaultColumns: "5 columns",
@@ -161,7 +161,7 @@ func main() {
 				{
 					Name:           "Capitals Table",
 					Description:    "Detailed information about capital cities including population, founding year, elevation, and civic infrastructure.",
-					URL:            "/table?table=capitals",
+					URL:            "/table?table=capitals&limit=25",
 					RecordCount:    4,
 					ColumnCount:    11,
 					DefaultColumns: "6 columns",
@@ -170,7 +170,7 @@ func main() {
 				{
 					Name:           "Items Table",
 					Description:    "Product catalog with category hierarchy, pricing, inventory levels, and supplier information.",
-					URL:            "/table?table=items",
+					URL:            "/table?table=items&limit=25",
 					RecordCount:    15,
 					ColumnCount:    11,
 					DefaultColumns: "6 columns",

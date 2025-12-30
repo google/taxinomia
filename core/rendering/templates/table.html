@@ -468,6 +468,20 @@
         h2 {
             margin-bottom: 15px;
         }
+
+        /* Pagination info styles */
+        .pagination-info {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+
+        .pagination-info p {
+            margin: 0;
+            color: #495057;
+        }
     </style>
     <script>
         // Toggle sidebar visibility
@@ -623,6 +637,16 @@
             {{end}}
         </tbody>
     </table>
+
+    {{if gt .TotalRows 0}}
+    <div class="pagination-info">
+        {{if .HasMoreRows}}
+        <p>Showing {{.DisplayedRows}} of {{.TotalRows}} rows</p>
+        {{else}}
+        <p>Showing all {{.TotalRows}} rows</p>
+        {{end}}
+    </div>
+    {{end}}
         </main>
     </div>
 

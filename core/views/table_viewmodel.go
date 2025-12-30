@@ -40,6 +40,12 @@ type TableViewModel struct {
 	AllColumns   []ColumnInfo        // All available columns with metadata
 	CurrentQuery string              // Current query string
 	CurrentURL   safehtml.URL        // Current URL for building toggle links
+
+	// Pagination info
+	TotalRows    int          // Total number of rows in the table
+	DisplayedRows int         // Number of rows actually displayed
+	HasMoreRows  bool         // True if there are more rows than displayed
+	CurrentLimit int          // Current row limit
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -391,20 +397,32 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 	}
 
 	// Get the number of rows (assumes all columns have same length)
-	numRows := 0
+	totalRows := 0
 	if len(view.Columns) > 0 {
 		// Find the first non-joined column to get row count
 		for _, colName := range view.Columns {
 			firstCol := table.GetColumn(colName)
 			if firstCol != nil {
-				numRows = firstCol.Length()
+				totalRows = firstCol.Length()
 				break
 			}
 		}
 	}
 
-	// Build rows
-	for i := 0; i < numRows; i++ {
+	// Store total rows
+	vm.TotalRows = totalRows
+
+	// Apply limit
+	rowsToDisplay := totalRows
+	if q.Limit > 0 && q.Limit < totalRows {
+		rowsToDisplay = q.Limit
+		vm.HasMoreRows = true
+	}
+	vm.DisplayedRows = rowsToDisplay
+	vm.CurrentLimit = q.Limit
+
+	// Build rows (only up to the limit)
+	for i := 0; i < rowsToDisplay; i++ {
 		row := make(map[string]string)
 		for _, colName := range view.Columns {
 			col := table.GetColumn(colName)
@@ -419,7 +437,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 	// Debug: Print final view model info
 	fmt.Printf("Final VM Headers: %v\n", vm.Headers)
 	fmt.Printf("Final VM Columns: %v\n", vm.Columns)
-	fmt.Printf("Number of rows: %d\n", len(vm.Rows))
+	fmt.Printf("Number of rows: %d displayed out of %d total\n", vm.DisplayedRows, vm.TotalRows)
 
 	// Print all columns info
 	fmt.Printf("All Columns in VM:\n")

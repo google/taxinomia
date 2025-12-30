@@ -20,6 +20,7 @@ package query
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/google/safehtml"
@@ -34,6 +35,7 @@ type Query struct {
 	Table    string   // The table being viewed
 	Columns  []string // Ordered list of visible columns
 	Expanded []string // List of expanded paths in the sidebar
+	Limit    int      // Number of rows to display (0 = show all)
 
 	// Preserve any other parameters we don't know about
 	OtherParams map[string][]string
@@ -47,6 +49,7 @@ func NewQuery(u *url.URL) *Query {
 	state := &Query{
 		Path:        u.Path,
 		OtherParams: make(map[string][]string),
+		Limit:       25, // Default limit
 	}
 
 	// Parse query parameters
@@ -71,9 +74,17 @@ func NewQuery(u *url.URL) *Query {
 		state.Expanded = []string{}
 	}
 
+	// Extract limit parameter
+	limitStr := q.Get("limit")
+	if limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit >= 0 {
+			state.Limit = limit
+		}
+	}
+
 	// Store all other parameters
 	for key, values := range q {
-		if key != "table" && key != "columns" && key != "expanded" {
+		if key != "table" && key != "columns" && key != "expanded" && key != "limit" {
 			state.OtherParams[key] = values
 		}
 	}
@@ -88,6 +99,7 @@ func (s *Query) Clone() *Query {
 		Table:       s.Table,
 		Columns:     make([]string, len(s.Columns)),
 		Expanded:    make([]string, len(s.Expanded)),
+		Limit:       s.Limit,
 		OtherParams: make(map[string][]string),
 	}
 
@@ -233,6 +245,9 @@ func (s *Query) ToURL() string {
 		q.Set("expanded", strings.Join(s.Expanded, ","))
 	}
 
+	// Add limit parameter (always included in URL)
+	q.Set("limit", strconv.Itoa(s.Limit))
+
 	// Add all other parameters
 	for key, values := range s.OtherParams {
 		for _, value := range values {
@@ -269,4 +284,11 @@ func (s *Query) IsPathExpanded(path string) bool {
 		}
 	}
 	return false
+}
+
+// WithLimit returns a URL with a different row limit
+func (s *Query) WithLimit(limit int) safehtml.URL {
+	newState := s.Clone()
+	newState.Limit = limit
+	return newState.ToSafeURL()
 }
