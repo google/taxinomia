@@ -168,6 +168,9 @@ func createDemoData() []Row {
 		// Shipped - West (2)
 		{Status: "Shipped", Region: "West", Category: "Furniture", Amount: 200},
 		{Status: "Shipped", Region: "West", Category: "Electronics", Amount: 70},
+
+		// Invalid region to trigger join error (1)
+		{Status: "Processing", Region: "International", Category: "Electronics", Amount: 999},
 	}
 }
 

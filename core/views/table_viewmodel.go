@@ -427,8 +427,14 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 		for _, colName := range view.Columns {
 			col := table.GetColumn(colName)
 			if col != nil {
-				value, _ := col.GetString(uint32(i)) // Ignore error for now
-				row[colName] = value
+				value, err := col.GetString(uint32(i))
+				if err != nil {
+					// Simple error handling: log and display error indicator
+					fmt.Printf("Error retrieving value for column %s at row %d: %v\n", colName, i, err)
+					row[colName] = "[error]"
+				} else {
+					row[colName] = value
+				}
 			}
 		}
 		vm.Rows = append(vm.Rows, row)

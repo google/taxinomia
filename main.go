@@ -32,7 +32,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Starting Interpunctus V2...")
+	fmt.Println("Starting Taxinomia...")
 
 	// Create a DataModel to manage tables and entity types
 	dataModel := models.NewDataModel()
