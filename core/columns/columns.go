@@ -23,7 +23,7 @@ type Unsigned interface {
 }
 
 type IJoiner interface {
-	Lookup(index uint32) uint32
+	Lookup(index uint32) (uint32, error)
 }
 
 type Joiner[T any] struct {
@@ -38,21 +38,40 @@ type JoinerUint32 struct {
 	Joiner[uint32]
 }
 
-func (j *Joiner[T]) Lookup(index uint32) uint32 {
-	v := j.FromColumn.GetValue(index)
-	return j.ToColumn.GetIndex(v)
+func (j *Joiner[T]) Lookup(index uint32) (uint32, error) {
+	v, err := j.FromColumn.GetValue(index)
+	if err != nil {
+		return 0, err
+	}
+	targetIndex, err := j.ToColumn.GetIndex(v)
+	if err != nil {
+		return 0, err
+	}
+	return targetIndex, nil
 }
 
-func (c *JoinerString) Lookup(index uint32) uint32 {
-	v := c.FromColumn.GetValue(index)
-	// todo handle not found case
-	return c.ToColumn.GetIndex(v)
+func (c *JoinerString) Lookup(index uint32) (uint32, error) {
+	v, err := c.FromColumn.GetValue(index)
+	if err != nil {
+		return 0, err
+	}
+	targetIndex, err := c.ToColumn.GetIndex(v)
+	if err != nil {
+		return 0, err
+	}
+	return targetIndex, nil
 }
 
-func (c *JoinerUint32) Lookup(index uint32) uint32 {
-	v := c.FromColumn.GetValue(index)
-	// todo handle not found case
-	return c.ToColumn.GetIndex(v)
+func (c *JoinerUint32) Lookup(index uint32) (uint32, error) {
+	v, err := c.FromColumn.GetValue(index)
+	if err != nil {
+		return 0, err
+	}
+	targetIndex, err := c.ToColumn.GetIndex(v)
+	if err != nil {
+		return 0, err
+	}
+	return targetIndex, nil
 }
 
 type IColumnDef interface {
@@ -92,7 +111,7 @@ func (cd *ColumnDef) EntityType() string {
 type IDataColumn interface {
 	ColumnDef() *ColumnDef
 	Length() int
-	GetString(i uint32) string
+	GetString(i uint32) (string, error)
 	IsKey() bool
 	//NewJoiner(onColumn IDataColumn) IJoiner
 	CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn
@@ -100,8 +119,8 @@ type IDataColumn interface {
 
 type IDataColumnT[T any] interface {
 	IDataColumn
-	GetValue(uint32) T
-	GetIndex(T) uint32
+	GetValue(uint32) (T, error)
+	GetIndex(T) (uint32, error)
 }
 
 type DataColumn[T any] struct {

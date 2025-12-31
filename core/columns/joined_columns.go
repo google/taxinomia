@@ -18,6 +18,8 @@ limitations under the License.
 
 package columns
 
+import "fmt"
+
 // JoinedStringColumn represents a column that gets its data by joining to a string column in another table
 type JoinedStringColumn struct {
 	IJoinedDataColumn
@@ -49,12 +51,25 @@ func (c *JoinedStringColumn) Length() int {
 	return c.sourceColumn.Length()
 }
 
-func (c *JoinedStringColumn) GetValue(i uint32) string {
-	return c.sourceColumn.GetValue(c.joiner.Lookup(i))
+func (c *JoinedStringColumn) GetValue(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+	}
+	return c.sourceColumn.GetValue(targetIndex)
 }
 
-func (c *JoinedStringColumn) GetString(i uint32) string {
-	return c.sourceColumn.GetString(c.joiner.Lookup(i))
+func (c *JoinedStringColumn) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedStringColumn) GetIndex(value string) (uint32, error) {
+	// Joined columns don't support reverse lookups
+	return 0, fmt.Errorf("column %q is a joined column and doesn't support reverse lookups", c.columnDef.Name())
 }
 
 func (c *JoinedStringColumn) IsKey() bool {
@@ -89,8 +104,25 @@ func (c *JoinedUint32Column) Length() int {
 	return c.sourceColumn.Length()
 }
 
-func (c *JoinedUint32Column) GetString(i uint32) string {
-	return c.sourceColumn.GetString(c.joiner.Lookup(i))
+func (c *JoinedUint32Column) GetValue(i uint32) (uint32, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return 0, fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+	}
+	return c.sourceColumn.GetValue(targetIndex)
+}
+
+func (c *JoinedUint32Column) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedUint32Column) GetIndex(value uint32) (uint32, error) {
+	// Joined columns don't support reverse lookups
+	return 0, fmt.Errorf("column %q is a joined column and doesn't support reverse lookups", c.columnDef.Name())
 }
 
 func (c *JoinedUint32Column) IsKey() bool {

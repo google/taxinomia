@@ -65,20 +65,26 @@ func (c *Uint32Column) ColumnDef() *ColumnDef {
 // }
 
 // GetString returns the string representation of the value at index i
-func (c *Uint32Column) GetString(i uint32) string {
-	return fmt.Sprintf("%d", c.data[i])
-}
-
-func (c *Uint32Column) GetValue(i uint32) uint32 {
-	return c.data[i]
-}
-
-// GetIndex returns the index of the given value, or -1 if not found
-func (c *Uint32Column) GetIndex(v uint32) uint32 {
-	if idx, exists := c.valueIndex[v]; exists {
-		return uint32(idx)
+func (c *Uint32Column) GetString(i uint32) (string, error) {
+	if i >= uint32(len(c.data)) {
+		return "", fmt.Errorf("index %d out of bounds (length: %d)", i, len(c.data))
 	}
-	return uint32(0xFFFFFFFF) // Indicate not found
+	return fmt.Sprintf("%d", c.data[i]), nil
+}
+
+func (c *Uint32Column) GetValue(i uint32) (uint32, error) {
+	if i >= uint32(len(c.data)) {
+		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, len(c.data))
+	}
+	return c.data[i], nil
+}
+
+// GetIndex returns the index of the given value
+func (c *Uint32Column) GetIndex(v uint32) (uint32, error) {
+	if idx, exists := c.valueIndex[v]; exists {
+		return uint32(idx), nil
+	}
+	return 0, fmt.Errorf("value %d not found in column %q", v, c.columnDef.Name())
 }
 
 // Filter returns indices where the predicate returns true

@@ -18,6 +18,8 @@ limitations under the License.
 
 package columns
 
+import "fmt"
+
 // StringColumn is optimized for high-cardinality string data where most values are distinct.
 // It stores strings directly without key mapping overhead.
 type StringColumn struct {
@@ -53,23 +55,26 @@ func (c *StringColumn) ColumnDef() *ColumnDef {
 	return c.columnDef
 }
 
-func (c *StringColumn) GetValue(i uint32) string {
-	if i < 0 || i >= uint32(len(c.data)) {
-		return ""
+func (c *StringColumn) GetValue(i uint32) (string, error) {
+	if i >= uint32(len(c.data)) {
+		return "", fmt.Errorf("index %d out of bounds (length: %d)", i, len(c.data))
 	}
-	return c.data[i]
+	return c.data[i], nil
 }
 
-func (c *StringColumn) GetIndex(v string) uint32 {
+func (c *StringColumn) GetIndex(v string) (uint32, error) {
 	if idx, exists := c.valueIndex[v]; exists {
-		return uint32(idx)
+		return uint32(idx), nil
 	}
-	return uint32(0xFFFFFFFF) // Indicate not found
+	return 0, fmt.Errorf("value %q not found in column %q", v, c.columnDef.Name())
 }
 
 // GetString returns the string value at index i
-func (c *StringColumn) GetString(i uint32) string {
-	return c.data[i]
+func (c *StringColumn) GetString(i uint32) (string, error) {
+	if i >= uint32(len(c.data)) {
+		return "", fmt.Errorf("index %d out of bounds (length: %d)", i, len(c.data))
+	}
+	return c.data[i], nil
 }
 
 // Filter returns indices where the predicate returns true

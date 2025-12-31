@@ -427,7 +427,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 		for _, colName := range view.Columns {
 			col := table.GetColumn(colName)
 			if col != nil {
-				value := col.GetString(uint32(i))
+				value, _ := col.GetString(uint32(i)) // Ignore error for now
 				row[colName] = value
 			}
 		}
