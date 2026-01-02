@@ -178,7 +178,7 @@ func (dm *DataModel) GetJoins() []*Join {
 }
 
 // GetJoin returns a specific join by its key
-func (dm *DataModel) GetJoin(key string) *Join {
+func (dm *DataModel) GetJoin(key string) interface{} {
 	return dm.joins[key]
 }
 
@@ -302,6 +302,11 @@ type Join struct {
 	EntityType string
 
 	Joiner columns.IJoiner
+}
+
+// GetJoiner returns the joiner for this join
+func (j *Join) GetJoiner() columns.IJoiner {
+	return j.Joiner
 }
 
 // NewJoin creates a new join definition

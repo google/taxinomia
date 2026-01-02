@@ -27,6 +27,7 @@ import (
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/rendering"
+	"github.com/google/taxinomia/core/tables"
 	"github.com/google/taxinomia/core/views"
 	"github.com/google/taxinomia/demo"
 )
@@ -50,6 +51,19 @@ func main() {
 	dataModel.AddTable("capitals", capitalsTable)
 	dataModel.AddTable("items", itemsTable)
 
+	// Create performance test tables for scalability testing
+	fmt.Println("\n=== Creating Performance Test Tables ===")
+	transactionsTable := demo.CreatePerfTransactionsTable()
+	usersTable := demo.CreatePerfUsersTable()
+	productsTable := demo.CreatePerfProductsTable()
+	categoriesTable := demo.CreatePerfCategoriesTable()
+
+	dataModel.AddTable("transactions_perf", transactionsTable)
+	dataModel.AddTable("users_perf", usersTable)
+	dataModel.AddTable("products_perf", productsTable)
+	dataModel.AddTable("categories_perf", categoriesTable)
+	fmt.Println("=== Performance Tables Created ===\n")
+
 	// Print entity type usage report
 	printEntityTypeUsageReport(dataModel)
 
@@ -61,6 +75,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create renderer: %v", err)
 	}
+
+	// Create a cache for TableViews (one per table)
+	tableViewCache := make(map[string]*tables.TableView)
 
 	// Generic table handler
 	http.HandleFunc("/table", func(w http.ResponseWriter, r *http.Request) {
@@ -82,10 +99,14 @@ func main() {
 
 		// Define default columns for each table
 		defaultColumnsByTable := map[string][]string{
-			"orders":   {"status", "region", "category", "amount"},
-			"regions":  {"region", "population", "capital", "timezone", "gdp"},
-			"capitals": {"capital", "region", "population", "founded", "mayor", "universities"},
-			"items":    {"item_id", "item_name", "category", "subcategory", "price", "stock"},
+			"orders":            {"status", "region", "category", "amount"},
+			"regions":           {"region", "population", "capital", "timezone", "gdp"},
+			"capitals":          {"capital", "region", "population", "founded", "mayor", "universities"},
+			"items":             {"item_id", "item_name", "category", "subcategory", "price", "stock"},
+			"transactions_perf": {"txn_id", "user_id", "product_id", "category_id", "amount", "status"},
+			"users_perf":        {"user_id", "username", "country", "signup_year"},
+			"products_perf":     {"product_id", "product_name", "category_id", "price"},
+			"categories_perf":   {"category_id", "category_name", "department"},
 		}
 
 		// Get default columns for this table, or use first few columns if not defined
@@ -117,12 +138,15 @@ func main() {
 			Expanded: expandedPaths,
 		}
 
-		// Process joins and update columns before building the view model
-		views.ProcessJoinsAndUpdateColumns(q.Table, table, &view, dataModel)
+		// Get or create a cached TableView for this table
+		tableView := views.GetOrCreateTableView(q.Table, table, tableViewCache)
 
-		// Build the view model from the table
+		// Update joined columns to match the current request
+		views.ProcessJoinsAndUpdateColumns(tableView, &view, dataModel)
+
+		// Build the view model from the table view
 		title := fmt.Sprintf("%s Table - Taxinomia Demo", strings.Title(q.Table))
-		viewModel := views.BuildViewModel(dataModel, q.Table, table, view, title, q)
+		viewModel := views.BuildViewModel(dataModel, q.Table, tableView, view, title, q)
 
 		// Render using the renderer
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -175,6 +199,42 @@ func main() {
 					ColumnCount:    11,
 					DefaultColumns: "6 columns",
 					Categories:     "Inventory, Products",
+				},
+				{
+					Name:           "Transactions Performance Table",
+					Description:    "Large-scale transaction data (1M rows) for testing backend performance and scalability. Tests high, medium, and low cardinality joins.",
+					URL:            "/table?table=transactions_perf&limit=100",
+					RecordCount:    1000000,
+					ColumnCount:    6,
+					DefaultColumns: "6 columns",
+					Categories:     "Performance, Testing",
+				},
+				{
+					Name:           "Users Performance Table",
+					Description:    "User data (800K rows) for high-cardinality join testing. Nearly 1:1 mapping with transactions.",
+					URL:            "/table?table=users_perf&limit=100",
+					RecordCount:    800000,
+					ColumnCount:    4,
+					DefaultColumns: "4 columns",
+					Categories:     "Performance, Testing",
+				},
+				{
+					Name:           "Products Performance Table",
+					Description:    "Product catalog (50K rows) for medium-cardinality join testing. ~20 transactions per product.",
+					URL:            "/table?table=products_perf&limit=100",
+					RecordCount:    50000,
+					ColumnCount:    4,
+					DefaultColumns: "4 columns",
+					Categories:     "Performance, Testing",
+				},
+				{
+					Name:           "Categories Performance Table",
+					Description:    "Category data (200 rows) for low-cardinality join testing. ~5000 transactions per category.",
+					URL:            "/table?table=categories_perf&limit=100",
+					RecordCount:    200,
+					ColumnCount:    3,
+					DefaultColumns: "3 columns",
+					Categories:     "Performance, Testing",
 				},
 			},
 		}
@@ -281,44 +341,14 @@ func printEntityTypeUsageReport(dm *models.DataModel) {
 
 // printJoinDiscoveryReport prints information about automatically discovered joins
 func printJoinDiscoveryReport(dm *models.DataModel) {
-	fmt.Println("\n=== Auto-discovered Joins Report ===")
-	fmt.Println("Joins are automatically discovered based on entity types and unique value columns (IsKey).")
-
 	// Get all joins that were automatically discovered
 	allJoins := dm.GetJoins()
-	fmt.Printf("\nTotal auto-discovered joins: %d\n", len(allJoins))
 
-	if len(allJoins) > 0 {
-		// Group joins by entity type for better readability
-		joinsByEntityType := make(map[string][]*models.Join)
-		for _, join := range allJoins {
-			joinsByEntityType[join.EntityType] = append(joinsByEntityType[join.EntityType], join)
-		}
-
-		// Print joins grouped by entity type
-		for entityType, joins := range joinsByEntityType {
-			fmt.Printf("\nEntity Type '%s' joins:\n", entityType)
-			for _, j := range joins {
-				fmt.Printf("  %s\n", j)
-			}
-		}
-
-		// Print joins by table
-		// fmt.Println("\nJoins by table:")
-		// for tableName := range dm.GetAllTables() {
-		// 	tableJoins := dm.GetJoinsForTable(tableName)
-		// 	if len(tableJoins) > 0 {
-		// 		fmt.Printf("\nTable '%s':\n", tableName)
-		// 		for _, j := range tableJoins {
-		// 			if j.FromTable == tableName {
-		// 				fmt.Printf("  -> %s.%s (outgoing)\n", j.ToTable, j.ToColumn)
-		// 			} else {
-		// 				fmt.Printf("  <- %s.%s (incoming)\n", j.FromTable, j.FromColumn)
-		// 			}
-		// 		}
-		// 	}
-		// }
+	// Group joins by entity type for summary
+	joinsByEntityType := make(map[string][]*models.Join)
+	for _, join := range allJoins {
+		joinsByEntityType[join.EntityType] = append(joinsByEntityType[join.EntityType], join)
 	}
 
-	fmt.Println("\n================================")
+	fmt.Printf("Auto-discovered %d joins across %d entity types\n", len(allJoins), len(joinsByEntityType))
 }

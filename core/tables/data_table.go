@@ -24,13 +24,11 @@ import (
 
 type DataTable struct {
 	columns map[string]columns.IDataColumn
-	joins   map[string]columns.IJoinedDataColumn
 }
 
 func NewDataTable() *DataTable {
 	return &DataTable{
 		columns: make(map[string]columns.IDataColumn),
-		joins:   make(map[string]columns.IJoinedDataColumn),
 	}
 }
 
@@ -41,20 +39,8 @@ func (dt *DataTable) AddColumn(col columns.IDataColumn) {
 	dt.columns[name] = col
 }
 
-func (dt *DataTable) AddJoinedColumn(joinedCol columns.IJoinedDataColumn) {
-	dt.joins[joinedCol.ColumnDef().Name()] = joinedCol
-}
-
-// RemoveJoinedColumn removes a joined column from the table
-func (dt *DataTable) RemoveJoinedColumn(name string) {
-	delete(dt.joins, name)
-}
-
 func (dt *DataTable) GetColumn(name string) columns.IDataColumn {
 	if col, ok := dt.columns[name]; ok {
-		return col
-	}
-	if col, ok := dt.joins[name]; ok {
 		return col
 	}
 	return nil
@@ -64,32 +50,6 @@ func (dt *DataTable) GetColumn(name string) columns.IDataColumn {
 func (dt *DataTable) GetColumnNames() []string {
 	names := make([]string, 0, len(dt.columns))
 	for name := range dt.columns {
-		names = append(names, name)
-	}
-	return names
-}
-
-// GetAllColumnNames returns all column names including joined columns
-func (dt *DataTable) GetAllColumnNames() []string {
-	names := make([]string, 0, len(dt.columns)+len(dt.joins))
-
-	// Add regular columns
-	for name := range dt.columns {
-		names = append(names, name)
-	}
-
-	// Add joined columns
-	for name := range dt.joins {
-		names = append(names, name)
-	}
-
-	return names
-}
-
-// GetJoinedColumnNames returns only joined column names
-func (dt *DataTable) GetJoinedColumnNames() []string {
-	names := make([]string, 0, len(dt.joins))
-	for name := range dt.joins {
 		names = append(names, name)
 	}
 	return names

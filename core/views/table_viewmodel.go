@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/google/safehtml"
-	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/tables"
@@ -267,8 +266,8 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 	return joinTargets
 }
 
-// BuildViewModel creates a ViewModel from a Table using the specified View
-func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables.DataTable, view TableView, title string, q *query.Query) TableViewModel {
+// BuildViewModel creates a ViewModel from a TableView using the specified View
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view TableView, title string, q *query.Query) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
@@ -292,10 +291,10 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 		visibleCols[colName] = true
 	}
 
-	// Build all columns info
-	allColumnNames := table.GetColumnNames()
+	// Build all columns info (base table columns only)
+	allColumnNames := tableView.GetColumnNames()
 	for _, colName := range allColumnNames {
-		col := table.GetColumn(colName)
+		col := tableView.GetColumn(colName)
 		if col != nil {
 			// Check if column has an entity type
 			hasEntityType := col.ColumnDef().EntityType() != ""
@@ -388,7 +387,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 			}
 		} else {
 			// Regular column from the main table
-			col := table.GetColumn(colName)
+			col := tableView.GetColumn(colName)
 			if col != nil {
 				vm.Headers = append(vm.Headers, col.ColumnDef().DisplayName())
 				vm.Columns = append(vm.Columns, colName)
@@ -401,7 +400,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 	if len(view.Columns) > 0 {
 		// Find the first non-joined column to get row count
 		for _, colName := range view.Columns {
-			firstCol := table.GetColumn(colName)
+			firstCol := tableView.GetColumn(colName)
 			if firstCol != nil {
 				totalRows = firstCol.Length()
 				break
@@ -425,7 +424,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, table *tables
 	for i := 0; i < rowsToDisplay; i++ {
 		row := make(map[string]string)
 		for _, colName := range view.Columns {
-			col := table.GetColumn(colName)
+			col := tableView.GetColumn(colName)
 			if col != nil {
 				value, err := col.GetString(uint32(i))
 				if err != nil {
@@ -487,94 +486,28 @@ func ParseJoinedPaths(joinedParam string) []string {
 	return joinedPaths
 }
 
+// GetOrCreateTableView retrieves or creates a TableView for the specified table
+// This should be called with a cached map to reuse TableViews across requests
+func GetOrCreateTableView(tableName string, table *tables.DataTable, tableViewCache map[string]*tables.TableView) *tables.TableView {
+	// Check if we already have a TableView for this table
+	if tv, exists := tableViewCache[tableName]; exists {
+		return tv
+	}
+
+	// Create a new TableView and cache it
+	tableView := tables.NewTableView(table, tableName)
+	tableViewCache[tableName] = tableView
+	return tableView
+}
+
 // ProcessJoinsAndUpdateColumns processes the columns from the URL and handles joined columns
 // It ensures that:
 // 1. Joined columns (format: fromColumn.toTable.toColumn.selectedColumn) are properly added
-// 2. Columns from tables no longer requested are removed
-// 3. The actual table has joined columns added/removed as needed
-func ProcessJoinsAndUpdateColumns(tableName string, table *tables.DataTable, view *TableView, dataModel *models.DataModel) {
-	// Debug: Print processing info
-	fmt.Printf("\n=== ProcessJoinsAndUpdateColumns Debug Info ===\n")
-	fmt.Printf("Table: %s\n", tableName)
-	fmt.Printf("View Columns before processing: %v\n", view.Columns)
-
-	// Track which joined columns we need
-	neededJoinedColumns := make(map[string]bool)
-
-	// Parse columns to identify joined ones (with dots)
-	for _, colName := range view.Columns {
-		if strings.Contains(colName, ".") {
-			// This is a joined column - format: fromColumn.toTable.toColumn.selectedColumn
-			parts := strings.Split(colName, ".")
-			if len(parts) == 4 {
-				neededJoinedColumns[colName] = true
-			}
-		}
-	}
-
-	// Get current joined columns in the table
-	currentJoinedColumns := make(map[string]bool)
-	for _, colName := range table.GetJoinedColumnNames() {
-		currentJoinedColumns[colName] = true
-	}
-
-	// Add needed joined columns that aren't already in the table
-	for colName := range neededJoinedColumns {
-		if !currentJoinedColumns[colName] {
-			// Parse the column name
-			parts := strings.Split(colName, ".")
-			if len(parts) != 4 {
-				continue
-			}
-
-			fromColumn := parts[0]
-			toTable := parts[1]
-			toColumn := parts[2]
-			selectedColumn := parts[3]
-
-			// Find the join that connects these tables
-			// Build the join key to look up directly
-			joinKey := fmt.Sprintf("%s.%s->%s.%s", tableName, fromColumn, toTable, toColumn)
-			foundJoin := dataModel.GetJoin(joinKey)
-
-			if foundJoin != nil {
-				// Create the joined column
-				targetTable := dataModel.GetTable(toTable)
-				if targetTable != nil {
-					targetDataCol := targetTable.GetColumn(selectedColumn)
-					if targetDataCol != nil {
-						colDef := columns.NewColumnDef(
-							colName,
-							fmt.Sprintf("%s %s", toTable, targetDataCol.ColumnDef().DisplayName()),
-							"", // Joined columns don't have entity types
-						)
-						joinedColumn := targetDataCol.CreateJoinedColumn(colDef, foundJoin.Joiner)
-						// Create column definition for the joined column
-
-						// TODO: Create the actual joined column implementation
-						// This would require implementing the joined column logic
-						fmt.Printf("Would add joined column %s to table (not implemented)\n", colName)
-						table.AddJoinedColumn(joinedColumn)
-					}
-				}
-			}
-		}
-	}
-
-	// Remove joined columns that are no longer needed
-	for colName := range currentJoinedColumns {
-		if !neededJoinedColumns[colName] {
-			table.RemoveJoinedColumn(colName)
-			fmt.Printf("Removed joined column %s from table\n", colName)
-		}
-	}
-
-	// Debug: Print final state
-	fmt.Printf("View Columns after processing: %v\n", view.Columns)
-	fmt.Printf("Regular Table Columns: %v\n", table.GetColumnNames())
-	fmt.Printf("Joined Columns in Table: %v\n", table.GetJoinedColumnNames())
-	fmt.Printf("All Columns in Table: %v\n", table.GetAllColumnNames())
-	fmt.Printf("===============================================\n\n")
+// 2. Joined columns no longer needed are removed
+// 3. Updates the provided TableView in place
+func ProcessJoinsAndUpdateColumns(tableView *tables.TableView, view *TableView, dataModel *models.DataModel) {
+	// Update joined columns using the TableView's method
+	tableView.UpdateJoinedColumns(view.Columns, dataModel)
 }
 
 // BuildAddColumnURL creates a URL that toggles a column
