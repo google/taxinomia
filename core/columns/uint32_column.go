@@ -129,6 +129,18 @@ func (c *Uint32Column) FinalizeColumn() {
 	}
 }
 
+func (c *Uint32Column) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
+	// Group indices by their uint32 value
+	groupedIndices := map[uint32][]uint32{}
+	for _, i := range indices {
+		if i < uint32(len(c.data)) {
+			value := c.data[i]
+			groupedIndices[value] = append(groupedIndices[value], i)
+		}
+	}
+	return groupedIndices
+}
+
 // type Uint32JoinedColumn struct {
 // 	IJoinedColumn[uint32]
 // 	ColumnDef    *ColumnDef

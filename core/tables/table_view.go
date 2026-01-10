@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/grouping"
 )
 
 // JoinResolver is an interface for resolving join and table information
@@ -32,13 +33,136 @@ type JoinResolver interface {
 	GetTable(name string) *DataTable
 }
 
+// Compare is a placeholder type for comparison functions (WIP)
+type Compare int
+
 // TableView represents a view of a DataTable with additional joined columns.
 // This allows the underlying DataTable to remain immutable while views can
 // have their own set of joined columns based on the query context.
 type TableView struct {
-	baseTable *DataTable
-	tableName string
-	joins     map[string]columns.IJoinedDataColumn
+	baseTable      *DataTable
+	tableName      string
+	joins          map[string]columns.IJoinedDataColumn
+	groupedColumns map[string]*grouping.GroupedColumn
+	blocksByColumn map[string][]*grouping.Block
+	columnViews    map[string]*columns.ColumnView
+	firstBlock     *grouping.Block
+}
+
+// func (t TableView) Filter() {
+// 	// applies the filters to all columns and returns a mask of which rows are preserved
+// 	// for now return everything, meaning the mask is empty
+// }
+
+func (t *TableView) GroupTable(mask []bool, columns []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
+	// filter rows
+	// get indices from mask
+	indices := []uint32{}
+	if len(mask) == 0 {
+		indices = make([]uint32, t.baseTable.Length())
+		for i := 0; i < t.baseTable.Length(); i++ {
+			indices[i] = uint32(i)
+		}
+	} else {
+		for i, m := range mask {
+			if m {
+				indices = append(indices, uint32(i))
+			}
+		}
+	}
+	// groupedColumns: map[string]*GroupedColumn{},
+	// 	//groupsByColumn: map[string][]*Group2{},
+	// 	blocksByColumn: map[string][]*Block{},
+
+	// Process first column
+	//groupedTable.columns = columns
+	parentBlocks := t.groupFirstColumnInTable(indices, columns[0])
+	t.firstBlock = parentBlocks[0]
+
+	// Process subsequent columns
+	t.groupSubsequentColumnsInTable(indices, columns[1:], parentBlocks)
+
+}
+
+func (t *TableView) groupFirstColumnInTable(indices []uint32, firstColumn string) []*grouping.Block {
+	// TODO this is limited to base table columns for now
+	columnView := t.columnViews[firstColumn]
+	dataColumn := t.baseTable.columns[firstColumn]
+
+	g := &grouping.GroupedColumn{
+		DataColumn: dataColumn,
+		ColumnView: columnView,
+		Level:      0,
+		Tag:        "first",
+	}
+
+	t.groupedColumns[firstColumn] = g
+
+	b := &grouping.Block{
+		Groups:        nil,
+		ParentGroup:   nil,
+		GroupedColumn: g,
+	}
+	g.Blocks = append(g.Blocks, b)
+	t.blocksByColumn[firstColumn] = append(t.blocksByColumn[firstColumn], b)
+
+	indicesByGroupKey := dataColumn.GroupIndices(indices, columnView)
+	for groupKey, groupIndices := range indicesByGroupKey {
+		g2 := &grouping.Group{
+			GroupKey:    groupKey,
+			Indices:     groupIndices,
+			ParentGroup: nil,
+			Block:       b,
+		}
+		b.Groups = append(b.Groups, g2)
+	}
+
+	return []*grouping.Block{b}
+}
+
+func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []string, parentBlocks []*grouping.Block) {
+	// for following columns, each parent group spawns a child block
+	for level, col := range columns {
+		dataColumn := t.baseTable.GetColumn(col)
+		columnView := t.columnViews[col]
+
+		g := &grouping.GroupedColumn{
+			DataColumn: dataColumn,
+			ColumnView: columnView,
+			Level:      level + 1,
+			Tag:        "next",
+		}
+
+		t.groupedColumns[col] = g
+
+		// every parent group spawns a block
+		for _, parentBlock := range parentBlocks {
+			for _, parentGroup := range parentBlock.Groups {
+				b := &grouping.Block{
+					ParentGroup:   parentGroup,
+					GroupedColumn: g,
+				}
+				g.Blocks = append(g.Blocks, b)
+				t.blocksByColumn[col] = append(t.blocksByColumn[col], b)
+
+				// Link the parent group to this child block
+				parentGroup.ChildBlock = b
+
+				// now group within the parent group
+				indicesByGroupKey := dataColumn.GroupIndices(parentGroup.Indices, columnView)
+				for groupKey, groupIndices := range indicesByGroupKey {
+					g2 := &grouping.Group{
+						GroupKey:    groupKey,
+						Indices:     groupIndices,
+						ParentGroup: parentGroup,
+						Block:       b,
+					}
+					b.Groups = append(b.Groups, g2)
+				}
+			}
+		}
+		parentBlocks = g.Blocks
+	}
 }
 
 // NewTableView creates a new TableView wrapping a DataTable

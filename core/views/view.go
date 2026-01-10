@@ -18,8 +18,13 @@ limitations under the License.
 
 package views
 
-// TableView defines which columns to display and their order
-type TableView struct {
-	Columns     []string            // Column names in display order (including joined columns like "fromColumn.toTable.toColumn.selectedColumn")
-	Expanded    map[string]bool     // Set of expanded paths (e.g., "column1", "column1/table2.column2")
+import (
+	"github.com/google/taxinomia/core/columns"
+)
+
+// View defines which columns to display and their order
+type View struct {
+	Columns     []string                    // Column names in display order (including joined columns like "fromColumn.toTable.toColumn.selectedColumn")
+	Expanded    map[string]bool             // Set of expanded paths (e.g., "column1", "column1/table2.column2")
+	columnViews map[string]*columns.ColumnView
 }

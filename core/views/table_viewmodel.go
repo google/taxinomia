@@ -41,10 +41,10 @@ type TableViewModel struct {
 	CurrentURL   safehtml.URL        // Current URL for building toggle links
 
 	// Pagination info
-	TotalRows    int          // Total number of rows in the table
-	DisplayedRows int         // Number of rows actually displayed
-	HasMoreRows  bool         // True if there are more rows than displayed
-	CurrentLimit int          // Current row limit
+	TotalRows     int  // Total number of rows in the table
+	DisplayedRows int  // Number of rows actually displayed
+	HasMoreRows   bool // True if there are more rows than displayed
+	CurrentLimit  int  // Current row limit
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -267,7 +267,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 }
 
 // BuildViewModel creates a ViewModel from a TableView using the specified View
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view TableView, title string, q *query.Query) TableViewModel {
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
@@ -505,7 +505,7 @@ func GetOrCreateTableView(tableName string, table *tables.DataTable, tableViewCa
 // 1. Joined columns (format: fromColumn.toTable.toColumn.selectedColumn) are properly added
 // 2. Joined columns no longer needed are removed
 // 3. Updates the provided TableView in place
-func ProcessJoinsAndUpdateColumns(tableView *tables.TableView, view *TableView, dataModel *models.DataModel) {
+func ProcessJoinsAndUpdateColumns(tableView *tables.TableView, view *View, dataModel *models.DataModel) {
 	// Update joined columns using the TableView's method
 	tableView.UpdateJoinedColumns(view.Columns, dataModel)
 }

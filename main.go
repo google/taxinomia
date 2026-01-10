@@ -133,7 +133,7 @@ func main() {
 		}
 
 		// Define the view - which columns to display and in what order
-		view := views.TableView{
+		view := views.View{
 			Columns:  q.Columns,
 			Expanded: expandedPaths,
 		}

@@ -77,6 +77,11 @@ func (c *JoinedStringColumn) IsKey() bool {
 	return c.sourceColumn.IsKey()
 }
 
+func (c *JoinedStringColumn) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
+	// TODO: Not implemented - need to handle unresolved indices
+	panic("GroupIndices not implemented for JoinedStringColumn")
+}
+
 type JoinedUint32Column struct {
 	columnDef    *ColumnDef
 	sourceColumn IDataColumnT[uint32]
@@ -128,4 +133,9 @@ func (c *JoinedUint32Column) GetIndex(value uint32) (uint32, error) {
 func (c *JoinedUint32Column) IsKey() bool {
 	// Joined columns are typically not keys
 	return false
+}
+
+func (c *JoinedUint32Column) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
+	// TODO: Not implemented - need to handle unresolved indices
+	panic("GroupIndices not implemented for JoinedUint32Column")
 }

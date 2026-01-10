@@ -115,6 +115,7 @@ type IDataColumn interface {
 	IsKey() bool
 	//NewJoiner(onColumn IDataColumn) IJoiner
 	CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn
+	GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32
 }
 
 type IDataColumnT[T any] interface {
@@ -180,4 +181,7 @@ func (c *DataColumn[T]) ColumnDef() *ColumnDef {
 
 func (c *DataColumn[T]) append(v T) {
 	c.data = append(c.data, v)
+}
+
+type ColumnView struct {
 }

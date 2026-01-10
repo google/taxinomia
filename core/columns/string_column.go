@@ -18,7 +18,9 @@ limitations under the License.
 
 package columns
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // StringColumn is optimized for high-cardinality string data where most values are distinct.
 // It stores strings directly without key mapping overhead.
@@ -131,3 +133,22 @@ func (c *StringColumn) FinalizeColumn() {
 // 		join:      join,
 // 	}
 // }
+
+func (c *StringColumn) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
+	// for now assume just default grouping by value
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[string]uint32{}
+	for _, i := range indices {
+		value := c.data[i]
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			// Add to existing group
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			// Create new group with a unique group key
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices
+}

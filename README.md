@@ -18,3 +18,74 @@
 
 Taxinomia is a table oriented analytics system. 
 
+
+
+
+
+
+Active    North  A   1  1
+Active    North  A   2  3
+Active    North  B   3  5
+Active    South  A   4  3
+Active    South  B   5  2
+Active    South  B   6  2
+Active    East   Z   6  2
+Active    East   C   6  2
+Active    East   C   6  2
+Inactive  North  A   1  1
+Inactive  North  A   2  3
+Inactive  North  B   3  5
+Inactive  South  A   4  3
+Inactive  South  B   5  2
+Inactive  South  B   6  2
+Inactive  East   Z   6  2
+Inactive  East   A   6  2
+Inactive  East   Z   6  2
+Pending   North  A   1  1
+Pending   North  A   2  3
+Pending   North  A  3  5
+Pending   South  A   4  3
+Pending   South  B   5  2
+Pending   South  B   6  2
+Pending   East   Z   6  2
+Pending   East   C   6  2
+Pending   East   C   6  2
+
+
+
+|-----------|---------|---|
+|           |  North  | A |
+|           |         |---|
+|           |         | B |
+|           |---------|---|
+| Active    |  South  | A |
+|           |         |---|
+|           |         | B |
+|           |---------|---|
+|           |  East   | C |
+|           |         |---|
+|           |         | Z |
+|-----------|---------|---|
+|           | North   | A |
+|           |         |---|
+|           |         | B |
+|           |---------|---|
+| Inactive  | South   | A |
+|           |         |---|
+|           |         | B |
+|           |---------|---|
+|           | East    | A |
+|           |         |---|
+|           |         | Z |
+|-----------|---------|---|
+|           | North   | A |
+|           |---------|---|
+| Pending   | South   | A |
+|           |         |---|
+|           |         | B |
+|           |---------|---|
+|           | East    | C |
+|           |         |---|
+|           |         | Z |
+|-----------|---------|---|
+

@@ -32,6 +32,14 @@ func NewDataTable() *DataTable {
 	}
 }
 
+func (dt *DataTable) Length() int {
+	// return the length of the first column
+	for _, col := range dt.columns {
+		return col.Length()
+	}
+	return 0
+}
+
 func (dt *DataTable) AddColumn(col columns.IDataColumn) {
 	// Initialize the column with empty data
 	def := col.ColumnDef()
