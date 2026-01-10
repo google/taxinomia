@@ -32,10 +32,11 @@ type Query struct {
 	Path string
 
 	// Core parameters
-	Table    string   // The table being viewed
-	Columns  []string // Ordered list of visible columns
-	Expanded []string // List of expanded paths in the sidebar
-	Limit    int      // Number of rows to display (0 = show all)
+	Table          string   // The table being viewed
+	Columns        []string // Ordered list of visible columns
+	Expanded       []string // List of expanded paths in the sidebar
+	GroupedColumns []string // Ordered list of columns to group by
+	Limit          int      // Number of rows to display (0 = show all)
 
 	// Preserve any other parameters we don't know about
 	OtherParams map[string][]string
@@ -74,6 +75,14 @@ func NewQuery(u *url.URL) *Query {
 		state.Expanded = []string{}
 	}
 
+	// Extract grouped columns parameter
+	groupedStr := q.Get("grouped")
+	if groupedStr != "" {
+		state.GroupedColumns = strings.Split(groupedStr, ",")
+	} else {
+		state.GroupedColumns = []string{}
+	}
+
 	// Extract limit parameter
 	limitStr := q.Get("limit")
 	if limitStr != "" {
@@ -84,7 +93,7 @@ func NewQuery(u *url.URL) *Query {
 
 	// Store all other parameters
 	for key, values := range q {
-		if key != "table" && key != "columns" && key != "expanded" && key != "limit" {
+		if key != "table" && key != "columns" && key != "expanded" && key != "grouped" && key != "limit" {
 			state.OtherParams[key] = values
 		}
 	}
@@ -95,12 +104,13 @@ func NewQuery(u *url.URL) *Query {
 // Clone creates a deep copy of the Query
 func (s *Query) Clone() *Query {
 	clone := &Query{
-		Path:        s.Path,
-		Table:       s.Table,
-		Columns:     make([]string, len(s.Columns)),
-		Expanded:    make([]string, len(s.Expanded)),
-		Limit:       s.Limit,
-		OtherParams: make(map[string][]string),
+		Path:           s.Path,
+		Table:          s.Table,
+		Columns:        make([]string, len(s.Columns)),
+		Expanded:       make([]string, len(s.Expanded)),
+		GroupedColumns: make([]string, len(s.GroupedColumns)),
+		Limit:          s.Limit,
+		OtherParams:    make(map[string][]string),
 	}
 
 	// Deep copy columns
@@ -108,6 +118,9 @@ func (s *Query) Clone() *Query {
 
 	// Deep copy expanded
 	copy(clone.Expanded, s.Expanded)
+
+	// Deep copy grouped columns
+	copy(clone.GroupedColumns, s.GroupedColumns)
 
 	// Deep copy other params
 	for key, values := range s.OtherParams {
@@ -245,6 +258,11 @@ func (s *Query) ToURL() string {
 		q.Set("expanded", strings.Join(s.Expanded, ","))
 	}
 
+	// Add grouped columns parameter
+	if len(s.GroupedColumns) > 0 {
+		q.Set("grouped", strings.Join(s.GroupedColumns, ","))
+	}
+
 	// Add limit parameter (always included in URL)
 	q.Set("limit", strconv.Itoa(s.Limit))
 
@@ -291,4 +309,82 @@ func (s *Query) WithLimit(limit int) safehtml.URL {
 	newState := s.Clone()
 	newState.Limit = limit
 	return newState.ToSafeURL()
+}
+
+// WithGroupedColumnToggled returns a URL with the grouped column toggled
+// If the column is already grouped, it's removed from grouping
+// If the column is not grouped, it's added to the end of the grouping order
+// This method also reorders the Columns list to ensure grouped columns appear first
+func (s *Query) WithGroupedColumnToggled(column string) safehtml.URL {
+	newState := s.Clone()
+	found := false
+	newGrouped := make([]string, 0, len(s.GroupedColumns))
+
+	for _, col := range s.GroupedColumns {
+		if col == column {
+			found = true
+		} else {
+			newGrouped = append(newGrouped, col)
+		}
+	}
+
+	if found {
+		// Column was grouped, remove it
+		newState.GroupedColumns = newGrouped
+	} else {
+		// Column was not grouped, add it to the end
+		newState.GroupedColumns = append(s.GroupedColumns, column)
+	}
+
+	// Reorder columns: grouped columns first, then ungrouped columns
+	newState.reorderColumnsForGrouping()
+
+	return newState.ToSafeURL()
+}
+
+// reorderColumnsForGrouping reorders the Columns slice so that grouped columns
+// appear first in their grouping order, followed by ungrouped columns in their
+// original relative order
+func (s *Query) reorderColumnsForGrouping() {
+	// Create a map for fast lookup of grouped columns and their order
+	groupedOrder := make(map[string]int)
+	for i, col := range s.GroupedColumns {
+		groupedOrder[col] = i
+	}
+
+	// Split columns into grouped and ungrouped, preserving order
+	var grouped []string
+	var ungrouped []string
+
+	for _, col := range s.Columns {
+		if _, isGrouped := groupedOrder[col]; isGrouped {
+			grouped = append(grouped, col)
+		} else {
+			ungrouped = append(ungrouped, col)
+		}
+	}
+
+	// Sort the grouped columns according to their grouping order
+	for i := 0; i < len(grouped)-1; i++ {
+		for j := i + 1; j < len(grouped); j++ {
+			if groupedOrder[grouped[i]] > groupedOrder[grouped[j]] {
+				grouped[i], grouped[j] = grouped[j], grouped[i]
+			}
+		}
+	}
+
+	// Reconstruct the Columns slice: grouped first, then ungrouped
+	s.Columns = make([]string, 0, len(grouped)+len(ungrouped))
+	s.Columns = append(s.Columns, grouped...)
+	s.Columns = append(s.Columns, ungrouped...)
+}
+
+// IsColumnGrouped checks if a column is in the grouped columns list
+func (s *Query) IsColumnGrouped(column string) bool {
+	for _, col := range s.GroupedColumns {
+		if col == column {
+			return true
+		}
+	}
+	return false
 }

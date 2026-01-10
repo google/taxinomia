@@ -49,16 +49,18 @@ type TableViewModel struct {
 
 // ColumnInfo contains information about a column for UI display
 type ColumnInfo struct {
-	Name            string       // Column internal name
-	DisplayName     string       // Column display name
-	IsVisible       bool         // Whether column is currently visible
-	HasEntityType   bool         // Whether column defines an entity type
-	IsKey           bool         // Whether column has all unique values
-	JoinTargets     []JoinTarget // Tables/columns this column can join to
-	IsExpanded      bool         // Whether this column's join list is expanded
-	Path            string       // Path for URL encoding (e.g., "column1")
-	ToggleURL       safehtml.URL // URL to toggle expansion
-	ToggleColumnURL safehtml.URL // URL to toggle column visibility (preserves all query params)
+	Name              string       // Column internal name
+	DisplayName       string       // Column display name
+	IsVisible         bool         // Whether column is currently visible
+	IsGrouped         bool         // Whether column is currently grouped
+	HasEntityType     bool         // Whether column defines an entity type
+	IsKey             bool         // Whether column has all unique values
+	JoinTargets       []JoinTarget // Tables/columns this column can join to
+	IsExpanded        bool         // Whether this column's join list is expanded
+	Path              string       // Path for URL encoding (e.g., "column1")
+	ToggleURL         safehtml.URL // URL to toggle expansion
+	ToggleColumnURL   safehtml.URL // URL to toggle column visibility (preserves all query params)
+	ToggleGroupingURL safehtml.URL // URL to toggle grouping for this column
 }
 
 // JoinTarget represents a column that can be joined to
@@ -317,16 +319,18 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			}
 
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-				Name:            colName,
-				DisplayName:     col.ColumnDef().DisplayName(),
-				IsVisible:       visibleCols[colName],
-				HasEntityType:   hasEntityType,
-				IsKey:           isKey && hasEntityType, // Only mark as key if it's also an entity type
-				JoinTargets:     joinTargets,
-				IsExpanded:      isExpanded,
-				Path:            colName,
-				ToggleURL:       BuildToggleExpansionURL(q, colName),
-				ToggleColumnURL: BuildToggleColumnURL(q, colName),
+				Name:              colName,
+				DisplayName:       col.ColumnDef().DisplayName(),
+				IsVisible:         visibleCols[colName],
+				IsGrouped:         q.IsColumnGrouped(colName),
+				HasEntityType:     hasEntityType,
+				IsKey:             isKey && hasEntityType, // Only mark as key if it's also an entity type
+				JoinTargets:       joinTargets,
+				IsExpanded:        isExpanded,
+				Path:              colName,
+				ToggleURL:         BuildToggleExpansionURL(q, colName),
+				ToggleColumnURL:   BuildToggleColumnURL(q, colName),
+				ToggleGroupingURL: BuildToggleGroupingURL(q, colName),
 			})
 		}
 	}
@@ -678,4 +682,9 @@ func BuildToggleJoinedURL(currentURL string, joinPath string) string {
 // BuildToggleColumnURL creates a URL that toggles the visibility of a column while preserving all other query parameters
 func BuildToggleColumnURL(q *query.Query, toggleColumn string) safehtml.URL {
 	return q.WithColumnToggled(toggleColumn)
+}
+
+// BuildToggleGroupingURL creates a URL that toggles grouping for a column
+func BuildToggleGroupingURL(q *query.Query, columnName string) safehtml.URL {
+	return q.WithGroupedColumnToggled(columnName)
 }

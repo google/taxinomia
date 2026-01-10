@@ -24,7 +24,8 @@ import (
 
 // View defines which columns to display and their order
 type View struct {
-	Columns     []string                    // Column names in display order (including joined columns like "fromColumn.toTable.toColumn.selectedColumn")
-	Expanded    map[string]bool             // Set of expanded paths (e.g., "column1", "column1/table2.column2")
-	columnViews map[string]*columns.ColumnView
+	Columns        []string                    // Column names in display order (including joined columns like "fromColumn.toTable.toColumn.selectedColumn")
+	Expanded       map[string]bool             // Set of expanded paths (e.g., "column1", "column1/table2.column2")
+	GroupedColumns []string                    // Column names to group by, in grouping order
+	columnViews    map[string]*columns.ColumnView
 }

@@ -62,7 +62,8 @@ func main() {
 	dataModel.AddTable("users_perf", usersTable)
 	dataModel.AddTable("products_perf", productsTable)
 	dataModel.AddTable("categories_perf", categoriesTable)
-	fmt.Println("=== Performance Tables Created ===\n")
+	fmt.Println("=== Performance Tables Created ===")
+	fmt.Println()
 
 	// Print entity type usage report
 	printEntityTypeUsageReport(dataModel)
@@ -256,7 +257,8 @@ func main() {
 func printEntityTypeUsageReport(dm *models.DataModel) {
 	fmt.Println("\n=== Entity Type Usage Report ===")
 	fmt.Println("This report shows all entity types and where they are used across tables.")
-	fmt.Println("(Empty entity types are not included)\n")
+	fmt.Println("(Empty entity types are not included)")
+	fmt.Println()
 
 	// Get all entity types and their usage
 	entityUsages := dm.GetAllEntityTypes()
