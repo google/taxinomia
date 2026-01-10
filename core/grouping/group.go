@@ -27,8 +27,6 @@ type Group struct {
 	ParentGroup *Group
 	Block       *Block
 	ChildBlock  *Block
-	// the total number of grouped rows is len(indices)
-	// number of child groups is len(childBlock.groups)
 }
 
 func (g *Group) Length() int {
@@ -48,7 +46,6 @@ func (g *Group) Height() int {
 }
 
 func (g *Group) AsciiHeight() int {
-	// here sum the heights of child groups
 	if g.ChildBlock == nil {
 		return 2
 	}

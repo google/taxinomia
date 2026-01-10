@@ -44,6 +44,7 @@ type TableView struct {
 	tableName      string
 	joins          map[string]columns.IJoinedDataColumn
 	groupedColumns map[string]*grouping.GroupedColumn
+	groupingOrder  []string
 	blocksByColumn map[string][]*grouping.Block
 	columnViews    map[string]*columns.ColumnView
 	firstBlock     *grouping.Block
@@ -54,9 +55,10 @@ type TableView struct {
 // 	// for now return everything, meaning the mask is empty
 // }
 
-func (t *TableView) GroupTable(mask []bool, columns []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
+func (t *TableView) GroupTable(mask []bool, groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
 	// filter rows
 	// get indices from mask
+	t.groupingOrder = groupingOrder
 	indices := []uint32{}
 	if len(mask) == 0 {
 		indices = make([]uint32, t.baseTable.Length())
@@ -76,16 +78,17 @@ func (t *TableView) GroupTable(mask []bool, columns []string, aggregatedColumns 
 
 	// Process first column
 	//groupedTable.columns = columns
-	parentBlocks := t.groupFirstColumnInTable(indices, columns[0])
+	parentBlocks := t.groupFirstColumnInTable(indices)
 	t.firstBlock = parentBlocks[0]
 
 	// Process subsequent columns
-	t.groupSubsequentColumnsInTable(indices, columns[1:], parentBlocks)
+	t.groupSubsequentColumnsInTable(indices, t.groupingOrder[1:], parentBlocks)
 
 }
 
-func (t *TableView) groupFirstColumnInTable(indices []uint32, firstColumn string) []*grouping.Block {
+func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block {
 	// TODO this is limited to base table columns for now
+	firstColumn := t.groupingOrder[0]
 	columnView := t.columnViews[firstColumn]
 	dataColumn := t.baseTable.columns[firstColumn]
 

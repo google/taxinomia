@@ -30,11 +30,8 @@ func (t *TableView) ToAscii() string {
 	var sb strings.Builder
 	var groupAtVerticalOffset = make(map[string]map[int]*grouping.Group)
 
-	// Get all grouped column names in order
-	groupedCols := t.getGroupedColumnNames()
-
 	// Calculate column widths
-	colWidths := t.calculateColumnWidths(groupedCols)
+	colWidths := t.calculateColumnWidths()
 	// TODO calculate group text heights (for now default to 1)
 
 	// This will set the vertical offsets for each group
@@ -55,7 +52,6 @@ func (t *TableView) ToAscii() string {
 			}
 			groupAtVerticalOffset[name][offset] = group
 		}
-		fmt.Println("Group vertical offsets for", name, ":", groupAtVerticalOffset[name])
 	}
 
 	block := t.firstBlock
@@ -66,70 +62,42 @@ func (t *TableView) ToAscii() string {
 			last := j == group.AsciiHeight()-1 && k == len(block.Groups)-1
 			line += 1
 			// Now go through every column
-			for col := 0; col < len(groupedCols); col++ {
+			for _, name := range t.groupingOrder {
 				sb.WriteString("|")
-				if _, ok := groupAtVerticalOffset[groupedCols[col]][line+1]; ok {
-					sb.WriteString(strings.Repeat("-", colWidths[col]))
+				if _, ok := groupAtVerticalOffset[name][line+1]; ok {
+					sb.WriteString(strings.Repeat("-", colWidths[name]))
 				} else if last {
-					sb.WriteString(strings.Repeat("-", colWidths[col]))
-				} else if g, ok := groupAtVerticalOffset[groupedCols[col]][line]; ok {
+					sb.WriteString(strings.Repeat("-", colWidths[name]))
+				} else if g, ok := groupAtVerticalOffset[name][line]; ok {
 					// Get the display value for this group
 					valueStr, _ := g.Block.GroupedColumn.DataColumn.GetString(g.Indices[0])
-					sb.WriteString(fmt.Sprintf("%-*s", colWidths[col], valueStr))
+					sb.WriteString(fmt.Sprintf("%-*s", colWidths[name], valueStr))
 				} else {
-					sb.WriteString(strings.Repeat(" ", colWidths[col]))
+					sb.WriteString(strings.Repeat(" ", colWidths[name]))
 				}
 			}
 			sb.WriteString("|")
 			sb.WriteString("\n")
 		}
 	}
-
 	return sb.String()
 }
 
-// getGroupedColumnNames returns the list of grouped column names in level order
-func (t *TableView) getGroupedColumnNames() []string {
-	if t.firstBlock == nil {
-		return nil
-	}
-
-	result := make([]string, 0)
-	maxLevel := -1
-
-	// Find max level
-	for _, gc := range t.groupedColumns {
-		if gc.Level > maxLevel {
-			maxLevel = gc.Level
-		}
-	}
-
-	// Create result array with proper size
-	result = make([]string, maxLevel+1)
-
-	// Fill in column names by level
-	for name, gc := range t.groupedColumns {
-		result[gc.Level] = name
-	}
-
-	return result
-}
-
 // calculateColumnWidths calculates the width needed for each column
-func (t *TableView) calculateColumnWidths(groupedCols []string) []int {
-	widths := make([]int, len(groupedCols))
+func (t *TableView) calculateColumnWidths() map[string]int {
+	widths := make(map[string]int)
 
 	// Set minimum width to 1
-	for i := range widths {
-		widths[i] = 1
+	for name := range t.groupedColumns {
+		widths[name] = 1
 	}
 
 	for _, gc := range t.groupedColumns {
 		for _, block := range gc.Blocks {
 			for _, group := range block.Groups {
 				val, err := block.GroupedColumn.DataColumn.GetString(group.Indices[0])
-				if err == nil && len(val) > widths[gc.Level] {
-					widths[gc.Level] = len(val)
+				if err == nil && len(val) > widths[gc.DataColumn.ColumnDef().Name()] {
+					widths[gc.DataColumn.ColumnDef().Name()] = len(val)
 				}
 			}
 		}
