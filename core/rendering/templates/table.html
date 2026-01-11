@@ -528,6 +528,21 @@
             border-color: #21618c;
         }
 
+        /* Stats row styles */
+        .stats-row {
+            background-color: #e8f4f8;
+        }
+
+        .stats-cell {
+            padding: 6px 8px !important;
+            text-align: center;
+            background-color: #e8f4f8;
+            font-size: 12px;
+            color: #555;
+            font-weight: 500;
+            border-top: none !important;
+        }
+
         h1 {
             margin-bottom: 20px;
         }
@@ -706,6 +721,15 @@
                     {{end}}
                 {{end}}
             </tr>
+            <tr class="stats-row">
+                {{range $idx, $colName := $.Columns}}
+                    {{range $.AllColumns}}
+                        {{if eq .Name $colName}}
+                <td class="stats-cell" title="{{if .IsGrouped}}groups / total rows{{else}}total rows{{end}}">{{index $.ColumnStats $idx}}</td>
+                        {{end}}
+                    {{end}}
+                {{end}}
+            </tr>
         </thead>
         <tbody>
             {{if .IsGrouped}}
@@ -714,9 +738,9 @@
                 <tr>
                     {{range $cell := $row.Cells}}
                         {{if gt $cell.Rowspan 1}}
-                            <td rowspan="{{$cell.Rowspan}}">{{$cell.Value}}</td>
+                            <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}">{{$cell.Value}}</td>
                         {{else}}
-                            <td>{{$cell.Value}}</td>
+                            <td title="{{$cell.Title}}">{{$cell.Value}}</td>
                         {{end}}
                     {{end}}
                 </tr>

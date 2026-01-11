@@ -61,6 +61,15 @@ func (g *Group) AsciiHeight() int {
 	return height
 }
 
+// NumSubgroups returns the number of direct child groups
+// Returns 0 if this is a leaf group (no children)
+func (g *Group) NumSubgroups() int {
+	if g.ChildBlock == nil {
+		return 0
+	}
+	return len(g.ChildBlock.Groups)
+}
+
 type Block struct {
 	Groups        []*Group
 	ParentGroup   *Group
@@ -73,4 +82,12 @@ type GroupedColumn struct {
 	Level      int
 	Blocks     []*Block
 	Tag        string
+}
+
+func (gc *GroupedColumn) GetGroupCount() int {
+	count := 0
+	for _, b := range gc.Blocks {
+		count += len(b.Groups)
+	}
+	return count
 }

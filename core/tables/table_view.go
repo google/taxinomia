@@ -57,6 +57,14 @@ type TableView struct {
 // 	// for now return everything, meaning the mask is empty
 // }
 
+func (t *TableView) NumRows() int {
+	return t.baseTable.Length()
+}
+
+func (t *TableView) GetGroupCount(col string) int {
+	return t.groupedColumns[col].GetGroupCount()
+}
+
 func (t *TableView) ClearGroupings() {
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
@@ -345,6 +353,11 @@ func (tv *TableView) UpdateJoinedColumns(columnNames []string, resolver JoinReso
 func (tv *TableView) IsGrouped() bool {
 	return len(tv.groupedColumns) > 0
 	//	return tv.firstBlock != nil
+}
+
+func (tv *TableView) IsColGrouped(colName string) bool {
+	_, ok := tv.groupedColumns[colName]
+	return ok
 }
 
 // GetFirstBlock returns the first block of the grouping hierarchy

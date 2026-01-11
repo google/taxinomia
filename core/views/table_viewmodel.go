@@ -42,6 +42,7 @@ type TableViewModel struct {
 	AllColumns   []ColumnInfo        // All available columns with metadata
 	CurrentQuery string              // Current query string
 	CurrentURL   safehtml.URL        // Current URL for building toggle links
+	ColumnStats  []string            // Statistics for each visible column (e.g., "5 groups" or "100 rows")
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
@@ -60,6 +61,7 @@ type GroupedRow struct {
 type GroupedCell struct {
 	Value   string
 	Rowspan int
+	Title   string // Tooltip text for hover-over information
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -462,23 +464,9 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	if tableView.IsGrouped() {
 		vm.IsGrouped = true
 		vm.GroupedRows = buildGroupedRows(tableView, view.Columns)
-		// fmt.Printf("\n=== Template Data: .GroupedRows ===\n")
-		// fmt.Printf(".IsGrouped = %v\n", vm.IsGrouped)
-		// fmt.Printf("len(.GroupedRows) = %d\n", len(vm.GroupedRows))
-		// for i, row := range vm.GroupedRows {
-		// 	fmt.Printf(".GroupedRows[%d].Cells has %d cells:\n", i, len(row.Cells))
-		// 	for j, cell := range row.Cells {
-		// 		if cell.Rowspan > 1 {
-		// 			fmt.Printf("  .GroupedRows[%d].Cells[%d].Value = %q\n", i, j, cell.Value)
-		// 			fmt.Printf("  .GroupedRows[%d].Cells[%d].Rowspan = %d\n", i, j, cell.Rowspan)
-		// 		} else {
-		// 			fmt.Printf("  .GroupedRows[%d].Cells[%d].Value = %q\n", i, j, cell.Value)
-		// 		}
-		// 	}
-		// }
-		// fmt.Printf("====================================\n\n")
 	}
 
+	vm.ColumnStats = buildColumnStats(tableView)
 	// Debug: Print final view model info
 	fmt.Printf("Final VM Headers: %v\n", vm.Headers)
 	fmt.Printf("Final VM Columns: %v\n", vm.Columns)
@@ -744,17 +732,50 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		return
 	}
 	for _, group := range block.Groups {
-		value := fmt.Sprintf("%v [%d]", group.GetValue(), group.Height())
-		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{Value: value, Rowspan: group.Height()})
-		if group.ChildBlock == nil {
-			// now add the aggregated leaf columns..
-			for _, _ = range tableView.GetLeafColumns() {
+		// Format: "value [#subgroups/#rows]" for non-leaf, "value [#rows]" for leaf
+		var groupInfo, tooltip string
+		numRows := len(group.Indices)
+		if group.NumSubgroups() > 0 {
+			groupInfo = fmt.Sprintf("%s [%d/%d]", group.GetValue(), group.NumSubgroups(), numRows)
+			tooltip = "[subgroups/rows]"
+		} else {
+			groupInfo = fmt.Sprintf("%s [%d]", group.GetValue(), numRows)
+			tooltip = "[rows]"
+		}
 
-				(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{Value: fmt.Sprintf("[%d]", len(group.Indices)), Rowspan: group.Height()})
+		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{
+			Value:   groupInfo,
+			Rowspan: group.Height(),
+			Title:   tooltip,
+		})
+
+		if group.ChildBlock == nil {
+			// Leaf group - add aggregated column cells
+			for range tableView.GetLeafColumns() {
+				(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{
+					Value:   fmt.Sprintf("[%d]", numRows),
+					Rowspan: group.Height(),
+					Title:   "[rows]",
+				})
 			}
 			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
 		} else {
+			// Non-leaf group - recurse into child blocks
 			walkGroupHierarchy(tableView, group.ChildBlock, rows)
 		}
 	}
+}
+
+func buildColumnStats(tableView *tables.TableView) []string {
+	stats := make([]string, len(tableView.VisibleColumns))
+	totalRows := tableView.GetBaseTable().Length()
+	for i, colName := range tableView.VisibleColumns {
+		if tableView.IsColGrouped(colName) {
+			numGroups := tableView.GetGroupCount(colName)
+			stats[i] = fmt.Sprintf("%d / %d", numGroups, totalRows)
+		} else {
+			stats[i] = fmt.Sprintf("%d", totalRows)
+		}
+	}
+	return stats
 }
