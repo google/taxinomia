@@ -543,6 +543,32 @@
             border-top: none !important;
         }
 
+        /* Filter row styles */
+        .filter-row {
+            background-color: #f9f9f9;
+        }
+
+        .filter-cell {
+            padding: 4px !important;
+            background-color: #f9f9f9;
+            border-top: none !important;
+        }
+
+        .filter-input {
+            width: 100%;
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+
         h1 {
             margin-bottom: 20px;
         }
@@ -637,9 +663,62 @@
             urlDisplay.textContent = decodeURIComponent(window.location.href);
         }
 
+        // Handle filter input events
+        function setupFilterInputs() {
+            const filterInputs = document.querySelectorAll('.filter-input');
+            filterInputs.forEach(input => {
+                // Store original value for escape key
+                input.dataset.originalValue = input.value;
+
+                // Handle Enter key - apply filter immediately
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        applyFilter(this.dataset.column, this.value);
+                    }
+                    // Handle Escape key - clear filter and revert to original
+                    else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        this.value = '';
+                        applyFilter(this.dataset.column, '');
+                    }
+                });
+
+                // Handle blur (clicking away/tab out) - apply filter if changed
+                input.addEventListener('blur', function() {
+                    if (this.value !== this.dataset.originalValue) {
+                        applyFilter(this.dataset.column, this.value);
+                    }
+                });
+
+                // Handle focus - update original value when input is focused
+                input.addEventListener('focus', function() {
+                    this.dataset.originalValue = this.value;
+                });
+            });
+        }
+
+        // Apply filter by updating URL
+        function applyFilter(columnName, filterValue) {
+            const url = new URL(window.location);
+            const paramKey = 'filter:' + columnName;
+
+            if (filterValue && filterValue.trim() !== '') {
+                // Add or update filter parameter
+                url.searchParams.set(paramKey, filterValue.trim());
+            } else {
+                // Remove filter parameter if empty
+                url.searchParams.delete(paramKey);
+            }
+
+            // Navigate to new URL
+            window.location.href = url.toString();
+        }
+
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', function() {
             parseUrlParams();
+            setupFilterInputs();
         });
     </script>
 </head>
@@ -728,6 +807,18 @@
                 <td class="stats-cell" title="{{if .IsGrouped}}groups / total rows{{else}}total rows{{end}}">{{index $.ColumnStats $idx}}</td>
                         {{end}}
                     {{end}}
+                {{end}}
+            </tr>
+            <tr class="filter-row">
+                {{range $idx, $colName := $.Columns}}
+                <td class="filter-cell">
+                    <input type="text"
+                           class="filter-input"
+                           data-column="{{$colName}}"
+                           placeholder="Filter..."
+                           value="{{index $.ColumnFilters $colName}}"
+                           title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed">
+                </td>
                 {{end}}
             </tr>
         </thead>

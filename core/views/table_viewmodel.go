@@ -33,16 +33,17 @@ import (
 
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
-	Title        string
-	Headers      []string            // Column display names
-	Columns      []string            // Column names (for data access)
-	Rows         []map[string]string // Each row is a map of column name to value (flat table, ungrouped)
-	GroupedRows  []GroupedRow        // Hierarchical rows for grouped display
-	IsGrouped    bool                // Whether the table is currently grouped
-	AllColumns   []ColumnInfo        // All available columns with metadata
-	CurrentQuery string              // Current query string
-	CurrentURL   safehtml.URL        // Current URL for building toggle links
-	ColumnStats  []string            // Statistics for each visible column (e.g., "5 groups" or "100 rows")
+	Title         string
+	Headers       []string            // Column display names
+	Columns       []string            // Column names (for data access)
+	Rows          []map[string]string // Each row is a map of column name to value (flat table, ungrouped)
+	GroupedRows   []GroupedRow        // Hierarchical rows for grouped display
+	IsGrouped     bool                // Whether the table is currently grouped
+	AllColumns    []ColumnInfo        // All available columns with metadata
+	CurrentQuery  string              // Current query string
+	CurrentURL    safehtml.URL        // Current URL for building toggle links
+	ColumnStats   []string            // Statistics for each visible column (e.g., "5 groups" or "100 rows")
+	ColumnFilters map[string]string   // Filter values for each column (from URL parameters like filter:columnA=abc)
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
@@ -291,18 +292,29 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	currentURL := q.ToSafeURL()
 
 	vm := TableViewModel{
-		Title:      title,
-		Headers:    []string{},
-		Columns:    []string{},
-		Rows:       []map[string]string{},
-		AllColumns: []ColumnInfo{},
-		CurrentURL: currentURL,
+		Title:         title,
+		Headers:       []string{},
+		Columns:       []string{},
+		Rows:          []map[string]string{},
+		AllColumns:    []ColumnInfo{},
+		CurrentURL:    currentURL,
+		ColumnFilters: make(map[string]string),
+	}
+
+	// Extract filter parameters from OtherParams
+	// Filter parameters have the format "filter:columnName"
+	for key, values := range q.OtherParams {
+		if strings.HasPrefix(key, "filter:") && len(values) > 0 {
+			columnName := strings.TrimPrefix(key, "filter:")
+			vm.ColumnFilters[columnName] = values[0]
+		}
 	}
 
 	// Debug: Print view model building info
 	fmt.Printf("\n=== BuildViewModel Debug Info ===\n")
 	fmt.Printf("Table: %s\n", tableName)
 	fmt.Printf("View Columns to display: %v\n", view.Columns)
+	fmt.Printf("Column Filters: %v\n", vm.ColumnFilters)
 
 	// Create a map of visible columns for quick lookup
 	visibleCols := make(map[string]bool)
