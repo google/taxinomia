@@ -50,12 +50,149 @@ type TableView struct {
 	blocksByColumn map[string][]*grouping.Block
 	columnViews    map[string]*columns.ColumnView
 	firstBlock     *grouping.Block
+
+	// Filtering
+	filterMask []bool // Cached filter mask (nil = no filter, all rows shown)
 }
 
-// func (t TableView) Filter() {
-// 	// applies the filters to all columns and returns a mask of which rows are preserved
-// 	// for now return everything, meaning the mask is empty
-// }
+// ApplyFilters builds and caches a filter mask based on the provided filters
+// Each filter is a column name mapped to a filter value
+// Filter matching:
+//   - If filter value is enclosed in double quotes (e.g., "exact"), performs case-sensitive exact match
+//   - Otherwise, performs case-insensitive substring match
+// All filters must match (AND logic) for a row to pass
+//
+// Optimization: Processes each column once, applying filter logic column-by-column
+// rather than row-by-row. This minimizes redundant condition checks and improves
+// cache locality when accessing column data sequentially.
+func (t *TableView) ApplyFilters(filters map[string]string) {
+	// If no filters, clear the mask
+	if len(filters) == 0 {
+		t.filterMask = nil
+		return
+	}
+
+	// Initialize filter mask - start with all rows passing
+	t.filterMask = make([]bool, t.baseTable.Length())
+	for i := range t.filterMask {
+		t.filterMask[i] = true
+	}
+
+	// Apply each filter one column at a time
+	for colName, filterValue := range filters {
+		col := t.GetColumn(colName)
+		if col == nil {
+			// Column not found - no rows pass
+			for i := range t.filterMask {
+				t.filterMask[i] = false
+			}
+			return
+		}
+
+		// Determine filter type once per column
+		isExactMatch := len(filterValue) >= 2 && filterValue[0] == '"' && filterValue[len(filterValue)-1] == '"'
+
+		if isExactMatch {
+			// Exact match (case-sensitive) - strip quotes
+			exactValue := filterValue[1 : len(filterValue)-1]
+			for i := 0; i < t.baseTable.Length(); i++ {
+				if !t.filterMask[i] {
+					continue
+				}
+				rowValue, err := col.GetString(uint32(i))
+				if err != nil || rowValue != exactValue {
+					t.filterMask[i] = false
+				}
+			}
+		} else {
+			// Substring match (case-insensitive)
+			substringValue := strings.ToLower(filterValue)
+			for i := 0; i < t.baseTable.Length(); i++ {
+				if !t.filterMask[i] {
+					continue
+				}
+				rowValue, err := col.GetString(uint32(i))
+				if err != nil || !strings.Contains(strings.ToLower(rowValue), substringValue) {
+					t.filterMask[i] = false
+				}
+			}
+		}
+	}
+}
+
+// ClearFilters removes the active filter mask
+func (t *TableView) ClearFilters() {
+	t.filterMask = nil
+}
+
+// GetFilteredRowCount returns the number of rows that pass the current filter
+// Returns total row count if no filter is active
+func (t *TableView) GetFilteredRowCount() int {
+	if t.filterMask == nil {
+		return t.baseTable.Length()
+	}
+	count := 0
+	for _, passes := range t.filterMask {
+		if passes {
+			count++
+		}
+	}
+	return count
+}
+
+// GetFilteredIndices returns the indices of rows that pass the current filter
+// Returns all indices if no filter is active
+func (t *TableView) GetFilteredIndices() []uint32 {
+	if t.filterMask == nil {
+		// No filter - return all indices
+		indices := make([]uint32, t.baseTable.Length())
+		for i := 0; i < t.baseTable.Length(); i++ {
+			indices[i] = uint32(i)
+		}
+		return indices
+	}
+
+	// Filter active - return indices that pass
+	indices := make([]uint32, 0, t.GetFilteredRowCount())
+	for i, passes := range t.filterMask {
+		if passes {
+			indices = append(indices, uint32(i))
+		}
+	}
+	return indices
+}
+
+// GetFilteredRows returns rows as maps of column name to string value
+// Returns only rows that pass the current filter, up to the specified limit
+// If limit <= 0, returns all filtered rows
+func (t *TableView) GetFilteredRows(columnNames []string, limit int) []map[string]string {
+	filteredIndices := t.GetFilteredIndices()
+
+	// Determine how many rows to return
+	rowCount := len(filteredIndices)
+	if limit > 0 && limit < rowCount {
+		rowCount = limit
+	}
+
+	rows := make([]map[string]string, 0, rowCount)
+	for i := 0; i < rowCount; i++ {
+		rowIndex := filteredIndices[i]
+		row := make(map[string]string)
+		for _, colName := range columnNames {
+			col := t.GetColumn(colName)
+			if col != nil {
+				value, err := col.GetString(rowIndex)
+				if err != nil {
+					row[colName] = "[error]"
+				} else {
+					row[colName] = value
+				}
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
 
 func (t *TableView) NumRows() int {
 	return t.baseTable.Length()
@@ -70,24 +207,24 @@ func (t *TableView) ClearGroupings() {
 	t.firstBlock = nil
 }
 
-func (t *TableView) GroupTable(mask []bool, groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
+func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
 	// clear current groups
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
 
-	// filter rows
-
-	// get indices from mask
+	// get indices from cached filter mask
 	t.groupingOrder = groupingOrder
 	indices := []uint32{}
-	if len(mask) == 0 {
+	if t.filterMask == nil {
+		// No filter - include all rows
 		indices = make([]uint32, t.baseTable.Length())
 		for i := 0; i < t.baseTable.Length(); i++ {
 			indices[i] = uint32(i)
 		}
 	} else {
-		for i, m := range mask {
-			if m {
+		// Use filter mask to select rows
+		for i, passes := range t.filterMask {
+			if passes {
 				indices = append(indices, uint32(i))
 			}
 		}

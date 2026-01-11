@@ -29,7 +29,7 @@ func TestToAscii(t *testing.T) {
 	tableView1.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	tableView1.blocksByColumn = make(map[string][]*grouping.Block)
 
-	tableView1.GroupTable(nil, []string{"status"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView1.GroupTable([]string{"status"}, []string{}, make(map[string]Compare), make(map[string]bool))
 	fmt.Println(tableView1.ToAscii())
 
 	// Test 2: Two-level hierarchical grouping
@@ -64,7 +64,7 @@ func TestToAscii(t *testing.T) {
 	tableView2.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	tableView2.blocksByColumn = make(map[string][]*grouping.Block)
 
-	tableView2.GroupTable(nil, []string{"status", "region"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView2.GroupTable([]string{"status", "region"}, []string{}, make(map[string]Compare), make(map[string]bool))
 	fmt.Println(tableView2.ToAscii())
 
 	// Test 3: Numeric columns (Category -> Priority)
@@ -99,7 +99,7 @@ func TestToAscii(t *testing.T) {
 	tableView3.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	tableView3.blocksByColumn = make(map[string][]*grouping.Block)
 
-	tableView3.GroupTable(nil, []string{"category", "priority"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView3.GroupTable([]string{"category", "priority"}, []string{}, make(map[string]Compare), make(map[string]bool))
 	fmt.Println(tableView3.ToAscii())
 
 	// Test 4: Three-level hierarchical grouping
@@ -139,6 +139,6 @@ func TestToAscii(t *testing.T) {
 	tableView4.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	tableView4.blocksByColumn = make(map[string][]*grouping.Block)
 
-	tableView4.GroupTable(nil, []string{"col1", "col2", "col3"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView4.GroupTable([]string{"col1", "col2", "col3"}, []string{}, make(map[string]Compare), make(map[string]bool))
 	fmt.Println(tableView4.ToAscii())
 }

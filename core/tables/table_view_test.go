@@ -74,7 +74,7 @@ func TestGroupTable(t *testing.T) {
 	t.Logf("Status column length: %d", statusCol.Length())
 
 	// Call GroupTable with no mask (all rows)
-	tableView.GroupTable(nil, columns, aggregatedColumns, compare, asc)
+	tableView.GroupTable(columns, aggregatedColumns, compare, asc)
 
 	// Verify that grouping was performed
 	if tableView.firstBlock == nil {
@@ -135,11 +135,11 @@ func TestGroupTableWithMask(t *testing.T) {
 	table := NewDataTable()
 
 	statusCol := columns.NewStringColumn(columns.NewColumnDef("status", "Status", ""))
-	statusCol.Append("Active")
-	statusCol.Append("Active")
-	statusCol.Append("Inactive")
-	statusCol.Append("Active")
-	statusCol.Append("Inactive")
+	statusCol.Append("Open")
+	statusCol.Append("Open")
+	statusCol.Append("Closed")
+	statusCol.Append("Open")
+	statusCol.Append("Closed")
 	statusCol.FinalizeColumn()
 
 	table.AddColumn(statusCol)
@@ -151,20 +151,90 @@ func TestGroupTableWithMask(t *testing.T) {
 	tableView.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	tableView.blocksByColumn = make(map[string][]*grouping.Block)
 
-	// Create a mask that filters to only indices 0, 1, 3 (all "Active" rows)
-	mask := []bool{true, true, false, true, false}
+	// Apply a filter that filters to only "Open" rows (indices 0, 1, 3)
+	filters := map[string]string{
+		"status": "Open",
+	}
+	tableView.ApplyFilters(filters)
 
 	columns := []string{"status"}
-	tableView.GroupTable(mask, columns, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView.GroupTable(columns, []string{}, make(map[string]Compare), make(map[string]bool))
 
-	// With the mask, we should only have 1 group (Active)
+	// With the filter, we should only have 1 group (Open)
 	if len(tableView.firstBlock.Groups) != 1 {
-		t.Errorf("Expected 1 group with mask, got %d", len(tableView.firstBlock.Groups))
+		t.Errorf("Expected 1 group with filter, got %d", len(tableView.firstBlock.Groups))
 	}
 
 	// The single group should have 3 indices
 	if len(tableView.firstBlock.Groups[0].Indices) != 3 {
 		t.Errorf("Expected 3 indices in the group, got %d", len(tableView.firstBlock.Groups[0].Indices))
+	}
+}
+
+// TestFilterExactMatch tests exact match filtering with quotes
+func TestFilterExactMatch(t *testing.T) {
+	// Create a test table
+	table := NewDataTable()
+
+	statusCol := columns.NewStringColumn(columns.NewColumnDef("status", "Status", ""))
+	statusCol.Append("Active")
+	statusCol.Append("Inactive")
+	statusCol.Append("Active")
+	statusCol.Append("Inactive")
+	statusCol.FinalizeColumn()
+
+	table.AddColumn(statusCol)
+
+	// Create TableView
+	tableView := NewTableView(table, "test_table")
+
+	// Test 1: Substring match - "active" should match both "Active" and "Inactive"
+	filters := map[string]string{
+		"status": "active",
+	}
+	tableView.ApplyFilters(filters)
+	count := tableView.GetFilteredRowCount()
+	if count != 4 {
+		t.Errorf("Substring match: Expected 4 rows (all rows contain 'active'), got %d", count)
+	}
+
+	// Test 2: Exact match - "\"Active\"" should match only "Active"
+	filters = map[string]string{
+		"status": "\"Active\"",
+	}
+	tableView.ApplyFilters(filters)
+	count = tableView.GetFilteredRowCount()
+	if count != 2 {
+		t.Errorf("Exact match: Expected 2 rows (only 'Active'), got %d", count)
+	}
+
+	// Verify the filtered indices are correct
+	indices := tableView.GetFilteredIndices()
+	if len(indices) != 2 {
+		t.Errorf("Expected 2 filtered indices, got %d", len(indices))
+	}
+	if indices[0] != 0 || indices[1] != 2 {
+		t.Errorf("Expected indices [0, 2], got %v", indices)
+	}
+
+	// Test 3: Exact match - "\"Inactive\"" should match only "Inactive"
+	filters = map[string]string{
+		"status": "\"Inactive\"",
+	}
+	tableView.ApplyFilters(filters)
+	count = tableView.GetFilteredRowCount()
+	if count != 2 {
+		t.Errorf("Exact match: Expected 2 rows (only 'Inactive'), got %d", count)
+	}
+
+	// Test 4: Case-sensitive exact match - "\"active\"" should NOT match "Active"
+	filters = map[string]string{
+		"status": "\"active\"",
+	}
+	tableView.ApplyFilters(filters)
+	count = tableView.GetFilteredRowCount()
+	if count != 0 {
+		t.Errorf("Case-sensitive exact match: Expected 0 rows (lowercase 'active' should not match 'Active'), got %d", count)
 	}
 }
 
@@ -192,7 +262,7 @@ func TestGroupTableWithUint32Column(t *testing.T) {
 	tableView.blocksByColumn = make(map[string][]*grouping.Block)
 
 	columns := []string{"category_id"}
-	tableView.GroupTable(nil, columns, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView.GroupTable(columns, []string{}, make(map[string]Compare), make(map[string]bool))
 
 	// Should have 3 groups (category IDs: 1, 2, 3)
 	expectedGroups := 3
@@ -251,7 +321,7 @@ func TestGroupTableTwoColumns(t *testing.T) {
 
 	// Group by status, then by region (hierarchical grouping)
 	columns := []string{"status", "region"}
-	tableView.GroupTable(nil, columns, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView.GroupTable(columns, []string{}, make(map[string]Compare), make(map[string]bool))
 
 	// Verify first level grouping (status)
 	if tableView.firstBlock == nil {
@@ -347,7 +417,7 @@ func TestGroupTableTwoColumnsWithUint32(t *testing.T) {
 
 	// Group by category, then by priority
 	columns := []string{"category", "priority"}
-	tableView.GroupTable(nil, columns, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView.GroupTable(columns, []string{}, make(map[string]Compare), make(map[string]bool))
 
 	// First level: should have 3 category groups (1, 2, 3)
 	if len(tableView.firstBlock.Groups) != 3 {
@@ -435,7 +505,7 @@ func TestGroupTableThreeColumns(t *testing.T) {
 
 	// Group by all three columns
 	columns := []string{"col1", "col2", "col3"}
-	tableView.GroupTable(nil, columns, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView.GroupTable(columns, []string{}, make(map[string]Compare), make(map[string]bool))
 
 	// Level 1: should have 2 groups (A, B)
 	if len(tableView.firstBlock.Groups) != 2 {

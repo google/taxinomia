@@ -118,7 +118,7 @@ func TestToAsciiDemo(t *testing.T) {
 	tableView.blocksByColumn = make(map[string][]*grouping.Block)
 
 	// Group by status, region, category
-	tableView.GroupTable(nil, []string{"status", "region", "category"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	tableView.GroupTable([]string{"status", "region", "category"}, []string{}, make(map[string]Compare), make(map[string]bool))
 
 	// Display the grouped table
 	fmt.Println("\n=== Grouped Table Display ===")

@@ -146,18 +146,20 @@ func main() {
 		// Update joined columns to match the current request
 		views.ProcessJoinsAndUpdateColumns(tableView, &view, dataModel)
 
+		// Apply filters to the table view
+		tableView.ApplyFilters(q.Filters)
+
 		// Apply grouping if grouped columns are specified
 		if len(q.GroupedColumns) > 0 {
-			// Call GroupTable with the grouped columns
-			// nil mask means all rows, empty compare/asc maps mean default sorting
-			tableView.GroupTable(nil, q.GroupedColumns, []string{}, make(map[string]tables.Compare), make(map[string]bool))
+			// Call GroupTable - it will use the cached filter mask
+			tableView.GroupTable(q.GroupedColumns, []string{}, make(map[string]tables.Compare), make(map[string]bool))
 
 			// Output ASCII representation to console
 			fmt.Println("\n=== Grouped Table (ASCII) ===")
 			fmt.Printf("Table: %s\n", q.Table)
 			fmt.Printf("Grouped by: %v\n", q.GroupedColumns)
 			fmt.Println(tableView.ToAscii())
-			fmt.Println("=============================\n")
+			fmt.Println("=============================")
 		} else {
 			tableView.ClearGroupings()
 		}

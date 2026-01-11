@@ -804,7 +804,7 @@
                 {{range $idx, $colName := $.Columns}}
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
-                <td class="stats-cell" title="{{if .IsGrouped}}groups / total rows{{else}}total rows{{end}}">{{index $.ColumnStats $idx}}</td>
+                <td class="stats-cell" title="{{if .IsGrouped}}groups / filtered rows / total rows{{else}}filtered rows / total rows{{end}}">{{index $.ColumnStats $idx}}</td>
                         {{end}}
                     {{end}}
                 {{end}}
@@ -817,7 +817,8 @@
                            data-column="{{$colName}}"
                            placeholder="Filter..."
                            value="{{index $.ColumnFilters $colName}}"
-                           title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed">
+                           title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
+Use &quot;quotes&quot; for exact match">
                 </td>
                 {{end}}
             </tr>

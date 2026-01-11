@@ -301,14 +301,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		ColumnFilters: make(map[string]string),
 	}
 
-	// Extract filter parameters from OtherParams
-	// Filter parameters have the format "filter:columnName"
-	for key, values := range q.OtherParams {
-		if strings.HasPrefix(key, "filter:") && len(values) > 0 {
-			columnName := strings.TrimPrefix(key, "filter:")
-			vm.ColumnFilters[columnName] = values[0]
-		}
-	}
+	// Copy filter parameters from Query
+	vm.ColumnFilters = q.Filters
 
 	// Debug: Print view model building info
 	fmt.Printf("\n=== BuildViewModel Debug Info ===\n")
@@ -428,49 +422,15 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		}
 	}
 
-	// Get the number of rows (assumes all columns have same length)
-	totalRows := 0
-	if len(view.Columns) > 0 {
-		// Find the first non-joined column to get row count
-		for _, colName := range view.Columns {
-			firstCol := tableView.GetColumn(colName)
-			if firstCol != nil {
-				totalRows = firstCol.Length()
-				break
-			}
-		}
-	}
-
-	// Store total rows
+	// Get filtered row count and rows from TableView
+	totalRows := tableView.GetFilteredRowCount()
 	vm.TotalRows = totalRows
 
-	// Apply limit
-	rowsToDisplay := totalRows
-	if q.Limit > 0 && q.Limit < totalRows {
-		rowsToDisplay = q.Limit
-		vm.HasMoreRows = true
-	}
-	vm.DisplayedRows = rowsToDisplay
+	// Get filtered rows with limit applied
+	vm.Rows = tableView.GetFilteredRows(view.Columns, q.Limit)
+	vm.DisplayedRows = len(vm.Rows)
 	vm.CurrentLimit = q.Limit
-
-	// Build rows (only up to the limit)
-	for i := 0; i < rowsToDisplay; i++ {
-		row := make(map[string]string)
-		for _, colName := range view.Columns {
-			col := tableView.GetColumn(colName)
-			if col != nil {
-				value, err := col.GetString(uint32(i))
-				if err != nil {
-					// Simple error handling: log and display error indicator
-					fmt.Printf("Error retrieving value for column %s at row %d: %v\n", colName, i, err)
-					row[colName] = "[error]"
-				} else {
-					row[colName] = value
-				}
-			}
-		}
-		vm.Rows = append(vm.Rows, row)
-	}
+	vm.HasMoreRows = q.Limit > 0 && totalRows > q.Limit
 
 	// Check if table is grouped and build grouped rows if needed
 	if tableView.IsGrouped() {
@@ -780,13 +740,25 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 
 func buildColumnStats(tableView *tables.TableView) []string {
 	stats := make([]string, len(tableView.VisibleColumns))
-	totalRows := tableView.GetBaseTable().Length()
+	filteredRows := tableView.GetFilteredRowCount()
+	totalRows := tableView.NumRows()
+
 	for i, colName := range tableView.VisibleColumns {
 		if tableView.IsColGrouped(colName) {
 			numGroups := tableView.GetGroupCount(colName)
-			stats[i] = fmt.Sprintf("%d / %d", numGroups, totalRows)
+			// For grouped columns: "groups / filtered / total"
+			if filteredRows == totalRows {
+				stats[i] = fmt.Sprintf("%d / %d", numGroups, totalRows)
+			} else {
+				stats[i] = fmt.Sprintf("%d / %d / %d", numGroups, filteredRows, totalRows)
+			}
 		} else {
-			stats[i] = fmt.Sprintf("%d", totalRows)
+			// For ungrouped columns: "filtered / total"
+			if filteredRows == totalRows {
+				stats[i] = fmt.Sprintf("%d", totalRows)
+			} else {
+				stats[i] = fmt.Sprintf("%d / %d", filteredRows, totalRows)
+			}
 		}
 	}
 	return stats

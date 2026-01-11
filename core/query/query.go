@@ -32,14 +32,12 @@ type Query struct {
 	Path string
 
 	// Core parameters
-	Table          string   // The table being viewed
-	Columns        []string // Ordered list of visible columns
-	Expanded       []string // List of expanded paths in the sidebar
-	GroupedColumns []string // Ordered list of columns to group by
-	Limit          int      // Number of rows to display (0 = show all)
-
-	// Preserve any other parameters we don't know about
-	OtherParams map[string][]string
+	Table          string            // The table being viewed
+	Columns        []string          // Ordered list of visible columns
+	Expanded       []string          // List of expanded paths in the sidebar
+	GroupedColumns []string          // Ordered list of columns to group by
+	Filters        map[string]string // Column filters (columnName -> filterValue)
+	Limit          int               // Number of rows to display (0 = show all)
 }
 
 // NewQuery creates a Query from a URL
@@ -48,9 +46,9 @@ func NewQuery(u *url.URL) *Query {
 	// No additional sanitization needed here as we're just extracting query parameters
 
 	state := &Query{
-		Path:        u.Path,
-		OtherParams: make(map[string][]string),
-		Limit:       25, // Default limit
+		Path:    u.Path,
+		Filters: make(map[string]string),
+		Limit:   25, // Default limit
 	}
 
 	// Parse query parameters
@@ -91,10 +89,11 @@ func NewQuery(u *url.URL) *Query {
 		}
 	}
 
-	// Store all other parameters
+	// Extract filter parameters (format: filter:columnName=value)
 	for key, values := range q {
-		if key != "table" && key != "columns" && key != "expanded" && key != "grouped" && key != "limit" {
-			state.OtherParams[key] = values
+		if strings.HasPrefix(key, "filter:") && len(values) > 0 {
+			columnName := strings.TrimPrefix(key, "filter:")
+			state.Filters[columnName] = values[0]
 		}
 	}
 
@@ -109,8 +108,8 @@ func (s *Query) Clone() *Query {
 		Columns:        make([]string, len(s.Columns)),
 		Expanded:       make([]string, len(s.Expanded)),
 		GroupedColumns: make([]string, len(s.GroupedColumns)),
+		Filters:        make(map[string]string),
 		Limit:          s.Limit,
-		OtherParams:    make(map[string][]string),
 	}
 
 	// Deep copy columns
@@ -122,10 +121,9 @@ func (s *Query) Clone() *Query {
 	// Deep copy grouped columns
 	copy(clone.GroupedColumns, s.GroupedColumns)
 
-	// Deep copy other params
-	for key, values := range s.OtherParams {
-		clone.OtherParams[key] = make([]string, len(values))
-		copy(clone.OtherParams[key], values)
+	// Deep copy filters
+	for colName, filterValue := range s.Filters {
+		clone.Filters[colName] = filterValue
 	}
 
 	return clone
@@ -263,15 +261,15 @@ func (s *Query) ToURL() string {
 		q.Set("grouped", strings.Join(s.GroupedColumns, ","))
 	}
 
-	// Add limit parameter (always included in URL)
-	q.Set("limit", strconv.Itoa(s.Limit))
-
-	// Add all other parameters
-	for key, values := range s.OtherParams {
-		for _, value := range values {
-			q.Add(key, value)
+	// Add filter parameters (format: filter:columnName=value)
+	for colName, filterValue := range s.Filters {
+		if filterValue != "" {
+			q.Set("filter:"+colName, filterValue)
 		}
 	}
+
+	// Add limit parameter (always included in URL)
+	q.Set("limit", strconv.Itoa(s.Limit))
 
 	u.RawQuery = q.Encode()
 	return u.String()
