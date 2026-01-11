@@ -42,7 +42,9 @@ type Compare int
 type TableView struct {
 	baseTable      *DataTable
 	tableName      string
+	VisibleColumns []string
 	joins          map[string]columns.IJoinedDataColumn
+
 	groupedColumns map[string]*grouping.GroupedColumn
 	groupingOrder  []string
 	blocksByColumn map[string][]*grouping.Block
@@ -55,8 +57,18 @@ type TableView struct {
 // 	// for now return everything, meaning the mask is empty
 // }
 
+func (t *TableView) ClearGroupings() {
+	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
+	t.firstBlock = nil
+}
+
 func (t *TableView) GroupTable(mask []bool, groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
+	// clear current groups
+	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
+	t.firstBlock = nil
+
 	// filter rows
+
 	// get indices from mask
 	t.groupingOrder = groupingOrder
 	indices := []uint32{}
@@ -171,9 +183,12 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 // NewTableView creates a new TableView wrapping a DataTable
 func NewTableView(baseTable *DataTable, tableName string) *TableView {
 	return &TableView{
-		baseTable: baseTable,
-		tableName: tableName,
-		joins:     make(map[string]columns.IJoinedDataColumn),
+		baseTable:      baseTable,
+		tableName:      tableName,
+		joins:          make(map[string]columns.IJoinedDataColumn),
+		columnViews:    make(map[string]*columns.ColumnView),
+		groupedColumns: make(map[string]*grouping.GroupedColumn),
+		blocksByColumn: make(map[string][]*grouping.Block),
 	}
 }
 
@@ -324,4 +339,34 @@ func (tv *TableView) UpdateJoinedColumns(columnNames []string, resolver JoinReso
 	fmt.Printf("Joined Columns in TableView: %v\n", tv.GetJoinedColumnNames())
 	fmt.Printf("All Columns in TableView: %v\n", tv.GetAllColumnNames())
 	fmt.Printf("===============================================\n\n")
+}
+
+// IsGrouped returns true if the table has active grouping
+func (tv *TableView) IsGrouped() bool {
+	return len(tv.groupedColumns) > 0
+	//	return tv.firstBlock != nil
+}
+
+// GetFirstBlock returns the first block of the grouping hierarchy
+// Returns nil if no grouping is active
+func (tv *TableView) GetFirstBlock() *grouping.Block {
+	return tv.firstBlock
+}
+
+// GetGroupingOrder returns the ordered list of grouped column names
+func (tv *TableView) GetGroupingOrder() []string {
+	return tv.groupingOrder
+}
+
+// GetLeafColumns returns the names of the non-grouped columns (aggregated/leaf columns)
+// These are all columns that are not in the grouping order
+func (tv *TableView) GetLeafColumns() []string {
+	fmt.Println()
+	fmt.Println("tv.groupedColumns", tv.groupedColumns)
+	fmt.Println("tv.VisibleColumns", tv.VisibleColumns)
+	src := tv.VisibleColumns[len(tv.groupedColumns):]
+	leafColumns := make([]string, len(src))
+	copy(leafColumns, src)
+	fmt.Println("leafColumns", leafColumns)
+	return leafColumns
 }

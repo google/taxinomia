@@ -29,6 +29,11 @@ type Group struct {
 	ChildBlock  *Block
 }
 
+func (g *Group) GetValue() string {
+	valueStr, _ := g.Block.GroupedColumn.DataColumn.GetString(g.Indices[0])
+	return valueStr
+}
+
 func (g *Group) Length() int {
 	return len(g.Indices)
 }

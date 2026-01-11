@@ -135,8 +135,9 @@ func main() {
 
 		// Define the view - which columns to display and in what order
 		view := views.View{
-			Columns:  q.Columns,
-			Expanded: expandedPaths,
+			Columns:        q.Columns,
+			Expanded:       expandedPaths,
+			GroupedColumns: q.GroupedColumns,
 		}
 
 		// Get or create a cached TableView for this table
@@ -144,6 +145,22 @@ func main() {
 
 		// Update joined columns to match the current request
 		views.ProcessJoinsAndUpdateColumns(tableView, &view, dataModel)
+
+		// Apply grouping if grouped columns are specified
+		if len(q.GroupedColumns) > 0 {
+			// Call GroupTable with the grouped columns
+			// nil mask means all rows, empty compare/asc maps mean default sorting
+			tableView.GroupTable(nil, q.GroupedColumns, []string{}, make(map[string]tables.Compare), make(map[string]bool))
+
+			// Output ASCII representation to console
+			fmt.Println("\n=== Grouped Table (ASCII) ===")
+			fmt.Printf("Table: %s\n", q.Table)
+			fmt.Printf("Grouped by: %v\n", q.GroupedColumns)
+			fmt.Println(tableView.ToAscii())
+			fmt.Println("=============================\n")
+		} else {
+			tableView.ClearGroupings()
+		}
 
 		// Build the view model from the table view
 		title := fmt.Sprintf("%s Table - Taxinomia Demo", strings.Title(q.Table))

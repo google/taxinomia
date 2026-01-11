@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/google/safehtml"
+	"github.com/google/taxinomia/core/grouping"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/tables"
@@ -35,7 +36,9 @@ type TableViewModel struct {
 	Title        string
 	Headers      []string            // Column display names
 	Columns      []string            // Column names (for data access)
-	Rows         []map[string]string // Each row is a map of column name to value
+	Rows         []map[string]string // Each row is a map of column name to value (flat table, ungrouped)
+	GroupedRows  []GroupedRow        // Hierarchical rows for grouped display
+	IsGrouped    bool                // Whether the table is currently grouped
 	AllColumns   []ColumnInfo        // All available columns with metadata
 	CurrentQuery string              // Current query string
 	CurrentURL   safehtml.URL        // Current URL for building toggle links
@@ -45,6 +48,18 @@ type TableViewModel struct {
 	DisplayedRows int  // Number of rows actually displayed
 	HasMoreRows   bool // True if there are more rows than displayed
 	CurrentLimit  int  // Current row limit
+}
+
+// GroupedRow represents a single row in the grouped table display
+type GroupedRow struct {
+	Cells []GroupedCell // Only cells that should be rendered (no skipped cells)
+}
+
+// GroupedCell represents a cell to be rendered in the grouped table
+// Rowspan indicates how many rows this cell spans (1 = no span, >1 = spans multiple rows)
+type GroupedCell struct {
+	Value   string
+	Rowspan int
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -443,6 +458,27 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		vm.Rows = append(vm.Rows, row)
 	}
 
+	// Check if table is grouped and build grouped rows if needed
+	if tableView.IsGrouped() {
+		vm.IsGrouped = true
+		vm.GroupedRows = buildGroupedRows(tableView, view.Columns)
+		// fmt.Printf("\n=== Template Data: .GroupedRows ===\n")
+		// fmt.Printf(".IsGrouped = %v\n", vm.IsGrouped)
+		// fmt.Printf("len(.GroupedRows) = %d\n", len(vm.GroupedRows))
+		// for i, row := range vm.GroupedRows {
+		// 	fmt.Printf(".GroupedRows[%d].Cells has %d cells:\n", i, len(row.Cells))
+		// 	for j, cell := range row.Cells {
+		// 		if cell.Rowspan > 1 {
+		// 			fmt.Printf("  .GroupedRows[%d].Cells[%d].Value = %q\n", i, j, cell.Value)
+		// 			fmt.Printf("  .GroupedRows[%d].Cells[%d].Rowspan = %d\n", i, j, cell.Rowspan)
+		// 		} else {
+		// 			fmt.Printf("  .GroupedRows[%d].Cells[%d].Value = %q\n", i, j, cell.Value)
+		// 		}
+		// 	}
+		// }
+		// fmt.Printf("====================================\n\n")
+	}
+
 	// Debug: Print final view model info
 	fmt.Printf("Final VM Headers: %v\n", vm.Headers)
 	fmt.Printf("Final VM Columns: %v\n", vm.Columns)
@@ -512,6 +548,7 @@ func GetOrCreateTableView(tableName string, table *tables.DataTable, tableViewCa
 func ProcessJoinsAndUpdateColumns(tableView *tables.TableView, view *View, dataModel *models.DataModel) {
 	// Update joined columns using the TableView's method
 	tableView.UpdateJoinedColumns(view.Columns, dataModel)
+	tableView.VisibleColumns = view.Columns
 }
 
 // BuildAddColumnURL creates a URL that toggles a column
@@ -687,4 +724,37 @@ func BuildToggleColumnURL(q *query.Query, toggleColumn string) safehtml.URL {
 // BuildToggleGroupingURL creates a URL that toggles grouping for a column
 func BuildToggleGroupingURL(q *query.Query, columnName string) safehtml.URL {
 	return q.WithGroupedColumnToggled(columnName)
+}
+
+// buildGroupedRows converts the hierarchical grouping structure into rows with rowspan
+// It walks the group hierarchy recursively, using group.Height() for rowspan
+func buildGroupedRows(tableView *tables.TableView, visibleColumns []string) []GroupedRow {
+	firstBlock := tableView.GetFirstBlock()
+	if firstBlock == nil {
+		return nil
+	}
+	var rows []GroupedRow = []GroupedRow{{Cells: []GroupedCell{}}}
+	walkGroupHierarchy(tableView, firstBlock, &rows)
+	return rows
+}
+
+// walkGroupHierarchy recursively walks the group hierarchy and builds rows
+func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow) {
+	if block == nil {
+		return
+	}
+	for _, group := range block.Groups {
+		value := fmt.Sprintf("%v [%d]", group.GetValue(), group.Height())
+		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{Value: value, Rowspan: group.Height()})
+		if group.ChildBlock == nil {
+			// now add the aggregated leaf columns..
+			for _, _ = range tableView.GetLeafColumns() {
+
+				(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{Value: fmt.Sprintf("[%d]", len(group.Indices)), Rowspan: group.Height()})
+			}
+			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
+		} else {
+			walkGroupHierarchy(tableView, group.ChildBlock, rows)
+		}
+	}
 }

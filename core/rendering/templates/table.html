@@ -708,12 +708,28 @@
             </tr>
         </thead>
         <tbody>
-            {{range $row := .Rows}}
-            <tr>
-                {{range $colName := $.Columns}}
-                <td>{{index $row $colName}}</td>
+            {{if .IsGrouped}}
+                {{/* Render grouped rows with rowspan */}}
+                {{range $row := .GroupedRows}}
+                <tr>
+                    {{range $cell := $row.Cells}}
+                        {{if gt $cell.Rowspan 1}}
+                            <td rowspan="{{$cell.Rowspan}}">{{$cell.Value}}</td>
+                        {{else}}
+                            <td>{{$cell.Value}}</td>
+                        {{end}}
+                    {{end}}
+                </tr>
                 {{end}}
-            </tr>
+            {{else}}
+                {{/* Render flat rows (ungrouped) */}}
+                {{range $row := .Rows}}
+                <tr>
+                    {{range $colName := $.Columns}}
+                    <td>{{index $row $colName}}</td>
+                    {{end}}
+                </tr>
+                {{end}}
             {{end}}
         </tbody>
     </table>
