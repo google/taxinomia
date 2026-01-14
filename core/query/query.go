@@ -33,7 +33,7 @@ type Query struct {
 
 	// Core parameters
 	Table          string            // The table being viewed
-	Columns        []string          // Ordered list of visible columns
+	Columns        []string          // Ordered list of visible columns (reordered: filtered, grouped, then others)
 	Expanded       []string          // List of expanded paths in the sidebar
 	GroupedColumns []string          // Ordered list of columns to group by
 	Filters        map[string]string // Column filters (columnName -> filterValue)
@@ -97,6 +97,9 @@ func NewQuery(u *url.URL) *Query {
 		}
 	}
 
+	// Reorder columns: filtered columns first, then grouped columns, then others
+	state.reorderColumns()
+
 	return state
 }
 
@@ -127,6 +130,56 @@ func (s *Query) Clone() *Query {
 	}
 
 	return clone
+}
+
+// reorderColumns reorders the Columns slice to maintain:
+// 1. Filtered columns (leftmost)
+// 2. Grouped columns (middle)
+// 3. Other columns (rightmost)
+// Also removes any filtered columns from the grouped list
+func (s *Query) reorderColumns() {
+	if len(s.Columns) == 0 {
+		return
+	}
+
+	// Create sets for quick lookup
+	filteredCols := make(map[string]bool)
+	for colName := range s.Filters {
+		filteredCols[colName] = true
+	}
+
+	// Remove filtered columns from GroupedColumns
+	var newGroupedColumns []string
+	for _, colName := range s.GroupedColumns {
+		if !filteredCols[colName] {
+			newGroupedColumns = append(newGroupedColumns, colName)
+		}
+	}
+	s.GroupedColumns = newGroupedColumns
+
+	groupedCols := make(map[string]bool)
+	for _, colName := range s.GroupedColumns {
+		groupedCols[colName] = true
+	}
+
+	// Partition columns into three groups
+	var filtered, grouped, others []string
+
+	for _, colName := range s.Columns {
+		if filteredCols[colName] {
+			filtered = append(filtered, colName)
+		} else if groupedCols[colName] {
+			grouped = append(grouped, colName)
+		} else {
+			others = append(others, colName)
+		}
+	}
+
+	// Rebuild Columns in the correct order
+	s.Columns = make([]string, 0, len(filtered)+len(grouped)+len(others))
+	s.Columns = append(s.Columns, filtered...)
+	s.Columns = append(s.Columns, grouped...)
+	s.Columns = append(s.Columns, others...)
 }
 
 // WithColumn returns a URL with the column added (if not already present)
@@ -334,47 +387,10 @@ func (s *Query) WithGroupedColumnToggled(column string) safehtml.URL {
 		newState.GroupedColumns = append(s.GroupedColumns, column)
 	}
 
-	// Reorder columns: grouped columns first, then ungrouped columns
-	newState.reorderColumnsForGrouping()
+	// Reorder columns: filtered first, then grouped, then others
+	newState.reorderColumns()
 
 	return newState.ToSafeURL()
-}
-
-// reorderColumnsForGrouping reorders the Columns slice so that grouped columns
-// appear first in their grouping order, followed by ungrouped columns in their
-// original relative order
-func (s *Query) reorderColumnsForGrouping() {
-	// Create a map for fast lookup of grouped columns and their order
-	groupedOrder := make(map[string]int)
-	for i, col := range s.GroupedColumns {
-		groupedOrder[col] = i
-	}
-
-	// Split columns into grouped and ungrouped, preserving order
-	var grouped []string
-	var ungrouped []string
-
-	for _, col := range s.Columns {
-		if _, isGrouped := groupedOrder[col]; isGrouped {
-			grouped = append(grouped, col)
-		} else {
-			ungrouped = append(ungrouped, col)
-		}
-	}
-
-	// Sort the grouped columns according to their grouping order
-	for i := 0; i < len(grouped)-1; i++ {
-		for j := i + 1; j < len(grouped); j++ {
-			if groupedOrder[grouped[i]] > groupedOrder[grouped[j]] {
-				grouped[i], grouped[j] = grouped[j], grouped[i]
-			}
-		}
-	}
-
-	// Reconstruct the Columns slice: grouped first, then ungrouped
-	s.Columns = make([]string, 0, len(grouped)+len(ungrouped))
-	s.Columns = append(s.Columns, grouped...)
-	s.Columns = append(s.Columns, ungrouped...)
 }
 
 // IsColumnGrouped checks if a column is in the grouped columns list

@@ -103,3 +103,84 @@ func equalStringSlices(a, b []string) bool {
 	}
 	return true
 }
+
+// TestColumnReorderingOnFiltering tests that columns are reordered when filters are applied
+func TestColumnReorderingOnFiltering(t *testing.T) {
+	// Test 1: Add filter to a middle column - it should move to first position
+	t.Run("Filter middle column", func(t *testing.T) {
+		baseURL, _ := url.Parse("/table?table=test&columns=status,region,category,amount&filter:region=north")
+		q := NewQuery(baseURL)
+
+		// Columns should have region first (filtered)
+		expectedColumns := []string{"region", "status", "category", "amount"}
+		if !equalStringSlices(q.Columns, expectedColumns) {
+			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
+		}
+	})
+
+	// Test 2: Multiple filters
+	t.Run("Multiple filtered columns", func(t *testing.T) {
+		baseURL, _ := url.Parse("/table?table=test&columns=status,region,category,amount&filter:region=north&filter:amount=100")
+		q := NewQuery(baseURL)
+
+		// Columns: region and amount (filtered) should be first, order preserved
+		expectedColumns := []string{"region", "amount", "status", "category"}
+		if !equalStringSlices(q.Columns, expectedColumns) {
+			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
+		}
+	})
+
+	// Test 3: Filtered and grouped columns
+	t.Run("Filtered and grouped columns", func(t *testing.T) {
+		baseURL, _ := url.Parse("/table?table=test&columns=status,region,category,amount&grouped=status&filter:amount=100")
+		q := NewQuery(baseURL)
+
+		// Columns: amount (filtered), then status (grouped), then others
+		expectedColumns := []string{"amount", "status", "region", "category"}
+		if !equalStringSlices(q.Columns, expectedColumns) {
+			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
+		}
+	})
+
+	// Test 4: Column that is both filtered and grouped (filter takes precedence)
+	t.Run("Column both filtered and grouped", func(t *testing.T) {
+		baseURL, _ := url.Parse("/table?table=test&columns=status,region,category,amount&grouped=status&filter:status=active")
+		q := NewQuery(baseURL)
+
+		// Columns: status (filtered, takes precedence over grouped), then others
+		expectedColumns := []string{"status", "region", "category", "amount"}
+		if !equalStringSlices(q.Columns, expectedColumns) {
+			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
+		}
+	})
+
+	// Test 5: All three types together
+	t.Run("Filtered, grouped, and regular columns", func(t *testing.T) {
+		baseURL, _ := url.Parse("/table?table=test&columns=a,b,c,d,e,f&grouped=c,d&filter:e=val1&filter:f=val2")
+		q := NewQuery(baseURL)
+
+		// Columns: e,f (filtered), then c,d (grouped), then a,b (others)
+		expectedColumns := []string{"e", "f", "c", "d", "a", "b"}
+		if !equalStringSlices(q.Columns, expectedColumns) {
+			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
+		}
+	})
+
+	// Test 6: Filtering a grouped column should ungroup it
+	t.Run("Filter removes column from grouped list", func(t *testing.T) {
+		baseURL, _ := url.Parse("/table?table=test&columns=status,region,category,amount&grouped=status,category&filter:status=active")
+		q := NewQuery(baseURL)
+
+		// Expected: status should be removed from grouped columns
+		expectedGrouped := []string{"category"}
+		if !equalStringSlices(q.GroupedColumns, expectedGrouped) {
+			t.Errorf("Expected grouped columns %v, got %v", expectedGrouped, q.GroupedColumns)
+		}
+
+		// Columns: status (filtered), category (grouped), then others
+		expectedColumns := []string{"status", "category", "region", "amount"}
+		if !equalStringSlices(q.Columns, expectedColumns) {
+			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
+		}
+	})
+}

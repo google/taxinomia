@@ -71,6 +71,7 @@ type ColumnInfo struct {
 	DisplayName       string       // Column display name
 	IsVisible         bool         // Whether column is currently visible
 	IsGrouped         bool         // Whether column is currently grouped
+	IsFiltered        bool         // Whether column has an active filter
 	HasEntityType     bool         // Whether column defines an entity type
 	IsKey             bool         // Whether column has all unique values
 	JoinTargets       []JoinTarget // Tables/columns this column can join to
@@ -341,11 +342,15 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				isExpanded = view.Expanded[colName]
 			}
 
+			// Check if this column has an active filter
+			_, isFiltered := q.Filters[colName]
+
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 				Name:              colName,
 				DisplayName:       col.ColumnDef().DisplayName(),
 				IsVisible:         visibleCols[colName],
 				IsGrouped:         q.IsColumnGrouped(colName),
+				IsFiltered:        isFiltered,
 				HasEntityType:     hasEntityType,
 				IsKey:             isKey && hasEntityType, // Only mark as key if it's also an entity type
 				JoinTargets:       joinTargets,
@@ -694,12 +699,13 @@ func buildGroupedRows(tableView *tables.TableView, visibleColumns []string) []Gr
 		return nil
 	}
 	var rows []GroupedRow = []GroupedRow{{Cells: []GroupedCell{}}}
-	walkGroupHierarchy(tableView, firstBlock, &rows)
+	walkGroupHierarchy(tableView, firstBlock, &rows, 0)
 	return rows
 }
 
 // walkGroupHierarchy recursively walks the group hierarchy and builds rows
-func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow) {
+// level indicates the depth in the grouping hierarchy (0 = first grouped column)
+func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int) {
 	if block == nil {
 		return
 	}
@@ -715,25 +721,41 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			tooltip = "[rows]"
 		}
 
-		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{
+		// Add the grouped column cell for this group
+		groupedCell := GroupedCell{
 			Value:   groupInfo,
 			Rowspan: group.Height(),
 			Title:   tooltip,
-		})
+		}
+		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 
 		if group.ChildBlock == nil {
-			// Leaf group - add aggregated column cells
-			for range tableView.GetLeafColumns() {
+			fmt.Println()
+			fmt.Println(len((*rows)[len(*rows)-1].Cells))
+			// Leaf group - add aggregated column cells for "other" (non-filtered) leaf columns
+			for range tableView.GetOtherLeafColumns() {
 				(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{
 					Value:   fmt.Sprintf("[%d]", numRows),
 					Rowspan: group.Height(),
 					Title:   "[rows]",
 				})
 			}
+			cells := make([]GroupedCell, len(tableView.GetFilteredLeafColumns()))
+			for i, _ := range tableView.GetFilteredLeafColumns() {
+				cells[i] = GroupedCell{
+					Value:   fmt.Sprintf("[%d]", len(group.Indices)),
+					Rowspan: group.Height(),
+					Title:   "[rows]",
+				}
+			}
+			(*rows)[len(*rows)-1].Cells = append(cells, (*rows)[len(*rows)-1].Cells...)
+			fmt.Println(len((*rows)[len(*rows)-1].Cells))
+
+			// Start a new row for the next group
 			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
 		} else {
 			// Non-leaf group - recurse into child blocks
-			walkGroupHierarchy(tableView, group.ChildBlock, rows)
+			walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1)
 		}
 	}
 }

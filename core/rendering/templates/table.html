@@ -528,6 +528,14 @@
             border-color: #21618c;
         }
 
+        .group-toggle-btn.disabled {
+            background-color: #f5f5f5;
+            border-color: #ddd;
+            color: #ccc;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         /* Stats row styles */
         .stats-row {
             background-color: #e8f4f8;
@@ -792,9 +800,13 @@
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
                 <td class="grouping-cell">
+                    {{if .IsFiltered}}
+                    <span class="group-toggle-btn disabled" title="Grouping is disabled for filtered columns">⊞</span>
+                    {{else}}
                     <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
                         {{if .IsGrouped}}⊟{{else}}⊞{{end}}
                     </a>
+                    {{end}}
                 </td>
                         {{end}}
                     {{end}}

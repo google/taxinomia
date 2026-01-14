@@ -508,15 +508,92 @@ func (tv *TableView) GetGroupingOrder() []string {
 	return tv.groupingOrder
 }
 
-// GetLeafColumns returns the names of the non-grouped columns (aggregated/leaf columns)
-// These are all columns that are not in the grouping order
+// GetLeafColumns returns the names of the non-grouped columns (leaf columns)
+// These are columns that are not grouped - both filtered and others
+// With filters, the visible columns order is: filtered → grouped → others
+// Leaf columns include both filtered (displayed before grouped) and others (displayed after grouped)
+// This maintains the display order: filtered leaves, grouped columns, other leaves
 func (tv *TableView) GetLeafColumns() []string {
-	fmt.Println()
-	fmt.Println("tv.groupedColumns", tv.groupedColumns)
-	fmt.Println("tv.VisibleColumns", tv.VisibleColumns)
-	src := tv.VisibleColumns[len(tv.groupedColumns):]
-	leafColumns := make([]string, len(src))
-	copy(leafColumns, src)
-	fmt.Println("leafColumns", leafColumns)
+	var leafColumns []string
+	for _, colName := range tv.VisibleColumns {
+		if !tv.IsColGrouped(colName) {
+			leafColumns = append(leafColumns, colName)
+		}
+	}
 	return leafColumns
+}
+
+// GetFilteredLeafColumns returns the names of leaf columns that have active filters
+// These are non-grouped columns with active filters, displayed before grouped columns
+func (tv *TableView) GetFilteredLeafColumns() []string {
+	var filteredLeafColumns []string
+	for _, colName := range tv.VisibleColumns {
+		if !tv.IsColGrouped(colName) && tv.filterMask != nil {
+			// Check if this column has an active filter
+			// Since we don't store filter info directly in TableView,
+			// we need to check if it's a filtered column by position
+			// Filtered columns appear before grouped columns in VisibleColumns
+
+			// Find first grouped column position
+			firstGroupedPos := -1
+			for i, col := range tv.VisibleColumns {
+				if tv.IsColGrouped(col) {
+					firstGroupedPos = i
+					break
+				}
+			}
+
+			// Find current column position
+			currentPos := -1
+			for i, col := range tv.VisibleColumns {
+				if col == colName {
+					currentPos = i
+					break
+				}
+			}
+
+			// If this leaf column appears before first grouped column, it's filtered
+			if firstGroupedPos == -1 || currentPos < firstGroupedPos {
+				filteredLeafColumns = append(filteredLeafColumns, colName)
+			}
+		}
+	}
+	return filteredLeafColumns
+}
+
+// GetOtherLeafColumns returns the names of leaf columns that are not filtered
+// These are non-grouped, non-filtered columns, displayed after grouped columns
+func (tv *TableView) GetOtherLeafColumns() []string {
+	var otherLeafColumns []string
+
+	// Find first grouped column position
+	firstGroupedPos := -1
+	for i, col := range tv.VisibleColumns {
+		if tv.IsColGrouped(col) {
+			firstGroupedPos = i
+			break
+		}
+	}
+
+	for _, colName := range tv.VisibleColumns {
+		if !tv.IsColGrouped(colName) {
+			// Find current column position
+			currentPos := -1
+			for i, col := range tv.VisibleColumns {
+				if col == colName {
+					currentPos = i
+					break
+				}
+			}
+
+			// If this leaf column appears after grouped columns (or no grouped columns exist but it's not filtered)
+			if firstGroupedPos != -1 && currentPos > firstGroupedPos {
+				otherLeafColumns = append(otherLeafColumns, colName)
+			} else if firstGroupedPos == -1 && tv.filterMask == nil {
+				// No grouping and no filtering - all are "other" columns
+				otherLeafColumns = append(otherLeafColumns, colName)
+			}
+		}
+	}
+	return otherLeafColumns
 }
