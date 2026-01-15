@@ -20,6 +20,62 @@ Taxinomia is a table oriented analytics system.
 
 
 
+Column types
+ * base table
+ * joined columns
+ * derived columns 
+
+Aggregation
+ * numbers: sum, average, std, 
+ * strings: first, last
+ * bool: all, none, some/any, count
+
+Filtering
+ * Any column can be filtered on and/or grouped 
+
+Sorting
+ * on columns in any order between columns
+ * on grouped values and aggregates
+
+Some implementation gaps
+ * further joins
+ * filtering on joined columns
+ * grouping of joined columns
+
+Future features
+ * filtering on aggregated values
+ * grouping on aggregated values
+ * pivoting
+ * materilization 
+
+Expression
+ * Filtering expression
+ * Grouping expression
+ * Expression for derived columns
+Same syntax and same interpreter 
+
+Importing data
+ * protobuf
+ * csv
+ * json, ndjson
+ * xml
+ * parquet
+ * Big Query
+
+Data types
+ * integers (uint8, 32 64, int8 32 64)
+ * floats (single and double)
+ * date and time and duration
+ * string
+ * enums (?)
+ * bool
+
+
+
+
+
+
+
 
 
 

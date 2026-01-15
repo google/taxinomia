@@ -63,6 +63,11 @@ func SetupDemoServer() (*server.Server, error) {
 	printEntityTypeUsageReport(dataModel)
 	printJoinDiscoveryReport(dataModel)
 
+	// Add system tables (must be after all user tables are added)
+	fmt.Println("\n=== Creating System Tables ===")
+	models.AddSystemTables(dataModel)
+	fmt.Println("=== System Tables Created ===")
+
 	// Create the server
 	srv, err := server.NewServer(dataModel)
 	if err != nil {
@@ -78,6 +83,7 @@ func SetupDemoServer() (*server.Server, error) {
 	srv.SetDefaultColumns("users_perf", []string{"user_id", "username", "country", "signup_year"})
 	srv.SetDefaultColumns("products_perf", []string{"product_id", "product_name", "category_id", "price"})
 	srv.SetDefaultColumns("categories_perf", []string{"category_id", "category_name", "department"})
+	srv.SetDefaultColumns("_columns", []string{"table_name", "column_name", "data_type", "entity_type", "is_key"})
 
 	// Configure landing page
 	srv.SetLandingViewModel(views.LandingViewModel{
@@ -155,6 +161,15 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    3,
 				DefaultColumns: "3 columns",
 				Categories:     "Performance, Testing",
+			},
+			{
+				Name:           "System: Columns Metadata",
+				Description:    "System table containing metadata about all columns across all tables. Useful for exploring table structure, entity types, and join relationships.",
+				URL:            "/table?table=_columns&limit=100",
+				RecordCount:    0, // Will be dynamic
+				ColumnCount:    8,
+				DefaultColumns: "5 columns",
+				Categories:     "System, Metadata",
 			},
 		},
 	})
