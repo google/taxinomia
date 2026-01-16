@@ -113,7 +113,7 @@ type IDataColumn interface {
 	Length() int
 	GetString(i uint32) (string, error)
 	IsKey() bool
-	//NewJoiner(onColumn IDataColumn) IJoiner
+	// NewJoiner(onColumn IDataColumn) IJoiner
 	CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn
 	GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32
 }
@@ -151,7 +151,7 @@ type IJoinedDataColumn interface {
 	// might need to know the join specifics
 	// fromTable.fromColunm -> toTable.toColumn
 	// the fromColumn will have an index that maps values to indices in the fromTable, these indices can then be used to lookup values in the fromTable. displayed column
-	//Joiner() IJoiner
+	// Joiner() IJoiner
 }
 
 type IJoinedColumn[T any] interface {

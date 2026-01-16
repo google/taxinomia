@@ -52,10 +52,7 @@ import (
 
 // String returns a string representation of the join
 func (j *Join) String() string {
-	return fmt.Sprintf("%s.%s -> %s.%s (via %s)",
-		j.FromTable, j.FromColumn,
-		j.ToTable, j.ToColumn,
-		j.EntityType)
+	return fmt.Sprintf("%s (via %s)", j.Key, j.EntityType)
 }
 
 type DataModel struct {

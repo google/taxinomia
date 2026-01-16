@@ -230,11 +230,11 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 		}
 	}
 	// groupedColumns: map[string]*GroupedColumn{},
-	// 	//groupsByColumn: map[string][]*Group2{},
+	// 	// groupsByColumn: map[string][]*Group2{},
 	// 	blocksByColumn: map[string][]*Block{},
 
 	// Process first column
-	//groupedTable.columns = columns
+	// groupedTable.columns = columns
 	parentBlocks := t.groupFirstColumnInTable(indices)
 	t.firstBlock = parentBlocks[0]
 

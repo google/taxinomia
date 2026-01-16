@@ -19,7 +19,6 @@ limitations under the License.
 package rendering
 
 import (
-	_ "embed"
 	"embed"
 	"io"
 

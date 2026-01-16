@@ -58,7 +58,7 @@ func BuildColumnsTable(dm *DataModel) *tables.DataTable {
 	tableNames := make([]string, 0, len(allTables))
 	for name := range allTables {
 		// Skip system tables
-		if name == ColumnsTableName {
+		if isSystemTable(name) {
 			continue
 		}
 		tableNames = append(tableNames, name)
@@ -136,6 +136,11 @@ func getColumnType(col columns.IDataColumn) string {
 	default:
 		return "unknown"
 	}
+}
+
+// isSystemTable returns true if the table name is a system table
+func isSystemTable(name string) bool {
+	return name == ColumnsTableName
 }
 
 // AddSystemTables creates and adds all system tables to the DataModel.

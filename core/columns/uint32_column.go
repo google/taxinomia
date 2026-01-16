@@ -25,7 +25,7 @@ import (
 // Uint32Column is optimized for uint32 numeric data.
 // It stores uint32 values directly without key mapping overhead.
 type Uint32Column struct {
-	//IDataColumnT[uint32]
+	// IDataColumnT[uint32]
 	columnDef  *ColumnDef
 	data       []uint32
 	isKey      bool

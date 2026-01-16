@@ -25,7 +25,7 @@ import (
 // StringColumn is optimized for high-cardinality string data where most values are distinct.
 // It stores strings directly without key mapping overhead.
 type StringColumn struct {
-	//IDataColumnT[string]
+	// IDataColumnT[string]
 	columnDef  *ColumnDef
 	data       []string
 	isKey      bool

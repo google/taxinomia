@@ -46,7 +46,7 @@ Future features
  * filtering on aggregated values
  * grouping on aggregated values
  * pivoting
- * materilization 
+ * materialization 
 
 Expression
  * Filtering expression
