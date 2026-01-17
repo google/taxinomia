@@ -31,31 +31,31 @@ import (
 var ordersCSV string
 
 //go:embed data/orders.textproto
-var ordersTextproto string
+var ordersAnnotations string
 
 //go:embed data/regions.csv
 var regionsCSV string
 
 //go:embed data/regions.textproto
-var regionsTextproto string
+var regionsAnnotations string
 
 //go:embed data/capitals.csv
 var capitalsCSV string
 
 //go:embed data/capitals.textproto
-var capitalsTextproto string
+var capitalsAnnotations string
 
 //go:embed data/items.csv
 var itemsCSV string
 
 //go:embed data/items.textproto
-var itemsTextproto string
+var itemsAnnotations string
 
-// importTable is a helper function to import a CSV table with its textproto annotation
-func importTable(name, csv, textproto string) *tables.DataTable {
-	options, err := csvimport.OptionsFromTextproto(textproto)
+// importTable is a helper function to import a CSV table with its table annotation
+func importTable(name, csv, annotation string) *tables.DataTable {
+	options, err := csvimport.OptionsFromTextproto(annotation)
 	if err != nil {
-		panic(fmt.Sprintf("failed to parse %s textproto: %v", name, err))
+		panic(fmt.Sprintf("failed to parse %s annotation: %v", name, err))
 	}
 
 	table, err := csvimport.ImportFromReader(strings.NewReader(csv), options)
@@ -69,20 +69,20 @@ func importTable(name, csv, textproto string) *tables.DataTable {
 
 // CreateDemoTable creates and populates a demo table with sample order data from embedded CSV
 func CreateDemoTable() *tables.DataTable {
-	return importTable("Orders", ordersCSV, ordersTextproto)
+	return importTable("Orders", ordersCSV, ordersAnnotations)
 }
 
 // CreateRegionsTable creates and populates a table with region information from embedded CSV
 func CreateRegionsTable() *tables.DataTable {
-	return importTable("Regions", regionsCSV, regionsTextproto)
+	return importTable("Regions", regionsCSV, regionsAnnotations)
 }
 
 // CreateCapitalsTable creates and populates a table with capital city information from embedded CSV
 func CreateCapitalsTable() *tables.DataTable {
-	return importTable("Capitals", capitalsCSV, capitalsTextproto)
+	return importTable("Capitals", capitalsCSV, capitalsAnnotations)
 }
 
 // CreateItemsTable creates and populates a table with item/category information from embedded CSV
 func CreateItemsTable() *tables.DataTable {
-	return importTable("Items", itemsCSV, itemsTextproto)
+	return importTable("Items", itemsCSV, itemsAnnotations)
 }
