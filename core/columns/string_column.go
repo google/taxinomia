@@ -134,7 +134,7 @@ func (c *StringColumn) FinalizeColumn() {
 // 	}
 // }
 
-func (c *StringColumn) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
+func (c *StringColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
 	// for now assume just default grouping by value
 	groupedIndices := map[uint32][]uint32{}
 	valueToGroupKey := map[string]uint32{}
@@ -150,5 +150,6 @@ func (c *StringColumn) GroupIndices(indices []uint32, columnView *ColumnView) ma
 			groupedIndices[groupKey] = []uint32{i}
 		}
 	}
-	return groupedIndices
+	// StringColumn always resolves all indices, no unmapped values
+	return groupedIndices, nil
 }

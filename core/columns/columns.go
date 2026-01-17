@@ -18,6 +18,20 @@ limitations under the License.
 
 package columns
 
+import "errors"
+
+// Display labels for special values
+const (
+	// ErrorLabel is the display string for values that couldn't be retrieved due to an error.
+	ErrorLabel = "[error]"
+	// UnmatchedLabel is the display string for values that couldn't be resolved through a join.
+	UnmatchedLabel = "[unmatched]"
+)
+
+// ErrUnmatched is returned when a join lookup fails to find a matching row.
+// This is an expected condition (not a bug) and should be displayed as UnmatchedLabel.
+var ErrUnmatched = errors.New("no matching row in joined table")
+
 type Unsigned interface {
 	uint8 | uint16 | uint32
 }
@@ -115,7 +129,7 @@ type IDataColumn interface {
 	IsKey() bool
 	// NewJoiner(onColumn IDataColumn) IJoiner
 	CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn
-	GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32
+	GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32)
 }
 
 type IDataColumnT[T any] interface {

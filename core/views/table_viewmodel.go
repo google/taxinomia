@@ -384,16 +384,18 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 
 					// Add the joined column info
 					vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-						Name:            colName,
-						DisplayName:     displayName,
-						IsVisible:       visibleCols[colName],
-						HasEntityType:   false, // Joined columns don't have entity types in this context
-						IsKey:           false,
-						JoinTargets:     nil,
-						IsExpanded:      false,
-						Path:            colName,
-						ToggleURL:       BuildToggleExpansionURL(q, colName),
-						ToggleColumnURL: BuildToggleColumnURL(q, colName),
+						Name:              colName,
+						DisplayName:       displayName,
+						IsVisible:         visibleCols[colName],
+						IsGrouped:         q.IsColumnGrouped(colName),
+						HasEntityType:     false, // Joined columns don't have entity types in this context
+						IsKey:             false,
+						JoinTargets:       nil,
+						IsExpanded:        false,
+						Path:              colName,
+						ToggleURL:         BuildToggleExpansionURL(q, colName),
+						ToggleColumnURL:   BuildToggleColumnURL(q, colName),
+						ToggleGroupingURL: BuildToggleGroupingURL(q, colName),
 					})
 				}
 			}

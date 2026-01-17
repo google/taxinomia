@@ -54,7 +54,7 @@ func (c *JoinedStringColumn) Length() int {
 func (c *JoinedStringColumn) GetValue(i uint32) (string, error) {
 	targetIndex, err := c.joiner.Lookup(i)
 	if err != nil {
-		return "", fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+		return "", ErrUnmatched
 	}
 	return c.sourceColumn.GetValue(targetIndex)
 }
@@ -62,7 +62,7 @@ func (c *JoinedStringColumn) GetValue(i uint32) (string, error) {
 func (c *JoinedStringColumn) GetString(i uint32) (string, error) {
 	targetIndex, err := c.joiner.Lookup(i)
 	if err != nil {
-		return "", fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+		return "", ErrUnmatched
 	}
 	return c.sourceColumn.GetString(targetIndex)
 }
@@ -77,9 +77,38 @@ func (c *JoinedStringColumn) IsKey() bool {
 	return c.sourceColumn.IsKey()
 }
 
-func (c *JoinedStringColumn) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
-	// TODO: Not implemented - need to handle unresolved indices
-	panic("GroupIndices not implemented for JoinedStringColumn")
+func (c *JoinedStringColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[string]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		// Resolve the index through the join to get the target index
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			// Collect unresolved indices
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		// Get the value from the source column at the resolved index
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			// Treat errors as unmapped
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		// Group by the resolved value
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
 }
 
 type JoinedUint32Column struct {
@@ -112,7 +141,7 @@ func (c *JoinedUint32Column) Length() int {
 func (c *JoinedUint32Column) GetValue(i uint32) (uint32, error) {
 	targetIndex, err := c.joiner.Lookup(i)
 	if err != nil {
-		return 0, fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+		return 0, ErrUnmatched
 	}
 	return c.sourceColumn.GetValue(targetIndex)
 }
@@ -120,7 +149,7 @@ func (c *JoinedUint32Column) GetValue(i uint32) (uint32, error) {
 func (c *JoinedUint32Column) GetString(i uint32) (string, error) {
 	targetIndex, err := c.joiner.Lookup(i)
 	if err != nil {
-		return "", fmt.Errorf("join lookup failed for column %q at index %d: %w", c.columnDef.Name(), i, err)
+		return "", ErrUnmatched
 	}
 	return c.sourceColumn.GetString(targetIndex)
 }
@@ -135,7 +164,36 @@ func (c *JoinedUint32Column) IsKey() bool {
 	return false
 }
 
-func (c *JoinedUint32Column) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
-	// TODO: Not implemented - need to handle unresolved indices
-	panic("GroupIndices not implemented for JoinedUint32Column")
+func (c *JoinedUint32Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[uint32]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		// Resolve the index through the join to get the target index
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			// Collect unresolved indices
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		// Get the value from the source column at the resolved index
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			// Treat errors as unmapped
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		// Group by the resolved value
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
 }

@@ -129,7 +129,7 @@ func (c *Uint32Column) FinalizeColumn() {
 	}
 }
 
-func (c *Uint32Column) GroupIndices(indices []uint32, columnView *ColumnView) map[uint32][]uint32 {
+func (c *Uint32Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
 	// Group indices by their uint32 value
 	groupedIndices := map[uint32][]uint32{}
 	for _, i := range indices {
@@ -138,7 +138,8 @@ func (c *Uint32Column) GroupIndices(indices []uint32, columnView *ColumnView) ma
 			groupedIndices[value] = append(groupedIndices[value], i)
 		}
 	}
-	return groupedIndices
+	// Uint32Column always resolves all indices, no unmapped values
+	return groupedIndices, nil
 }
 
 // type Uint32JoinedColumn struct {

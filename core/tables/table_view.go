@@ -19,6 +19,7 @@ limitations under the License.
 package tables
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -183,7 +184,11 @@ func (t *TableView) GetFilteredRows(columnNames []string, limit int) []map[strin
 			if col != nil {
 				value, err := col.GetString(rowIndex)
 				if err != nil {
-					row[colName] = "[error]"
+					if errors.Is(err, columns.ErrUnmatched) {
+						row[colName] = columns.UnmatchedLabel
+					} else {
+						row[colName] = columns.ErrorLabel
+					}
 				} else {
 					row[colName] = value
 				}
@@ -244,10 +249,9 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 }
 
 func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block {
-	// TODO this is limited to base table columns for now
 	firstColumn := t.groupingOrder[0]
 	columnView := t.columnViews[firstColumn]
-	dataColumn := t.baseTable.columns[firstColumn]
+	dataColumn := t.GetColumn(firstColumn)
 
 	g := &grouping.GroupedColumn{
 		DataColumn: dataColumn,
@@ -266,7 +270,7 @@ func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block 
 	g.Blocks = append(g.Blocks, b)
 	t.blocksByColumn[firstColumn] = append(t.blocksByColumn[firstColumn], b)
 
-	indicesByGroupKey := dataColumn.GroupIndices(indices, columnView)
+	indicesByGroupKey, _ := dataColumn.GroupIndices(indices, columnView)
 	for groupKey, groupIndices := range indicesByGroupKey {
 		g2 := &grouping.Group{
 			GroupKey:    groupKey,
@@ -283,7 +287,7 @@ func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block 
 func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []string, parentBlocks []*grouping.Block) {
 	// for following columns, each parent group spawns a child block
 	for level, col := range columns {
-		dataColumn := t.baseTable.GetColumn(col)
+		dataColumn := t.GetColumn(col)
 		columnView := t.columnViews[col]
 
 		g := &grouping.GroupedColumn{
@@ -309,7 +313,7 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 				parentGroup.ChildBlock = b
 
 				// now group within the parent group
-				indicesByGroupKey := dataColumn.GroupIndices(parentGroup.Indices, columnView)
+				indicesByGroupKey, _ := dataColumn.GroupIndices(parentGroup.Indices, columnView)
 				for groupKey, groupIndices := range indicesByGroupKey {
 					g2 := &grouping.Group{
 						GroupKey:    groupKey,
