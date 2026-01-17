@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+# Table annotation for items.csv
+
+name: "items"
+
+columns {
+  name: "item_id"
+  display_name: "Item ID"
+  entity_type: "item_id"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "item_name"
+  display_name: "Item Name"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "category"
+  display_name: "Category"
+  entity_type: "category"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "subcategory"
+  display_name: "Subcategory"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "brand"
+  display_name: "Brand"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "price"
+  display_name: "Price ($)"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "stock"
+  display_name: "Stock"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "weight"
+  display_name: "Weight (kg)"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "rating"
+  display_name: "Rating"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "reviews"
+  display_name: "Reviews"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "supplier"
+  display_name: "Supplier"
+  type: COLUMN_TYPE_STRING
+}

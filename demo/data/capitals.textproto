@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+# Table annotation for capitals.csv
+
+name: "capitals"
+
+columns {
+  name: "capital"
+  display_name: "Capital City"
+  entity_type: "capital"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "region"
+  display_name: "Region"
+  entity_type: "region"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "population"
+  display_name: "Population (millions x10)"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "founded"
+  display_name: "Year Founded"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "elevation"
+  display_name: "Elevation (m)"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "latitude"
+  display_name: "Latitude"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "longitude"
+  display_name: "Longitude"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "mayor"
+  display_name: "Mayor"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "universities"
+  display_name: "Universities"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "museums"
+  display_name: "Museums"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "airports"
+  display_name: "Airports"
+  type: COLUMN_TYPE_UINT32
+}

@@ -1,0 +1,16 @@
+item_id,item_name,category,subcategory,brand,price,stock,weight,rating,reviews,supplier
+E001,Laptop Pro 15,Electronics,Computers,TechBrand,1299,45,1.80,4.5,234,Tech Distributors
+E002,Smartphone X,Electronics,Phones,MobileTech,899,120,0.20,4.7,567,Mobile Suppliers
+E003,Wireless Earbuds,Electronics,Audio,SoundPro,149,200,0.05,4.3,892,Audio World
+E004,4K Monitor,Electronics,Displays,ViewTech,599,35,5.20,4.6,145,Display Direct
+E005,Smart Watch,Electronics,Wearables,FitTech,299,80,0.06,4.4,423,Wearable Tech Co
+F001,Executive Desk,Furniture,Office,WorkSpace,450,15,45.00,4.2,67,Office Furniture Inc
+F002,Ergonomic Chair,Furniture,Seating,ComfortPro,280,25,18.50,4.8,289,Seating Solutions
+F003,Bookshelf Unit,Furniture,Storage,SpaceSaver,150,40,28.00,4.0,123,Storage Masters
+F004,Coffee Table,Furniture,Living Room,HomeStyle,180,30,22.00,4.1,89,Home Furnishings
+F005,Filing Cabinet,Furniture,Office,OfficePro,200,20,35.00,3.9,45,Office Furniture Inc
+O001,Printer Paper,Office Supplies,Paper,PaperMate,25,500,2.50,4.3,1023,Paper Products Co
+O002,Gel Pens Pack,Office Supplies,Writing,WriteWell,15,300,0.15,4.5,456,Stationery Supply
+O003,Desk Organizer,Office Supplies,Organization,TidyDesk,20,150,0.80,4.2,234,Office Essentials
+O004,Stapler Pro,Office Supplies,Tools,OfficeTools,10,200,0.30,4.0,178,Tool Distributors
+O005,Label Maker,Office Supplies,Organization,LabelPro,5,100,0.40,4.4,312,Label Solutions

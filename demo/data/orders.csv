@@ -1,0 +1,32 @@
+status,region,category,amount
+Cancelled,East,Electronics,1300
+Cancelled,East,Electronics,1250
+Delivered,East,Office Supplies,15
+Delivered,East,Electronics,350
+Delivered,North,Electronics,1200
+Delivered,North,Electronics,25
+Delivered,North,Electronics,75
+Delivered,North,Furniture,250
+Delivered,North,Electronics,80
+Delivered,North,Electronics,30
+Delivered,North,Office Supplies,20
+Delivered,North,Electronics,550
+Delivered,South,Electronics,1150
+Delivered,South,Furniture,160
+Delivered,South,Electronics,1400
+Delivered,West,Electronics,300
+Delivered,West,Office Supplies,10
+Delivered,West,Office Supplies,5
+Delivered,West,Electronics,120
+Delivered,West,Office Supplies,8
+Processing,East,Furniture,180
+Processing,North,Furniture,280
+Processing,South,Furniture,450
+Processing,South,Furniture,500
+Processing,South,Electronics,90
+Shipped,East,Furniture,480
+Shipped,South,Furniture,150
+Shipped,South,Electronics,600
+Shipped,West,Furniture,200
+Shipped,West,Electronics,70
+Processing,International,Electronics,999
