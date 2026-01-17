@@ -31,6 +31,9 @@ import (
 //go:embed data/regions.csv
 var regionsCSV string
 
+//go:embed data/regions.textproto
+var regionsTextproto string
+
 // Row represents a single row of demo data
 type Row struct {
 	Status   string
@@ -176,34 +179,9 @@ func printDemoData(data []Row) {
 
 // CreateRegionsTable creates and populates a table with region information from embedded CSV
 func CreateRegionsTable() *tables.DataTable {
-	options := csvimport.DefaultOptions()
-	options.ColumnConfigs = map[string]csvimport.ColumnConfig{
-		"region": {
-			DisplayName: "Region",
-			EntityType:  "region",
-		},
-		"population": {
-			DisplayName: "Population (millions)",
-		},
-		"area": {
-			DisplayName: "Area (km²)",
-		},
-		"capital": {
-			DisplayName: "Capital",
-			EntityType:  "capital",
-		},
-		"timezone": {
-			DisplayName: "Time Zone",
-		},
-		"currency": {
-			DisplayName: "Currency",
-		},
-		"language": {
-			DisplayName: "Primary Language",
-		},
-		"gdp": {
-			DisplayName: "GDP (billions $)",
-		},
+	options, err := csvimport.OptionsFromTextproto(regionsTextproto)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse regions textproto: %v", err))
 	}
 
 	table, err := csvimport.ImportFromReader(strings.NewReader(regionsCSV), options)

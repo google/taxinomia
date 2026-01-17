@@ -30,16 +30,28 @@ import (
 	"github.com/google/taxinomia/core/tables"
 )
 
-// ColumnConfig allows customizing how a column is imported
-type ColumnConfig struct {
+// ColumnType specifies the data type for a column
+type ColumnType int
+
+const (
+	// ColumnTypeAuto auto-detects type from data (default)
+	ColumnTypeAuto ColumnType = iota
+	// ColumnTypeString forces string type
+	ColumnTypeString
+	// ColumnTypeUint32 forces uint32 type
+	ColumnTypeUint32
+)
+
+// ColumnAnnotation defines annotations for how a column is imported
+type ColumnAnnotation struct {
 	// Name is the column name (defaults to header name if not specified)
 	Name string
 	// DisplayName is the display name for the column
 	DisplayName string
 	// EntityType is the entity type for join support (e.g., "region", "category")
 	EntityType string
-	// ForceString forces the column to be imported as string even if it looks numeric
-	ForceString bool
+	// Type specifies the data type for this column (default: auto-detect)
+	Type ColumnType
 }
 
 // ImportOptions configures CSV import behavior
@@ -48,8 +60,8 @@ type ImportOptions struct {
 	HasHeader bool
 	// Delimiter is the field delimiter (defaults to comma)
 	Delimiter rune
-	// ColumnConfigs provides configuration for specific columns by header name
-	ColumnConfigs map[string]ColumnConfig
+	// ColumnAnnotations provides configuration for specific columns by header name
+	ColumnAnnotations map[string]ColumnAnnotation
 	// SampleSize is the number of rows to sample for type detection (default: 100)
 	SampleSize int
 }
@@ -59,7 +71,7 @@ func DefaultOptions() ImportOptions {
 	return ImportOptions{
 		HasHeader:     true,
 		Delimiter:     ',',
-		ColumnConfigs: make(map[string]ColumnConfig),
+		ColumnAnnotations: make(map[string]ColumnAnnotation),
 		SampleSize:    100,
 	}
 }
@@ -118,7 +130,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	if sampleSize <= 0 {
 		sampleSize = 100
 	}
-	columnTypes := detectColumnTypes(headers, dataRows, sampleSize, options.ColumnConfigs)
+	columnTypes := detectColumnTypes(headers, dataRows, sampleSize, options.ColumnAnnotations)
 
 	// Create the table
 	table := tables.NewDataTable()
@@ -128,7 +140,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	uint32Cols := make(map[int]*columns.Uint32Column)
 
 	for i, header := range headers {
-		config := getColumnConfig(header, options.ColumnConfigs)
+		config := getColumnAnnotation(header, options.ColumnAnnotations)
 		name := header
 		displayName := header
 		entityType := ""
@@ -145,7 +157,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 
 		colDef := columns.NewColumnDef(name, displayName, entityType)
 
-		if columnTypes[i] == "uint32" && !config.ForceString {
+		if columnTypes[i] == "uint32" && config.Type != ColumnTypeString {
 			col := columns.NewUint32Column(colDef)
 			uint32Cols[i] = col
 			table.AddColumn(col)
@@ -195,7 +207,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 }
 
 // detectColumnTypes samples data to determine if columns are numeric or string
-func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, configs map[string]ColumnConfig) []string {
+func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, configs map[string]ColumnAnnotation) []string {
 	types := make([]string, len(headers))
 
 	// Sample rows for type detection
@@ -205,10 +217,16 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 	}
 
 	for i, header := range headers {
-		// Check if forced to string
-		if config, ok := configs[header]; ok && config.ForceString {
-			types[i] = "string"
-			continue
+		// Check if type is explicitly set
+		if config, ok := configs[header]; ok {
+			switch config.Type {
+			case ColumnTypeString:
+				types[i] = "string"
+				continue
+			case ColumnTypeUint32:
+				types[i] = "uint32"
+				continue
+			}
 		}
 
 		// Check if all sampled values are valid uint32
@@ -245,13 +263,13 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 	return types
 }
 
-// getColumnConfig returns the config for a column, or an empty config if not specified
-func getColumnConfig(header string, configs map[string]ColumnConfig) ColumnConfig {
+// getColumnAnnotation returns the config for a column, or an empty config if not specified
+func getColumnAnnotation(header string, configs map[string]ColumnAnnotation) ColumnAnnotation {
 	if configs == nil {
-		return ColumnConfig{}
+		return ColumnAnnotation{}
 	}
 	if config, ok := configs[header]; ok {
 		return config
 	}
-	return ColumnConfig{}
+	return ColumnAnnotation{}
 }

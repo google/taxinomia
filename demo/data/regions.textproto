@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# Table annotation for regions.csv
+
+name: "regions"
+
+columns {
+  name: "region"
+  display_name: "Region"
+  entity_type: "region"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "population"
+  display_name: "Population (millions)"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "area"
+  display_name: "Area (km²)"
+  type: COLUMN_TYPE_UINT32
+}
+columns {
+  name: "capital"
+  display_name: "Capital"
+  entity_type: "capital"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "timezone"
+  display_name: "Time Zone"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "currency"
+  display_name: "Currency"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "language"
+  display_name: "Primary Language"
+  type: COLUMN_TYPE_STRING
+}
+columns {
+  name: "gdp"
+  display_name: "GDP (billions $)"
+  type: COLUMN_TYPE_UINT32
+}

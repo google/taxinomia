@@ -92,20 +92,20 @@ Bob,25,Los Angeles`
 	}
 }
 
-func TestImportWithColumnConfig(t *testing.T) {
+func TestImportWithColumnAnnotation(t *testing.T) {
 	csvData := `id,region,amount
 1,North,100
 2,South,200`
 
 	reader := strings.NewReader(csvData)
 	options := DefaultOptions()
-	options.ColumnConfigs = map[string]ColumnConfig{
+	options.ColumnAnnotations = map[string]ColumnAnnotation{
 		"region": {
 			EntityType: "region",
 		},
 		"id": {
 			DisplayName: "Order ID",
-			ForceString: true, // Force string even though it looks numeric
+			Type:        ColumnTypeString, // Force string even though it looks numeric
 		},
 	}
 
