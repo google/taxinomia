@@ -4,6 +4,7 @@
 # Orders table
 tables {
   name: "orders"
+  domains: "demo"
   columns {
     name: "status"
     display_name: "Status"
@@ -31,6 +32,7 @@ tables {
 # Regions table
 tables {
   name: "regions"
+  domains: "demo"
   columns {
     name: "region"
     display_name: "Region"
@@ -78,6 +80,7 @@ tables {
 # Capitals table
 tables {
   name: "capitals"
+  domains: "demo"
   columns {
     name: "capital"
     display_name: "Capital City"
@@ -140,6 +143,7 @@ tables {
 # Items table
 tables {
   name: "items"
+  domains: "demo"
   columns {
     name: "item_id"
     display_name: "Item ID"

@@ -170,7 +170,10 @@ type TableAnnotation struct {
 	// Name of the table.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Annotations for individual columns.
-	Columns       []*ColumnAnnotation `protobuf:"bytes,2,rep,name=columns,proto3" json:"columns,omitempty"`
+	Columns []*ColumnAnnotation `protobuf:"bytes,2,rep,name=columns,proto3" json:"columns,omitempty"`
+	// Domains group related tables together (e.g., "demo", "sales", "inventory").
+	// A table can belong to multiple domains.
+	Domains       []string `protobuf:"bytes,3,rep,name=domains,proto3" json:"domains,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -215,6 +218,13 @@ func (x *TableAnnotation) GetName() string {
 func (x *TableAnnotation) GetColumns() []*ColumnAnnotation {
 	if x != nil {
 		return x.Columns
+	}
+	return nil
+}
+
+func (x *TableAnnotation) GetDomains() []string {
+	if x != nil {
+		return x.Domains
 	}
 	return nil
 }
@@ -275,10 +285,11 @@ const file_core_csvimport_proto_table_annotation_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1f\n" +
 	"\ventity_type\x18\x03 \x01(\tR\n" +
 	"entityType\x123\n" +
-	"\x04type\x18\x04 \x01(\x0e2\x1f.taxinomia.csvimport.ColumnTypeR\x04type\"f\n" +
+	"\x04type\x18\x04 \x01(\x0e2\x1f.taxinomia.csvimport.ColumnTypeR\x04type\"\x80\x01\n" +
 	"\x0fTableAnnotation\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12?\n" +
-	"\acolumns\x18\x02 \x03(\v2%.taxinomia.csvimport.ColumnAnnotationR\acolumns\"P\n" +
+	"\acolumns\x18\x02 \x03(\v2%.taxinomia.csvimport.ColumnAnnotationR\acolumns\x12\x18\n" +
+	"\adomains\x18\x03 \x03(\tR\adomains\"P\n" +
 	"\x10TableAnnotations\x12<\n" +
 	"\x06tables\x18\x01 \x03(\v2$.taxinomia.csvimport.TableAnnotationR\x06tables*R\n" +
 	"\n" +

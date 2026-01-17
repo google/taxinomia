@@ -53,6 +53,10 @@ message TableAnnotation {
 
   // Annotations for individual columns.
   repeated ColumnAnnotation columns = 2;
+
+  // Domains group related tables together (e.g., "demo", "sales", "inventory").
+  // A table can belong to multiple domains.
+  repeated string domains = 3;
 }
 
 // TableAnnotations is a collection of table annotations.
