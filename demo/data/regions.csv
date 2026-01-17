@@ -1,0 +1,5 @@
+region,population,area,capital,timezone,currency,language,gdp
+North,45,985000,Northville,UTC-5,USD,English,2150
+South,38,765000,Southport,UTC-6,USD,English,1820
+East,52,820000,Eastborough,UTC-4,USD,English,2480
+West,41,1100000,Westfield,UTC-8,USD,English,2350

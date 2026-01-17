@@ -19,11 +19,17 @@ limitations under the License.
 package demo
 
 import (
+	_ "embed"
 	"fmt"
+	"strings"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/csvimport"
 	"github.com/google/taxinomia/core/tables"
 )
+
+//go:embed data/regions.csv
+var regionsCSV string
 
 // Row represents a single row of demo data
 type Row struct {
@@ -31,18 +37,6 @@ type Row struct {
 	Region   string
 	Category string
 	Amount   int
-}
-
-// RegionInfo represents information about a region
-type RegionInfo struct {
-	Region     string
-	Population int
-	Area       float64 // in square km
-	Capital    string
-	TimeZone   string
-	Currency   string
-	Language   string
-	GDP        float64 // in billions
 }
 
 // CapitalInfo represents information about a capital city
@@ -180,111 +174,45 @@ func printDemoData(data []Row) {
 	}
 }
 
-// CreateRegionsTable creates and populates a table with region information
+// CreateRegionsTable creates and populates a table with region information from embedded CSV
 func CreateRegionsTable() *tables.DataTable {
-	t := tables.NewDataTable()
-
-	// Create columns for region properties
-	regionCol := columns.NewStringColumn(columns.NewColumnDef("region", "Region", "region"))
-	populationCol := columns.NewUint32Column(columns.NewColumnDef("population", "Population (millions)", ""))
-	areaCol := columns.NewUint32Column(columns.NewColumnDef("area", "Area (km²)", ""))
-	capitalCol := columns.NewStringColumn(columns.NewColumnDef("capital", "Capital", "capital"))
-	timezoneCol := columns.NewStringColumn(columns.NewColumnDef("timezone", "Time Zone", ""))
-	currencyCol := columns.NewStringColumn(columns.NewColumnDef("currency", "Currency", ""))
-	languageCol := columns.NewStringColumn(columns.NewColumnDef("language", "Primary Language", ""))
-	gdpCol := columns.NewUint32Column(columns.NewColumnDef("gdp", "GDP (billions $)", ""))
-
-	t.AddColumn(regionCol)
-	t.AddColumn(populationCol)
-	t.AddColumn(areaCol)
-	t.AddColumn(capitalCol)
-	t.AddColumn(timezoneCol)
-	t.AddColumn(currencyCol)
-	t.AddColumn(languageCol)
-	t.AddColumn(gdpCol)
-
-	// Create region data
-	regions := createRegionData()
-
-	// Populate the columns
-	for _, region := range regions {
-		regionCol.Append(region.Region)
-		populationCol.Append(uint32(region.Population))
-		areaCol.Append(uint32(region.Area))
-		capitalCol.Append(region.Capital)
-		timezoneCol.Append(region.TimeZone)
-		currencyCol.Append(region.Currency)
-		languageCol.Append(region.Language)
-		gdpCol.Append(uint32(region.GDP))
-	}
-
-	// Finalize columns to detect uniqueness and build indexes
-	regionCol.FinalizeColumn()
-	populationCol.FinalizeColumn()
-	areaCol.FinalizeColumn()
-	capitalCol.FinalizeColumn()
-	timezoneCol.FinalizeColumn()
-	currencyCol.FinalizeColumn()
-	languageCol.FinalizeColumn()
-	gdpCol.FinalizeColumn()
-
-	// Print region info
-	fmt.Println("\nRegion Data:")
-	printRegionData(regions)
-
-	return t
-}
-
-func createRegionData() []RegionInfo {
-	return []RegionInfo{
-		{
-			Region:     "North",
-			Population: 45,
-			Area:       985000,
-			Capital:    "Northville",
-			TimeZone:   "UTC-5",
-			Currency:   "USD",
-			Language:   "English",
-			GDP:        2150,
+	options := csvimport.DefaultOptions()
+	options.ColumnConfigs = map[string]csvimport.ColumnConfig{
+		"region": {
+			DisplayName: "Region",
+			EntityType:  "region",
 		},
-		{
-			Region:     "South",
-			Population: 38,
-			Area:       765000,
-			Capital:    "Southport",
-			TimeZone:   "UTC-6",
-			Currency:   "USD",
-			Language:   "English",
-			GDP:        1820,
+		"population": {
+			DisplayName: "Population (millions)",
 		},
-		{
-			Region:     "East",
-			Population: 52,
-			Area:       820000,
-			Capital:    "Eastborough",
-			TimeZone:   "UTC-4",
-			Currency:   "USD",
-			Language:   "English",
-			GDP:        2480,
+		"area": {
+			DisplayName: "Area (km²)",
 		},
-		{
-			Region:     "West",
-			Population: 41,
-			Area:       1100000,
-			Capital:    "Westfield",
-			TimeZone:   "UTC-8",
-			Currency:   "USD",
-			Language:   "English",
-			GDP:        2350,
+		"capital": {
+			DisplayName: "Capital",
+			EntityType:  "capital",
+		},
+		"timezone": {
+			DisplayName: "Time Zone",
+		},
+		"currency": {
+			DisplayName: "Currency",
+		},
+		"language": {
+			DisplayName: "Primary Language",
+		},
+		"gdp": {
+			DisplayName: "GDP (billions $)",
 		},
 	}
-}
 
-func printRegionData(regions []RegionInfo) {
-	for i, region := range regions {
-		fmt.Printf("%2d: %s - Pop: %dM, Area: %.0f km², Capital: %s, GDP: $%.0fB\n",
-			i, region.Region, region.Population, region.Area, region.Capital, region.GDP)
+	table, err := csvimport.ImportFromReader(strings.NewReader(regionsCSV), options)
+	if err != nil {
+		panic(fmt.Sprintf("failed to import regions CSV: %v", err))
 	}
+
+	fmt.Printf("\nRegion Data: %d rows imported from CSV\n", table.Length())
+	return table
 }
 
 // CreateCapitalsTable creates and populates a table with capital city information
