@@ -1,0 +1,11 @@
+date,product,quantity,price,customer
+2024-01-15,Widget A,5,29,Acme Corp
+2024-01-16,Widget B,12,45,TechStart Inc
+2024-01-16,Gadget X,3,199,Acme Corp
+2024-01-17,Widget A,8,29,Global Systems
+2024-01-18,Gadget Y,2,299,TechStart Inc
+2024-01-19,Widget C,20,15,DataFlow LLC
+2024-01-20,Gadget X,1,199,Global Systems
+2024-01-21,Widget B,6,45,DataFlow LLC
+2024-01-22,Widget A,15,29,Acme Corp
+2024-01-23,Gadget Z,4,149,TechStart Inc

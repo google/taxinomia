@@ -39,6 +39,9 @@ var capitalsCSV string
 //go:embed data/items.csv
 var itemsCSV string
 
+//go:embed data/sales.csv
+var salesCSV string
+
 //go:embed data/annotations.textproto
 var annotations string
 
@@ -86,4 +89,15 @@ func CreateCapitalsTable() *tables.DataTable {
 // CreateItemsTable creates and populates a table with item/category information from embedded CSV
 func CreateItemsTable() *tables.DataTable {
 	return importTable("items", itemsCSV)
+}
+
+// CreateSalesTable creates a table with sales data using default auto-detection (no annotations)
+func CreateSalesTable() *tables.DataTable {
+	table, err := csvimport.ImportFromReader(strings.NewReader(salesCSV), csvimport.DefaultOptions())
+	if err != nil {
+		panic(fmt.Sprintf("failed to import sales CSV: %v", err))
+	}
+
+	fmt.Printf("\nSales Data: %d rows imported from CSV (auto-detected types)\n", table.Length())
+	return table
 }
