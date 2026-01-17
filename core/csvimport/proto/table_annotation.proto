@@ -54,3 +54,9 @@ message TableAnnotation {
   // Annotations for individual columns.
   repeated ColumnAnnotation columns = 2;
 }
+
+// TableAnnotations is a collection of table annotations.
+message TableAnnotations {
+  // List of table annotations.
+  repeated TableAnnotation tables = 1;
+}

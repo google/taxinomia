@@ -1,0 +1,200 @@
+# SPDX-License-Identifier: Apache-2.0
+# Table annotations for demo CSV files
+
+# Orders table
+tables {
+  name: "orders"
+  columns {
+    name: "status"
+    display_name: "Status"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "region"
+    display_name: "Region"
+    entity_type: "region"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "category"
+    display_name: "Category"
+    entity_type: "category"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "amount"
+    display_name: "Amount"
+    type: COLUMN_TYPE_UINT32
+  }
+}
+
+# Regions table
+tables {
+  name: "regions"
+  columns {
+    name: "region"
+    display_name: "Region"
+    entity_type: "region"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "population"
+    display_name: "Population (millions)"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "area"
+    display_name: "Area (km²)"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "capital"
+    display_name: "Capital"
+    entity_type: "capital"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "timezone"
+    display_name: "Time Zone"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "currency"
+    display_name: "Currency"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "language"
+    display_name: "Primary Language"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "gdp"
+    display_name: "GDP (billions $)"
+    type: COLUMN_TYPE_UINT32
+  }
+}
+
+# Capitals table
+tables {
+  name: "capitals"
+  columns {
+    name: "capital"
+    display_name: "Capital City"
+    entity_type: "capital"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "region"
+    display_name: "Region"
+    entity_type: "region"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "population"
+    display_name: "Population (millions x10)"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "founded"
+    display_name: "Year Founded"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "elevation"
+    display_name: "Elevation (m)"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "latitude"
+    display_name: "Latitude"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "longitude"
+    display_name: "Longitude"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "mayor"
+    display_name: "Mayor"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "universities"
+    display_name: "Universities"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "museums"
+    display_name: "Museums"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "airports"
+    display_name: "Airports"
+    type: COLUMN_TYPE_UINT32
+  }
+}
+
+# Items table
+tables {
+  name: "items"
+  columns {
+    name: "item_id"
+    display_name: "Item ID"
+    entity_type: "item_id"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "item_name"
+    display_name: "Item Name"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "category"
+    display_name: "Category"
+    entity_type: "category"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "subcategory"
+    display_name: "Subcategory"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "brand"
+    display_name: "Brand"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "price"
+    display_name: "Price ($)"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "stock"
+    display_name: "Stock"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "weight"
+    display_name: "Weight (kg)"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "rating"
+    display_name: "Rating"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "reviews"
+    display_name: "Reviews"
+    type: COLUMN_TYPE_UINT32
+  }
+  columns {
+    name: "supplier"
+    display_name: "Supplier"
+    type: COLUMN_TYPE_STRING
+  }
+}

@@ -72,3 +72,29 @@ func OptionsFromTextproto(textproto string) (ImportOptions, error) {
 	options.ColumnAnnotations = TableAnnotationToColumnAnnotations(annotation)
 	return options, nil
 }
+
+// ParseTableAnnotations parses a textproto string containing multiple table annotations.
+func ParseTableAnnotations(textproto string) (*pb.TableAnnotations, error) {
+	annotations := &pb.TableAnnotations{}
+	if err := prototext.Unmarshal([]byte(textproto), annotations); err != nil {
+		return nil, fmt.Errorf("failed to parse textproto: %w", err)
+	}
+	return annotations, nil
+}
+
+// OptionsMapFromTextproto creates a map of table name to ImportOptions from a textproto
+// containing multiple table annotations.
+func OptionsMapFromTextproto(textproto string) (map[string]ImportOptions, error) {
+	annotations, err := ParseTableAnnotations(textproto)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]ImportOptions)
+	for _, table := range annotations.GetTables() {
+		options := DefaultOptions()
+		options.ColumnAnnotations = TableAnnotationToColumnAnnotations(table)
+		result[table.GetName()] = options
+	}
+	return result, nil
+}
