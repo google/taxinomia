@@ -96,21 +96,27 @@ type JoinTarget struct {
 
 // ColumnSummary represents a column in a joined table
 type ColumnSummary struct {
-	Name          string
-	DisplayName   string
-	HasEntityType bool
-	IsKey         bool
-	TableName     string       // The table this column belongs to
-	Path          string       // Path for URL encoding
-	JoinTargets   []JoinTarget // Tables/columns this column can join to
-	IsExpanded    bool         // Whether this column's join list is expanded
-	ToggleURL     safehtml.URL // URL to toggle expansion
-	AddColumnURL  safehtml.URL // URL to add this column and its join to the view
-	IsSelected    bool         // Whether this column is already in the current view
+	Name           string
+	DisplayName    string
+	HasEntityType  bool
+	IsKey          bool
+	TableName      string       // The table this column belongs to
+	Path           string       // Path for URL encoding
+	JoinTargets    []JoinTarget // Tables/columns this column can join to
+	HasJoinTargets bool         // Whether this column has join targets (even if not expanded)
+	IsExpanded     bool         // Whether this column's join list is expanded
+	ToggleURL      safehtml.URL // URL to toggle expansion
+	AddColumnURL   safehtml.URL // URL to add this column and its join to the view
+	IsSelected     bool         // Whether this column is already in the current view
 }
 
 // detectCycle checks if a table appears in the path to prevent infinite loops
-func detectCycle(path string, targetTable string) bool {
+// baseTable is the original table we're starting the join from (e.g., "orders")
+func detectCycle(path string, targetTable string, baseTable string) bool {
+	// First check if we're trying to join back to the base table
+	if targetTable == baseTable {
+		return true
+	}
 	// Split the path and check if the target table already appears
 	parts := strings.Split(path, "/")
 	for _, part := range parts {
@@ -125,8 +131,10 @@ func detectCycle(path string, targetTable string) bool {
 	return false
 }
 
-// buildJoinTargetsForColumn builds join targets for a column (one level only)
-func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, expandedPaths map[string]bool, q *query.Query) []JoinTarget {
+// buildJoinTargetsForColumn builds join targets for a column
+// columnNamePrefix is the accumulated column name for chained joins (e.g., "region.regions.region" for a second hop)
+// baseTable is the original table we started from (for cycle detection)
+func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, columnNamePrefix string, baseTable string, expandedPaths map[string]bool, q *query.Query) []JoinTarget {
 
 	var joinTargets []JoinTarget
 	allJoins := dataModel.GetJoins()
@@ -134,7 +142,6 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 	for _, join := range allJoins {
 		var target JoinTarget
 		var targetTableName, targetColumnName string
-		var fromColumnName string
 
 		// Parse join key to get table names (format: "fromTable.fromColumn->toTable.toColumn")
 		keyParts := strings.Split(join.Key, "->")
@@ -157,12 +164,10 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 			// This is an outgoing join
 			targetTableName = toTableKey
 			targetColumnName = toColumnKey
-			fromColumnName = columnName
 		} else if toTableKey == tableName && toColumnKey == columnName {
 			// This is an incoming join (reverse)
 			targetTableName = fromTableKey
 			targetColumnName = fromColumnKey
-			fromColumnName = columnName
 		} else {
 			continue
 		}
@@ -171,7 +176,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 		targetPath := fmt.Sprintf("%s/%s.%s", basePath, targetTableName, targetColumnName)
 
 		// Check for cycles
-		isBlocked := detectCycle(basePath, targetTableName)
+		isBlocked := detectCycle(basePath, targetTableName, baseTable)
 
 		target = JoinTarget{
 			TableName:   targetTableName,
@@ -198,8 +203,11 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 						colPath := fmt.Sprintf("%s/%s", targetPath, targetColName)
 						isExpanded := expandedPaths[colPath]
 
-						// Build column name using new format: fromColumn.toTable.toColumn.selectedColumn
-						columnFullName := fmt.Sprintf("%s.%s.%s.%s", fromColumnName, targetTableName, targetColumnName, targetColName)
+						// Build column name by appending to the prefix
+						// Format: prefix.toTable.toColumn.selectedColumn
+						// For single hop: region.regions.region.timezone
+						// For double hop: region.regions.region.capital.capitals.capital.mayor
+						columnFullName := fmt.Sprintf("%s.%s.%s.%s", columnNamePrefix, targetTableName, targetColumnName, targetColName)
 						addColumnURL := BuildAddColumnURL(q, columnFullName)
 
 						// Check if this column is already selected
@@ -249,19 +257,23 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 									checkTable = checkFromParts[0]
 								}
 
-								if checkTable != "" && !detectCycle(colPath, checkTable) {
+								if checkTable != "" && !detectCycle(colPath, checkTable, baseTable) {
 									hasValidJoins = true
 									break
 								}
 							}
 
 							if hasValidJoins {
+								colSummary.HasJoinTargets = true
 								if isExpanded {
 									// Recursively build join targets for this column
-									colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, expandedPaths, q)
-								} else {
-									// Just mark that joins are available without building them
-									colSummary.JoinTargets = []JoinTarget{} // Empty slice indicates joins exist but not expanded
+									// The new prefix is the full path to this column: prefix.table.joinCol.thisCol
+									// e.g., for "capital" column in regions with prefix "region":
+									//   newPrefix = "region.regions.region.capital"
+									// Then the next call will build: newPrefix.nextTable.nextJoinCol.selectedCol
+									//   = "region.regions.region.capital.capitals.capital.mayor"
+									newPrefix := fmt.Sprintf("%s.%s.%s.%s", columnNamePrefix, targetTableName, targetColumnName, targetColName)
+									colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, newPrefix, baseTable, expandedPaths, q)
 								}
 							}
 						}
@@ -333,7 +345,9 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			if hasEntityType {
 				// Build the base path for this column
 				basePath := colName
-				joinTargets = buildJoinTargetsForColumn(dataModel, tableName, colName, basePath, view.Expanded, q)
+				// For first-level joins, the prefix is just the column name
+				// Pass tableName as baseTable for cycle detection
+				joinTargets = buildJoinTargetsForColumn(dataModel, tableName, colName, basePath, colName, tableName, view.Expanded, q)
 			}
 
 			// Check if this column is expanded
@@ -366,9 +380,12 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	// Add joined columns to AllColumns if they are in the view
 	for _, colName := range view.Columns {
 		if strings.Contains(colName, ".") {
-			// This is a joined column - format: fromColumn.toTable.toColumn.selectedColumn
+			// This is a joined column
+			// Valid formats: 4 parts (1 hop), 7 parts (2 hops), 10 parts (3 hops), etc.
+			// Pattern: (numParts - 1) % 3 == 0
 			parts := strings.Split(colName, ".")
-			if len(parts) == 4 {
+			numParts := len(parts)
+			if numParts >= 4 && (numParts-1)%3 == 0 {
 				// Check if this column is already in AllColumns (it shouldn't be)
 				found := false
 				for _, col := range vm.AllColumns {
@@ -379,8 +396,10 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				}
 
 				if !found {
-					// Build a better display name
-					displayName := fmt.Sprintf("%s → %s", parts[1], parts[3])
+					// Build a better display name from the last hop
+					lastTable := parts[numParts-3]
+					lastColumn := parts[numParts-1]
+					displayName := fmt.Sprintf("%s → %s", lastTable, lastColumn)
 
 					// Add the joined column info
 					vm.AllColumns = append(vm.AllColumns, ColumnInfo{
@@ -412,10 +431,16 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		// Check if this is a joined column (format: fromColumn.toTable.toColumn.selectedColumn)
 		if strings.Contains(colName, ".") {
 			// This is a joined column
+			// Valid formats: 4 parts (1 hop), 7 parts (2 hops), 10 parts (3 hops), etc.
+			// Pattern: (numParts - 1) % 3 == 0
 			parts := strings.Split(colName, ".")
-			if len(parts) == 4 {
-				// Build a display name: "TableName → ColumnName"
-				displayName := fmt.Sprintf("%s → %s", parts[1], parts[3])
+			numParts := len(parts)
+			if numParts >= 4 && (numParts-1)%3 == 0 {
+				// Build a display name from the last hop: "TableName → ColumnName"
+				// For multi-hop, use the final table and column
+				lastTable := parts[numParts-3]    // Second to last triplet's table
+				lastColumn := parts[numParts-1]   // Selected column
+				displayName := fmt.Sprintf("%s → %s", lastTable, lastColumn)
 				vm.Headers = append(vm.Headers, displayName)
 				vm.Columns = append(vm.Columns, colName)
 			}

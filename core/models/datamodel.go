@@ -233,7 +233,8 @@ func (dm *DataModel) discoverJoins() {
 			continue
 		}
 
-		// For each non-key column with this entity type, create joins to all key columns
+		// For each column with this entity type, create joins to all key columns
+		// This includes both non-key columns (foreign keys) and key columns (for chained lookups)
 		for _, sourceRef := range entityUsage.Usage {
 			sourceTable := dm.GetTable(sourceRef.TableName)
 			if sourceTable == nil {
@@ -241,13 +242,13 @@ func (dm *DataModel) discoverJoins() {
 			}
 
 			sourceCol := sourceTable.GetColumn(sourceRef.ColumnName)
-			if sourceCol == nil || sourceCol.IsKey() {
-				continue // Skip if source is a key column
+			if sourceCol == nil {
+				continue
 			}
 
-			// Create joins from this non-key column to all key columns
+			// Create joins from this column to all key columns
 			for _, targetRef := range keyColumns {
-				// Don't create self-joins
+				// Don't create self-joins (same table and column)
 				if sourceRef.TableName == targetRef.TableName && sourceRef.ColumnName == targetRef.ColumnName {
 					continue
 				}

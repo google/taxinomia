@@ -40,6 +40,30 @@ type IJoiner interface {
 	Lookup(index uint32) (uint32, error)
 }
 
+// ChainedJoiner composes multiple joiners to support multi-hop joins.
+// Each lookup passes through all joiners in sequence.
+type ChainedJoiner struct {
+	Joiners []IJoiner
+}
+
+// NewChainedJoiner creates a joiner that chains multiple joiners together.
+func NewChainedJoiner(joiners ...IJoiner) *ChainedJoiner {
+	return &ChainedJoiner{Joiners: joiners}
+}
+
+// Lookup resolves an index through all joiners in the chain.
+func (c *ChainedJoiner) Lookup(index uint32) (uint32, error) {
+	current := index
+	for _, joiner := range c.Joiners {
+		next, err := joiner.Lookup(current)
+		if err != nil {
+			return 0, ErrUnmatched
+		}
+		current = next
+	}
+	return current, nil
+}
+
 type Joiner[T any] struct {
 	IJoiner
 	FromColumn IDataColumnT[T]

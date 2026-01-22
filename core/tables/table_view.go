@@ -402,7 +402,9 @@ func (tv *TableView) GetJoinedColumnNames() []string {
 
 // UpdateJoinedColumns updates the joined columns in this view to match the requested columns
 // It adds new joined columns and removes ones that are no longer needed
-// Joined columns are identified by the format: fromColumn.toTable.toColumn.selectedColumn
+// Joined columns are identified by the format:
+// - Single hop: fromColumn.toTable.toColumn.selectedColumn (4 parts)
+// - Multi hop: fromColumn.toTable.toColumn.fromColumn2.toTable2.toColumn2.selectedColumn (7 parts for 2 hops, etc.)
 func (tv *TableView) UpdateJoinedColumns(columnNames []string, resolver JoinResolver) {
 	// Debug: Print processing info
 	fmt.Printf("\n=== UpdateJoinedColumns Debug Info ===\n")
@@ -415,9 +417,13 @@ func (tv *TableView) UpdateJoinedColumns(columnNames []string, resolver JoinReso
 	// Parse columns to identify joined ones (with dots)
 	for _, colName := range columnNames {
 		if strings.Contains(colName, ".") {
-			// This is a joined column - format: fromColumn.toTable.toColumn.selectedColumn
+			// This is a joined column
+			// Valid formats: 4 parts (1 hop), 7 parts (2 hops), 10 parts (3 hops), etc.
+			// Pattern: 4 + 3*(n-1) = 3n + 1 parts for n hops
 			parts := strings.Split(colName, ".")
-			if len(parts) == 4 {
+			numParts := len(parts)
+			// Check if it's a valid join path: (numParts - 1) must be divisible by 3
+			if numParts >= 4 && (numParts-1)%3 == 0 {
 				neededJoinedColumns[colName] = true
 			}
 		}
@@ -438,49 +444,11 @@ func (tv *TableView) UpdateJoinedColumns(columnNames []string, resolver JoinReso
 		if tv.joins[colName] != nil {
 			continue
 		}
-		// Parse the column name
-		parts := strings.Split(colName, ".")
-		if len(parts) != 4 {
-			continue
-		}
 
-		fromColumn := parts[0]
-		toTable := parts[1]
-		toColumn := parts[2]
-		selectedColumn := parts[3]
-
-		// Find the join that connects these tables
-		// Build the join key to look up directly
-		joinKey := fmt.Sprintf("%s.%s->%s.%s", tv.tableName, fromColumn, toTable, toColumn)
-		foundJoin := resolver.GetJoin(joinKey)
-
-		if foundJoin != nil {
-			// Create the joined column
-			targetTable := resolver.GetTable(toTable)
-			if targetTable != nil {
-				targetDataCol := targetTable.GetColumn(selectedColumn)
-				if targetDataCol != nil {
-					colDef := columns.NewColumnDef(
-						colName,
-						fmt.Sprintf("%s %s", toTable, targetDataCol.ColumnDef().DisplayName()),
-						"", // Joined columns don't have entity types
-					)
-
-					// Get the joiner from the join info using type assertion
-					// We expect the join object to have a GetJoiner() method
-					type JoinWithJoiner interface {
-						GetJoiner() columns.IJoiner
-					}
-
-					if joinWithJoiner, ok := foundJoin.(JoinWithJoiner); ok {
-						joiner := joinWithJoiner.GetJoiner()
-						joinedColumn := targetDataCol.CreateJoinedColumn(colDef, joiner)
-
-						fmt.Printf("Adding joined column %s to table view\n", colName)
-						tv.AddJoinedColumn(joinedColumn)
-					}
-				}
-			}
+		joinedColumn := tv.createChainedJoinedColumn(colName, resolver)
+		if joinedColumn != nil {
+			fmt.Printf("Adding joined column %s to table view\n", colName)
+			tv.AddJoinedColumn(joinedColumn)
 		}
 	}
 
@@ -488,6 +456,93 @@ func (tv *TableView) UpdateJoinedColumns(columnNames []string, resolver JoinReso
 	fmt.Printf("Joined Columns in TableView: %v\n", tv.GetJoinedColumnNames())
 	fmt.Printf("All Columns in TableView: %v\n", tv.GetAllColumnNames())
 	fmt.Printf("===============================================\n\n")
+}
+
+// createChainedJoinedColumn creates a joined column that may chain through multiple tables
+// Format: fromColumn.toTable.toColumn.fromColumn2.toTable2.toColumn2...selectedColumn
+func (tv *TableView) createChainedJoinedColumn(colName string, resolver JoinResolver) columns.IJoinedDataColumn {
+	parts := strings.Split(colName, ".")
+	numParts := len(parts)
+
+	// Calculate number of hops: (numParts - 1) / 3
+	numHops := (numParts - 1) / 3
+	if numHops < 1 {
+		return nil
+	}
+
+	type JoinWithJoiner interface {
+		GetJoiner() columns.IJoiner
+	}
+
+	// Collect all joiners for the chain
+	joiners := make([]columns.IJoiner, 0, numHops)
+	currentTableName := tv.tableName
+	var lastTargetTable string
+
+	// Process each hop to collect joiners
+	for hop := 0; hop < numHops; hop++ {
+		// Calculate indices for this hop
+		// Hop 0: parts[0]=fromCol, parts[1]=toTable, parts[2]=toCol
+		// Hop 1: parts[3]=fromCol, parts[4]=toTable, parts[5]=toCol
+		baseIdx := hop * 3
+		fromColumn := parts[baseIdx]
+		toTable := parts[baseIdx+1]
+		toColumn := parts[baseIdx+2]
+
+		// Build join key for this hop
+		joinKey := fmt.Sprintf("%s.%s->%s.%s", currentTableName, fromColumn, toTable, toColumn)
+		foundJoin := resolver.GetJoin(joinKey)
+
+		if foundJoin == nil {
+			fmt.Printf("Could not find join for key: %s\n", joinKey)
+			return nil
+		}
+
+		joinWithJoiner, ok := foundJoin.(JoinWithJoiner)
+		if !ok {
+			fmt.Printf("Join does not have GetJoiner method: %s\n", joinKey)
+			return nil
+		}
+
+		joiner := joinWithJoiner.GetJoiner()
+		if joiner == nil {
+			fmt.Printf("Join has nil joiner: %s\n", joinKey)
+			return nil
+		}
+		joiners = append(joiners, joiner)
+		lastTargetTable = toTable
+		currentTableName = toTable
+	}
+
+	// Get the final target column (last part of the path)
+	selectedColName := parts[numParts-1]
+	targetTable := resolver.GetTable(lastTargetTable)
+	if targetTable == nil {
+		fmt.Printf("Could not find target table: %s\n", lastTargetTable)
+		return nil
+	}
+
+	targetDataCol := targetTable.GetColumn(selectedColName)
+	if targetDataCol == nil {
+		fmt.Printf("Could not find target column: %s.%s\n", lastTargetTable, selectedColName)
+		return nil
+	}
+
+	// Create the final joined column with either a single joiner or a chained joiner
+	colDef := columns.NewColumnDef(
+		colName,
+		fmt.Sprintf("%s → %s", lastTargetTable, targetDataCol.ColumnDef().DisplayName()),
+		"",
+	)
+
+	var joiner columns.IJoiner
+	if len(joiners) == 1 {
+		joiner = joiners[0]
+	} else {
+		joiner = columns.NewChainedJoiner(joiners...)
+	}
+
+	return targetDataCol.CreateJoinedColumn(colDef, joiner)
 }
 
 // IsGrouped returns true if the table has active grouping

@@ -24,13 +24,13 @@
                         <a href="{{.AddColumnURL}}" class="column-link{{if .IsSelected}} selected{{end}}" title="{{if .IsSelected}}Click to remove this column from view{{else}}Click to add this column to view{{end}}">
                             {{if .IsSelected}}✓{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
                         </a>
-                        {{if .JoinTargets}}
+                        {{if .HasJoinTargets}}
                         <a href="{{.ToggleURL}}" class="join-expand-btn" title="Show/hide join targets">
                             <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
                         </a>
                         {{end}}
                     </div>
-                    {{if and .JoinTargets .IsExpanded}}
+                    {{if and .HasJoinTargets .IsExpanded}}
                     <div class="nested-join-targets">
                         {{range .JoinTargets}}
                             {{template "renderJoinTarget" .}}
