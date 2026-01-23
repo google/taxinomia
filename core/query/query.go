@@ -34,6 +34,7 @@ type Query struct {
 	// Core parameters
 	Table          string            // The table being viewed
 	Columns        []string          // Ordered list of visible columns (reordered: filtered, grouped, then others)
+	ColumnWidths   map[string]int    // Column widths in pixels (columnName -> width)
 	Expanded       []string          // List of expanded paths in the sidebar
 	GroupedColumns []string          // Ordered list of columns to group by
 	Filters        map[string]string // Column filters (columnName -> filterValue)
@@ -46,9 +47,10 @@ func NewQuery(u *url.URL) *Query {
 	// No additional sanitization needed here as we're just extracting query parameters
 
 	state := &Query{
-		Path:    u.Path,
-		Filters: make(map[string]string),
-		Limit:   25, // Default limit
+		Path:         u.Path,
+		Filters:      make(map[string]string),
+		ColumnWidths: make(map[string]int),
+		Limit:        25, // Default limit
 	}
 
 	// Parse query parameters
@@ -57,10 +59,27 @@ func NewQuery(u *url.URL) *Query {
 	// Extract table parameter
 	state.Table = q.Get("table")
 
-	// Extract columns parameter
+	// Extract columns parameter (format: col1:width,col2,col3:width)
 	columnsStr := q.Get("columns")
 	if columnsStr != "" {
-		state.Columns = strings.Split(columnsStr, ",")
+		columnParts := strings.Split(columnsStr, ",")
+		state.Columns = make([]string, 0, len(columnParts))
+		for _, part := range columnParts {
+			// Check if column has a width suffix (e.g., "status:120")
+			if colonIdx := strings.LastIndex(part, ":"); colonIdx != -1 {
+				colName := part[:colonIdx]
+				widthStr := part[colonIdx+1:]
+				if width, err := strconv.Atoi(widthStr); err == nil && width > 0 {
+					state.Columns = append(state.Columns, colName)
+					state.ColumnWidths[colName] = width
+				} else {
+					// Invalid width, treat the whole thing as column name
+					state.Columns = append(state.Columns, part)
+				}
+			} else {
+				state.Columns = append(state.Columns, part)
+			}
+		}
 	} else {
 		state.Columns = []string{}
 	}
@@ -109,6 +128,7 @@ func (s *Query) Clone() *Query {
 		Path:           s.Path,
 		Table:          s.Table,
 		Columns:        make([]string, len(s.Columns)),
+		ColumnWidths:   make(map[string]int),
 		Expanded:       make([]string, len(s.Expanded)),
 		GroupedColumns: make([]string, len(s.GroupedColumns)),
 		Filters:        make(map[string]string),
@@ -117,6 +137,11 @@ func (s *Query) Clone() *Query {
 
 	// Deep copy columns
 	copy(clone.Columns, s.Columns)
+
+	// Deep copy column widths
+	for colName, width := range s.ColumnWidths {
+		clone.ColumnWidths[colName] = width
+	}
 
 	// Deep copy expanded
 	copy(clone.Expanded, s.Expanded)
@@ -299,9 +324,17 @@ func (s *Query) ToURL() string {
 		q.Set("table", s.Table)
 	}
 
-	// Add columns parameter
+	// Add columns parameter (with widths if present)
 	if len(s.Columns) > 0 {
-		q.Set("columns", strings.Join(s.Columns, ","))
+		columnStrs := make([]string, 0, len(s.Columns))
+		for _, col := range s.Columns {
+			if width, hasWidth := s.ColumnWidths[col]; hasWidth {
+				columnStrs = append(columnStrs, col+":"+strconv.Itoa(width))
+			} else {
+				columnStrs = append(columnStrs, col)
+			}
+		}
+		q.Set("columns", strings.Join(columnStrs, ","))
 	}
 
 	// Add expanded parameter

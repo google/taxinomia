@@ -472,6 +472,7 @@
             border-collapse: collapse;
             border: 1px solid #ccc;
             background-color: white;
+            table-layout: fixed;
         }
 
         th {
@@ -479,11 +480,45 @@
             padding: 8px;
             text-align: left;
             border: 1px solid #ccc;
+            position: relative;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         td {
             padding: 8px;
             border: 1px solid #ccc;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Column resize handle */
+        .resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            cursor: col-resize;
+            background-color: transparent;
+            transition: background-color 0.2s;
+        }
+
+        .resize-handle:hover,
+        .resize-handle.resizing {
+            background-color: #3498db;
+        }
+
+        /* Prevent text selection while resizing */
+        body.resizing {
+            cursor: col-resize;
+            user-select: none;
+        }
+
+        body.resizing * {
+            cursor: col-resize !important;
         }
 
         /* Grouping row styles */
@@ -723,11 +758,183 @@
             window.location.href = url.toString();
         }
 
+        // Restore scroll position from URL parameter
+        function restoreScrollPosition() {
+            const url = new URL(window.location);
+            const scrollY = parseInt(url.searchParams.get('scrollY'), 10);
+            if (scrollY > 0) {
+                window.scrollTo(0, scrollY);
+                // Remove scrollY from URL to keep it clean
+                url.searchParams.delete('scrollY');
+                history.replaceState(null, '', url.toString());
+            }
+        }
+
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', function() {
             parseUrlParams();
             setupFilterInputs();
+            initColumnResize();
+            restoreScrollPosition();
         });
+
+        // =====================
+        // Column Resize Feature
+        // =====================
+
+        // Get current column widths from table headers
+        function getCurrentColumnWidths() {
+            const widths = {};
+            const table = document.getElementById('data-table');
+            if (!table) return widths;
+
+            const headers = table.querySelectorAll('thead tr:first-child th');
+            headers.forEach(function(th) {
+                const colName = th.dataset.colName;
+                // Only include if width was explicitly set (has inline style)
+                if (colName && th.style.width) {
+                    widths[colName] = parseInt(th.style.width, 10);
+                }
+            });
+            return widths;
+        }
+
+        // Update URL with current column widths
+        // If reload is true, navigates to the new URL; otherwise uses replaceState
+        function updateUrlWithWidths(reload) {
+            const url = new URL(window.location);
+            const columnsParam = url.searchParams.get('columns');
+            if (!columnsParam) return;
+
+            const widths = getCurrentColumnWidths();
+            const columns = columnsParam.split(',');
+
+            // Rebuild columns param with widths
+            const newColumns = columns.map(function(col) {
+                // Strip existing width if present
+                const colonIdx = col.lastIndexOf(':');
+                let colName = col;
+                if (colonIdx !== -1) {
+                    const possibleWidth = col.substring(colonIdx + 1);
+                    if (/^\d+$/.test(possibleWidth)) {
+                        colName = col.substring(0, colonIdx);
+                    }
+                }
+
+                // Add new width if we have one
+                if (widths[colName]) {
+                    return colName + ':' + widths[colName];
+                }
+                return colName;
+            });
+
+            url.searchParams.set('columns', newColumns.join(','));
+
+            if (reload) {
+                // Save scroll position before reload
+                url.searchParams.set('scrollY', Math.round(window.scrollY).toString());
+                window.location.href = url.toString();
+            } else {
+                history.replaceState(null, '', url.toString());
+            }
+        }
+
+        // Apply column widths from data attributes (set by backend)
+        function applyColumnWidths() {
+            const table = document.getElementById('data-table');
+            if (!table) return;
+
+            const headers = table.querySelectorAll('thead tr:first-child th');
+            headers.forEach(function(th) {
+                const width = parseInt(th.dataset.colWidth, 10);
+                if (width > 0) {
+                    th.style.width = width + 'px';
+                }
+            });
+        }
+
+        // Initialize column resize functionality
+        function initColumnResize() {
+            const table = document.getElementById('data-table');
+            if (!table) return;
+
+            // Apply widths from backend (stored in data attributes)
+            applyColumnWidths();
+
+            const headers = table.querySelectorAll('thead tr:first-child th');
+
+            headers.forEach(function(th) {
+                const handle = th.querySelector('.resize-handle');
+                if (!handle) return;
+
+                let startX, startWidth;
+
+                handle.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    startX = e.pageX;
+                    startWidth = th.offsetWidth;
+
+                    // Add resizing class for visual feedback
+                    handle.classList.add('resizing');
+                    document.body.classList.add('resizing');
+
+                    // Add mousemove and mouseup listeners to document
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+
+                function onMouseMove(e) {
+                    const diff = e.pageX - startX;
+                    const newWidth = Math.max(50, startWidth + diff); // Minimum 50px width
+                    th.style.width = newWidth + 'px';
+                }
+
+                function onMouseUp(e) {
+                    // Remove event listeners
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+
+                    // Remove resizing classes
+                    handle.classList.remove('resizing');
+                    document.body.classList.remove('resizing');
+
+                    // Update URL with new widths and reload
+                    updateUrlWithWidths(true);
+                }
+            });
+        }
+
+        // Reset column widths to default (removes widths from URL)
+        function resetColumnWidths() {
+            const url = new URL(window.location);
+            const columnsParam = url.searchParams.get('columns');
+            if (!columnsParam) return;
+
+            // Strip all widths from columns param
+            const columns = columnsParam.split(',').map(function(col) {
+                const colonIdx = col.lastIndexOf(':');
+                if (colonIdx !== -1) {
+                    const possibleWidth = col.substring(colonIdx + 1);
+                    if (/^\d+$/.test(possibleWidth)) {
+                        return col.substring(0, colonIdx);
+                    }
+                }
+                return col;
+            });
+
+            url.searchParams.set('columns', columns.join(','));
+
+            // Remove inline widths from all headers
+            const table = document.getElementById('data-table');
+            if (table) {
+                const headers = table.querySelectorAll('thead tr:first-child th');
+                headers.forEach(function(th) {
+                    th.style.width = '';
+                });
+            }
+
+            history.replaceState(null, '', url.toString());
+        }
     </script>
 </head>
 <body>
@@ -788,11 +995,14 @@
             <h1>{{.Title}}</h1>
 
             <h2>Data Table</h2>
-            <table>
+            <table id="data-table">
         <thead>
             <tr>
-                {{range .Headers}}
-                <th>{{.}}</th>
+                {{range $idx, $header := .Headers}}
+                <th data-col-index="{{$idx}}" data-col-name="{{index $.Columns $idx}}" data-col-width="{{index $.ColumnWidths (index $.Columns $idx)}}">
+                    <span class="th-content">{{$header}}</span>
+                    <div class="resize-handle"></div>
+                </th>
                 {{end}}
             </tr>
             <tr class="grouping-row">

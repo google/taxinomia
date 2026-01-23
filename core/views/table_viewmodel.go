@@ -36,6 +36,7 @@ type TableViewModel struct {
 	Title         string
 	Headers       []string            // Column display names
 	Columns       []string            // Column names (for data access)
+	ColumnWidths  map[string]int      // Column widths in pixels (from URL)
 	Rows          []map[string]string // Each row is a map of column name to value (flat table, ungrouped)
 	GroupedRows   []GroupedRow        // Hierarchical rows for grouped display
 	IsGrouped     bool                // Whether the table is currently grouped
@@ -308,6 +309,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		Title:         title,
 		Headers:       []string{},
 		Columns:       []string{},
+		ColumnWidths:  make(map[string]int),
 		Rows:          []map[string]string{},
 		AllColumns:    []ColumnInfo{},
 		CurrentURL:    currentURL,
@@ -316,6 +318,11 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 
 	// Copy filter parameters from Query
 	vm.ColumnFilters = q.Filters
+
+	// Copy column widths from Query
+	for colName, width := range q.ColumnWidths {
+		vm.ColumnWidths[colName] = width
+	}
 
 	// Debug: Print view model building info
 	fmt.Printf("\n=== BuildViewModel Debug Info ===\n")
