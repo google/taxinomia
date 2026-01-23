@@ -30,8 +30,8 @@ enum ColumnType {
   COLUMN_TYPE_UINT32 = 2;
 }
 
-// ColumnAnnotation defines annotations for a single CSV column.
-message ColumnAnnotation {
+// ColumnSource defines source metadata for a single CSV column.
+message ColumnSource {
   // The column name in the CSV header (required for matching).
   string name = 1;
 
@@ -46,21 +46,24 @@ message ColumnAnnotation {
   ColumnType type = 4;
 }
 
-// TableAnnotation defines annotations for importing a CSV file as a table.
-message TableAnnotation {
+// TableSource defines source metadata for importing a CSV file as a table.
+message TableSource {
   // Name of the table.
   string name = 1;
 
-  // Annotations for individual columns.
-  repeated ColumnAnnotation columns = 2;
+  // Source metadata for individual columns.
+  repeated ColumnSource columns = 2;
 
   // Domains group related tables together (e.g., "demo", "sales", "inventory").
   // A table can belong to multiple domains.
   repeated string domains = 3;
+
+  // CSV file name (e.g., "orders.csv").
+  string csv_file = 4;
 }
 
-// TableAnnotations is a collection of table annotations.
-message TableAnnotations {
-  // List of table annotations.
-  repeated TableAnnotation tables = 1;
+// TableSources is a collection of table sources.
+message TableSources {
+  // List of table sources.
+  repeated TableSource tables = 1;
 }

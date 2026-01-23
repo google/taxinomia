@@ -42,24 +42,24 @@ var itemsCSV string
 //go:embed data/sales.csv
 var salesCSV string
 
-//go:embed data/annotations.textproto
-var annotations string
+//go:embed data/sources.textproto
+var sources string
 
 var tableOptions map[string]csvimport.ImportOptions
 
 func init() {
 	var err error
-	tableOptions, err = csvimport.OptionsMapFromTextproto(annotations)
+	tableOptions, err = csvimport.OptionsMapFromTextproto(sources)
 	if err != nil {
-		panic(fmt.Sprintf("failed to parse annotations: %v", err))
+		panic(fmt.Sprintf("failed to parse sources: %v", err))
 	}
 }
 
-// importTable is a helper function to import a CSV table using pre-parsed annotations
+// importTable is a helper function to import a CSV table using pre-parsed sources
 func importTable(name, csv string) *tables.DataTable {
 	options, ok := tableOptions[name]
 	if !ok {
-		panic(fmt.Sprintf("no annotations found for table %s", name))
+		panic(fmt.Sprintf("no sources found for table %s", name))
 	}
 
 	table, err := csvimport.ImportFromReader(strings.NewReader(csv), options)
@@ -91,7 +91,7 @@ func CreateItemsTable() *tables.DataTable {
 	return importTable("items", itemsCSV)
 }
 
-// CreateSalesTable creates a table with sales data using default auto-detection (no annotations)
+// CreateSalesTable creates a table with sales data using default auto-detection (no sources)
 func CreateSalesTable() *tables.DataTable {
 	table, err := csvimport.ImportFromReader(strings.NewReader(salesCSV), csvimport.DefaultOptions())
 	if err != nil {

@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-func TestParseTableAnnotation(t *testing.T) {
+func TestParseTableSource(t *testing.T) {
 	textproto := `
 columns {
   name: "id"
@@ -41,17 +41,17 @@ columns {
   type: COLUMN_TYPE_UINT32
 }
 `
-	annotation, err := ParseTableAnnotation(textproto)
+	source, err := ParseTableSource(textproto)
 	if err != nil {
 		t.Fatalf("failed to parse textproto: %v", err)
 	}
 
-	if len(annotation.GetColumns()) != 3 {
-		t.Errorf("expected 3 columns, got %d", len(annotation.GetColumns()))
+	if len(source.GetColumns()) != 3 {
+		t.Errorf("expected 3 columns, got %d", len(source.GetColumns()))
 	}
 
 	// Check first column
-	col0 := annotation.GetColumns()[0]
+	col0 := source.GetColumns()[0]
 	if col0.GetName() != "id" {
 		t.Errorf("expected name 'id', got '%s'", col0.GetName())
 	}
@@ -60,7 +60,7 @@ columns {
 	}
 
 	// Check second column with entity type
-	col1 := annotation.GetColumns()[1]
+	col1 := source.GetColumns()[1]
 	if col1.GetEntityType() != "region" {
 		t.Errorf("expected entity_type 'region', got '%s'", col1.GetEntityType())
 	}
@@ -85,19 +85,19 @@ columns {
 		t.Fatalf("failed to create options: %v", err)
 	}
 
-	idAnnotation := options.ColumnAnnotations["id"]
-	if idAnnotation.Type != ColumnTypeString {
-		t.Errorf("expected ColumnTypeString, got %v", idAnnotation.Type)
+	idSource := options.ColumnSources["id"]
+	if idSource.Type != ColumnTypeString {
+		t.Errorf("expected ColumnTypeString, got %v", idSource.Type)
 	}
 
-	countAnnotation := options.ColumnAnnotations["count"]
-	if countAnnotation.Type != ColumnTypeUint32 {
-		t.Errorf("expected ColumnTypeUint32, got %v", countAnnotation.Type)
+	countSource := options.ColumnSources["count"]
+	if countSource.Type != ColumnTypeUint32 {
+		t.Errorf("expected ColumnTypeUint32, got %v", countSource.Type)
 	}
 
-	nameAnnotation := options.ColumnAnnotations["name"]
-	if nameAnnotation.Type != ColumnTypeAuto {
-		t.Errorf("expected ColumnTypeAuto, got %v", nameAnnotation.Type)
+	nameSource := options.ColumnSources["name"]
+	if nameSource.Type != ColumnTypeAuto {
+		t.Errorf("expected ColumnTypeAuto, got %v", nameSource.Type)
 	}
 }
 
@@ -118,28 +118,28 @@ columns {
 		t.Fatalf("failed to create options: %v", err)
 	}
 
-	if len(options.ColumnAnnotations) != 2 {
-		t.Errorf("expected 2 column annotations, got %d", len(options.ColumnAnnotations))
+	if len(options.ColumnSources) != 2 {
+		t.Errorf("expected 2 column sources, got %d", len(options.ColumnSources))
 	}
 
-	nameAnnotation, ok := options.ColumnAnnotations["name"]
+	nameSource, ok := options.ColumnSources["name"]
 	if !ok {
-		t.Fatal("name column annotation not found")
+		t.Fatal("name column source not found")
 	}
-	if nameAnnotation.DisplayName != "Full Name" {
-		t.Errorf("expected display name 'Full Name', got '%s'", nameAnnotation.DisplayName)
+	if nameSource.DisplayName != "Full Name" {
+		t.Errorf("expected display name 'Full Name', got '%s'", nameSource.DisplayName)
 	}
 
-	catAnnotation, ok := options.ColumnAnnotations["category"]
+	catSource, ok := options.ColumnSources["category"]
 	if !ok {
-		t.Fatal("category column annotation not found")
+		t.Fatal("category column source not found")
 	}
-	if catAnnotation.EntityType != "category" {
-		t.Errorf("expected entity type 'category', got '%s'", catAnnotation.EntityType)
+	if catSource.EntityType != "category" {
+		t.Errorf("expected entity type 'category', got '%s'", catSource.EntityType)
 	}
 }
 
-func TestImportWithTextprotoAnnotation(t *testing.T) {
+func TestImportWithTextprotoSource(t *testing.T) {
 	csvData := `name,region,amount
 Alice,North,100
 Bob,South,200`

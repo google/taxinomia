@@ -42,8 +42,8 @@ const (
 	ColumnTypeUint32
 )
 
-// ColumnAnnotation defines annotations for how a column is imported
-type ColumnAnnotation struct {
+// ColumnSource defines source metadata for how a column is imported
+type ColumnSource struct {
 	// Name is the column name (defaults to header name if not specified)
 	Name string
 	// DisplayName is the display name for the column
@@ -60,8 +60,8 @@ type ImportOptions struct {
 	HasHeader bool
 	// Delimiter is the field delimiter (defaults to comma)
 	Delimiter rune
-	// ColumnAnnotations provides configuration for specific columns by header name
-	ColumnAnnotations map[string]ColumnAnnotation
+	// ColumnSources provides configuration for specific columns by header name
+	ColumnSources map[string]ColumnSource
 	// SampleSize is the number of rows to sample for type detection (default: 100)
 	SampleSize int
 }
@@ -71,7 +71,7 @@ func DefaultOptions() ImportOptions {
 	return ImportOptions{
 		HasHeader:     true,
 		Delimiter:     ',',
-		ColumnAnnotations: make(map[string]ColumnAnnotation),
+		ColumnSources: make(map[string]ColumnSource),
 		SampleSize:    100,
 	}
 }
@@ -130,7 +130,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	if sampleSize <= 0 {
 		sampleSize = 100
 	}
-	columnTypes := detectColumnTypes(headers, dataRows, sampleSize, options.ColumnAnnotations)
+	columnTypes := detectColumnTypes(headers, dataRows, sampleSize, options.ColumnSources)
 
 	// Create the table
 	table := tables.NewDataTable()
@@ -140,7 +140,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	uint32Cols := make(map[int]*columns.Uint32Column)
 
 	for i, header := range headers {
-		config := getColumnAnnotation(header, options.ColumnAnnotations)
+		config := getColumnSource(header, options.ColumnSources)
 		name := header
 		displayName := header
 		entityType := ""
@@ -207,7 +207,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 }
 
 // detectColumnTypes samples data to determine if columns are numeric or string
-func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, configs map[string]ColumnAnnotation) []string {
+func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, configs map[string]ColumnSource) []string {
 	types := make([]string, len(headers))
 
 	// Sample rows for type detection
@@ -263,13 +263,13 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 	return types
 }
 
-// getColumnAnnotation returns the config for a column, or an empty config if not specified
-func getColumnAnnotation(header string, configs map[string]ColumnAnnotation) ColumnAnnotation {
+// getColumnSource returns the config for a column, or an empty config if not specified
+func getColumnSource(header string, configs map[string]ColumnSource) ColumnSource {
 	if configs == nil {
-		return ColumnAnnotation{}
+		return ColumnSource{}
 	}
 	if config, ok := configs[header]; ok {
 		return config
 	}
-	return ColumnAnnotation{}
+	return ColumnSource{}
 }

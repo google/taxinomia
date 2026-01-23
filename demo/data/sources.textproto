@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-# Table annotations for demo CSV files
+# Table sources for demo CSV files
 
 # Orders table
 tables {
   name: "orders"
+  csv_file: "orders.csv"
   domains: "demo"
   columns {
     name: "status"
@@ -32,6 +33,7 @@ tables {
 # Regions table
 tables {
   name: "regions"
+  csv_file: "regions.csv"
   domains: "demo"
   columns {
     name: "region"
@@ -80,6 +82,7 @@ tables {
 # Capitals table
 tables {
   name: "capitals"
+  csv_file: "capitals.csv"
   domains: "demo"
   columns {
     name: "capital"
@@ -143,6 +146,7 @@ tables {
 # Items table
 tables {
   name: "items"
+  csv_file: "items.csv"
   domains: "demo"
   columns {
     name: "item_id"

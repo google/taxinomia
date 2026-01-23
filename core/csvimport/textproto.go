@@ -25,13 +25,13 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
-// ParseTableAnnotation parses a textproto string into a TableAnnotation proto.
-func ParseTableAnnotation(textproto string) (*pb.TableAnnotation, error) {
-	annotation := &pb.TableAnnotation{}
-	if err := prototext.Unmarshal([]byte(textproto), annotation); err != nil {
+// ParseTableSource parses a textproto string into a TableSource proto.
+func ParseTableSource(textproto string) (*pb.TableSource, error) {
+	source := &pb.TableSource{}
+	if err := prototext.Unmarshal([]byte(textproto), source); err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
 	}
-	return annotation, nil
+	return source, nil
 }
 
 // protoTypeToColumnType converts proto ColumnType to csvimport ColumnType.
@@ -46,12 +46,12 @@ func protoTypeToColumnType(t pb.ColumnType) ColumnType {
 	}
 }
 
-// TableAnnotationToColumnAnnotations converts a proto TableAnnotation to a map of ColumnAnnotation
+// TableSourceToColumnSources converts a proto TableSource to a map of ColumnSource
 // suitable for use with ImportOptions.
-func TableAnnotationToColumnAnnotations(annotation *pb.TableAnnotation) map[string]ColumnAnnotation {
-	result := make(map[string]ColumnAnnotation)
-	for _, col := range annotation.GetColumns() {
-		result[col.GetName()] = ColumnAnnotation{
+func TableSourceToColumnSources(source *pb.TableSource) map[string]ColumnSource {
+	result := make(map[string]ColumnSource)
+	for _, col := range source.GetColumns() {
+		result[col.GetName()] = ColumnSource{
 			Name:        col.GetName(),
 			DisplayName: col.GetDisplayName(),
 			EntityType:  col.GetEntityType(),
@@ -63,37 +63,37 @@ func TableAnnotationToColumnAnnotations(annotation *pb.TableAnnotation) map[stri
 
 // OptionsFromTextproto creates ImportOptions from a textproto configuration string.
 func OptionsFromTextproto(textproto string) (ImportOptions, error) {
-	annotation, err := ParseTableAnnotation(textproto)
+	source, err := ParseTableSource(textproto)
 	if err != nil {
 		return ImportOptions{}, err
 	}
 
 	options := DefaultOptions()
-	options.ColumnAnnotations = TableAnnotationToColumnAnnotations(annotation)
+	options.ColumnSources = TableSourceToColumnSources(source)
 	return options, nil
 }
 
-// ParseTableAnnotations parses a textproto string containing multiple table annotations.
-func ParseTableAnnotations(textproto string) (*pb.TableAnnotations, error) {
-	annotations := &pb.TableAnnotations{}
-	if err := prototext.Unmarshal([]byte(textproto), annotations); err != nil {
+// ParseTableSources parses a textproto string containing multiple table sources.
+func ParseTableSources(textproto string) (*pb.TableSources, error) {
+	sources := &pb.TableSources{}
+	if err := prototext.Unmarshal([]byte(textproto), sources); err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
 	}
-	return annotations, nil
+	return sources, nil
 }
 
 // OptionsMapFromTextproto creates a map of table name to ImportOptions from a textproto
-// containing multiple table annotations.
+// containing multiple table sources.
 func OptionsMapFromTextproto(textproto string) (map[string]ImportOptions, error) {
-	annotations, err := ParseTableAnnotations(textproto)
+	sources, err := ParseTableSources(textproto)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make(map[string]ImportOptions)
-	for _, table := range annotations.GetTables() {
+	for _, table := range sources.GetTables() {
 		options := DefaultOptions()
-		options.ColumnAnnotations = TableAnnotationToColumnAnnotations(table)
+		options.ColumnSources = TableSourceToColumnSources(table)
 		result[table.GetName()] = options
 	}
 	return result, nil
