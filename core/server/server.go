@@ -33,14 +33,22 @@ import (
 	"github.com/google/taxinomia/core/views"
 )
 
+// ProductConfig defines the configuration interface for a product.
+// Products provide their own tables, landing page settings, and default columns.
+type ProductConfig interface {
+	GetName() string
+	GetTitle() string
+	GetSubtitle() string
+	GetTables() []views.TableInfo
+	GetDefaultColumns(tableName string) []string
+}
+
 // Server represents the application server with all its dependencies
 type Server struct {
-	dataModel        *models.DataModel
-	renderer         *rendering.TableRenderer
-	tableViewCache   map[string]*tables.TableView
-	defaultColumns   map[string][]string
-	landingViewModel views.LandingViewModel
-	userStore        users.UserStore
+	dataModel      *models.DataModel
+	renderer       *rendering.TableRenderer
+	tableViewCache map[string]*tables.TableView
+	userStore      users.UserStore
 }
 
 // NewServer creates a new server with the given data model
@@ -54,18 +62,7 @@ func NewServer(dataModel *models.DataModel) (*Server, error) {
 		dataModel:      dataModel,
 		renderer:       renderer,
 		tableViewCache: make(map[string]*tables.TableView),
-		defaultColumns: make(map[string][]string),
 	}, nil
-}
-
-// SetDefaultColumns sets the default columns for a table
-func (s *Server) SetDefaultColumns(tableName string, columns []string) {
-	s.defaultColumns[tableName] = columns
-}
-
-// SetLandingViewModel sets the landing page view model
-func (s *Server) SetLandingViewModel(vm views.LandingViewModel) {
-	s.landingViewModel = vm
 }
 
 // SetUserStore sets the user store for authentication
@@ -82,7 +79,7 @@ type TableHandlerResult struct {
 
 // HandleTableRequest processes a table request and writes the response
 // Returns an error result if the request is invalid, nil on success
-func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, setHeader func(key, value string)) *TableHandlerResult {
+func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
 	// Parse URL into Query
 	q := query.NewQuery(requestURL)
 
@@ -97,9 +94,9 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, setHeader 
 		return &TableHandlerResult{StatusCode: 404, Message: fmt.Sprintf("Table '%s' not found", q.Table)}
 	}
 
-	// Get default columns for this table, or use first few columns if not defined
-	defaultColumns, ok := s.defaultColumns[q.Table]
-	if !ok {
+	// Get default columns from product, or use first few columns if not defined
+	defaultColumns := product.GetDefaultColumns(q.Table)
+	if len(defaultColumns) == 0 {
 		// Use first 4 columns as default
 		allCols := table.GetColumnNames()
 		if len(allCols) > 4 {
@@ -166,7 +163,7 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, setHeader 
 }
 
 // HandleLandingRequest processes the landing page request
-func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, setHeader func(key, value string)) error {
+func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) error {
 	setHeader("Content-Type", "text/html; charset=utf-8")
 
 	// Get user from URL parameter (for testing)
@@ -174,8 +171,8 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, setHeade
 
 	// Create a copy of the landing view model to filter tables
 	vm := views.LandingViewModel{
-		Title:    s.landingViewModel.Title,
-		Subtitle: s.landingViewModel.Subtitle,
+		Title:    product.GetTitle(),
+		Subtitle: product.GetSubtitle(),
 	}
 
 	// If we have a user store and a user parameter, filter tables by domain
@@ -185,7 +182,7 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, setHeade
 			vm.UserName = userName
 
 			// Filter tables to only those matching user's domains
-			for _, table := range s.landingViewModel.Tables {
+			for _, table := range product.GetTables() {
 				if users.HasAnyDomain(user, table.Domains) {
 					vm.Tables = append(vm.Tables, table)
 				}
@@ -196,7 +193,7 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, setHeade
 		}
 	} else {
 		// No user filtering - show all tables
-		vm.Tables = s.landingViewModel.Tables
+		vm.Tables = product.GetTables()
 	}
 
 	if err := s.renderer.RenderLanding(w, vm); err != nil {

@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# Default product configuration - includes all domains
+
+name: "default"
+title: "Taxinomia Demo Tables"
+subtitle: "Explore the power of dynamic table rendering with column visibility and drag-and-drop ordering"
+
+domains: "demo"
+domains: "sales"
+domains: "inventory"
+
+default_columns { table_name: "orders" columns: "status" columns: "region" columns: "category" columns: "amount" }
+default_columns { table_name: "regions" columns: "region" columns: "population" columns: "capital" columns: "timezone" columns: "gdp" }
+default_columns { table_name: "capitals" columns: "capital" columns: "region" columns: "population" columns: "founded" columns: "mayor" columns: "universities" }
+default_columns { table_name: "items" columns: "item_id" columns: "item_name" columns: "category" columns: "subcategory" columns: "price" columns: "stock" }
+default_columns { table_name: "transactions_perf" columns: "txn_id" columns: "user_id" columns: "product_id" columns: "category_id" columns: "amount" columns: "status" }
+default_columns { table_name: "users_perf" columns: "user_id" columns: "username" columns: "country" columns: "signup_year" }
+default_columns { table_name: "products_perf" columns: "product_id" columns: "product_name" columns: "category_id" columns: "price" }
+default_columns { table_name: "categories_perf" columns: "category_id" columns: "category_name" columns: "department" }
+default_columns { table_name: "_columns" columns: "table_name" columns: "column_name" columns: "data_type" columns: "entity_type" columns: "is_key" }

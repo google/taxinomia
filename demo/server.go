@@ -29,7 +29,7 @@ import (
 )
 
 // SetupDemoServer creates and configures a server with demo data
-func SetupDemoServer() (*server.Server, error) {
+func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	fmt.Println("Starting Taxinomia...")
 
 	// Create a DataModel to manage tables and entity types
@@ -73,7 +73,7 @@ func SetupDemoServer() (*server.Server, error) {
 	// Create the server
 	srv, err := server.NewServer(dataModel)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Load user profiles
@@ -87,116 +87,111 @@ func SetupDemoServer() (*server.Server, error) {
 		srv.SetUserStore(userStore)
 	}
 
-	// Configure default columns for each table
-	srv.SetDefaultColumns("orders", []string{"status", "region", "category", "amount"})
-	srv.SetDefaultColumns("regions", []string{"region", "population", "capital", "timezone", "gdp"})
-	srv.SetDefaultColumns("capitals", []string{"capital", "region", "population", "founded", "mayor", "universities"})
-	srv.SetDefaultColumns("items", []string{"item_id", "item_name", "category", "subcategory", "price", "stock"})
-	srv.SetDefaultColumns("transactions_perf", []string{"txn_id", "user_id", "product_id", "category_id", "amount", "status"})
-	srv.SetDefaultColumns("users_perf", []string{"user_id", "username", "country", "signup_year"})
-	srv.SetDefaultColumns("products_perf", []string{"product_id", "product_name", "category_id", "price"})
-	srv.SetDefaultColumns("categories_perf", []string{"category_id", "category_name", "department"})
-	srv.SetDefaultColumns("_columns", []string{"table_name", "column_name", "data_type", "entity_type", "is_key"})
+	// Load products from textproto files
+	productsDir := filepath.Join(filepath.Dir(currentFile), "products")
+	products := NewProductRegistry()
 
-	// Configure landing page
-	srv.SetLandingViewModel(views.LandingViewModel{
-		Title:    "Taxinomia Demo Tables",
-		Subtitle: "Explore the power of dynamic table rendering with column visibility and drag-and-drop ordering",
-		Tables: []views.TableInfo{
-			{
-				Name:           "Orders Table",
-				Description:    "Track orders with status, region, category, and amount data. Perfect for analyzing sales patterns and order fulfillment.",
-				URL:            "/table?table=orders&limit=25",
-				RecordCount:    30,
-				ColumnCount:    4,
-				DefaultColumns: "4 columns",
-				Categories:     "Sales, Logistics",
-				Domains:        []string{"demo"},
-			},
-			{
-				Name:           "Regions Table",
-				Description:    "Geographic and economic information about different regions including population, area, capital cities, and GDP.",
-				URL:            "/table?table=regions&limit=25",
-				RecordCount:    4,
-				ColumnCount:    8,
-				DefaultColumns: "5 columns",
-				Categories:     "Geographic, Economic",
-				Domains:        []string{"demo"},
-			},
-			{
-				Name:           "Capitals Table",
-				Description:    "Detailed information about capital cities including population, founding year, elevation, and civic infrastructure.",
-				URL:            "/table?table=capitals&limit=25",
-				RecordCount:    4,
-				ColumnCount:    11,
-				DefaultColumns: "6 columns",
-				Categories:     "Cities, Demographics",
-				Domains:        []string{"demo"},
-			},
-			{
-				Name:           "Items Table",
-				Description:    "Product catalog with category hierarchy, pricing, inventory levels, and supplier information.",
-				URL:            "/table?table=items&limit=25",
-				RecordCount:    15,
-				ColumnCount:    11,
-				DefaultColumns: "6 columns",
-				Categories:     "Inventory, Products",
-				Domains:        []string{"demo", "inventory"},
-			},
-			{
-				Name:           "Transactions Performance Table",
-				Description:    "Large-scale transaction data (1M rows) for testing backend performance and scalability. Tests high, medium, and low cardinality joins.",
-				URL:            "/table?table=transactions_perf&limit=100",
-				RecordCount:    1000000,
-				ColumnCount:    6,
-				DefaultColumns: "6 columns",
-				Categories:     "Performance, Testing",
-				Domains:        []string{"sales", "inventory"},
-			},
-			{
-				Name:           "Users Performance Table",
-				Description:    "User data (800K rows) for high-cardinality join testing. Nearly 1:1 mapping with transactions.",
-				URL:            "/table?table=users_perf&limit=100",
-				RecordCount:    800000,
-				ColumnCount:    4,
-				DefaultColumns: "4 columns",
-				Categories:     "Performance, Testing",
-				Domains:        []string{"sales"},
-			},
-			{
-				Name:           "Products Performance Table",
-				Description:    "Product catalog (50K rows) for medium-cardinality join testing. ~20 transactions per product.",
-				URL:            "/table?table=products_perf&limit=100",
-				RecordCount:    50000,
-				ColumnCount:    4,
-				DefaultColumns: "4 columns",
-				Categories:     "Performance, Testing",
-				Domains:        []string{"sales", "inventory"},
-			},
-			{
-				Name:           "Categories Performance Table",
-				Description:    "Category data (200 rows) for low-cardinality join testing. ~5000 transactions per category.",
-				URL:            "/table?table=categories_perf&limit=100",
-				RecordCount:    200,
-				ColumnCount:    3,
-				DefaultColumns: "3 columns",
-				Categories:     "Performance, Testing",
-				Domains:        []string{"inventory"},
-			},
-			{
-				Name:           "System: Columns Metadata",
-				Description:    "System table containing metadata about all columns across all tables. Useful for exploring table structure, entity types, and join relationships.",
-				URL:            "/table?table=_columns&limit=100",
-				RecordCount:    0, // Will be dynamic
-				ColumnCount:    8,
-				DefaultColumns: "5 columns",
-				Categories:     "System, Metadata",
-				Domains:        []string{"demo", "sales", "inventory"}, // System tables visible to all
-			},
+	// Set table metadata for products to filter
+	// URLs are relative so they work with any product path (e.g., /default/table, /analytics/table)
+	products.SetTables([]views.TableInfo{
+		{
+			Name:           "Orders Table",
+			Description:    "Track orders with status, region, category, and amount data. Perfect for analyzing sales patterns and order fulfillment.",
+			URL:            "table?table=orders&limit=25",
+			RecordCount:    30,
+			ColumnCount:    4,
+			DefaultColumns: "4 columns",
+			Categories:     "Sales, Logistics",
+			Domains:        []string{"demo"},
+		},
+		{
+			Name:           "Regions Table",
+			Description:    "Geographic and economic information about different regions including population, area, capital cities, and GDP.",
+			URL:            "table?table=regions&limit=25",
+			RecordCount:    4,
+			ColumnCount:    8,
+			DefaultColumns: "5 columns",
+			Categories:     "Geographic, Economic",
+			Domains:        []string{"demo"},
+		},
+		{
+			Name:           "Capitals Table",
+			Description:    "Detailed information about capital cities including population, founding year, elevation, and civic infrastructure.",
+			URL:            "table?table=capitals&limit=25",
+			RecordCount:    4,
+			ColumnCount:    11,
+			DefaultColumns: "6 columns",
+			Categories:     "Cities, Demographics",
+			Domains:        []string{"demo"},
+		},
+		{
+			Name:           "Items Table",
+			Description:    "Product catalog with category hierarchy, pricing, inventory levels, and supplier information.",
+			URL:            "table?table=items&limit=25",
+			RecordCount:    15,
+			ColumnCount:    11,
+			DefaultColumns: "6 columns",
+			Categories:     "Inventory, Products",
+			Domains:        []string{"demo", "inventory"},
+		},
+		{
+			Name:           "Transactions Performance Table",
+			Description:    "Large-scale transaction data (1M rows) for testing backend performance and scalability.",
+			URL:            "table?table=transactions_perf&limit=100",
+			RecordCount:    1000000,
+			ColumnCount:    6,
+			DefaultColumns: "6 columns",
+			Categories:     "Performance, Testing",
+			Domains:        []string{"sales", "inventory"},
+		},
+		{
+			Name:           "Users Performance Table",
+			Description:    "User data (800K rows) for high-cardinality join testing.",
+			URL:            "table?table=users_perf&limit=100",
+			RecordCount:    800000,
+			ColumnCount:    4,
+			DefaultColumns: "4 columns",
+			Categories:     "Performance, Testing",
+			Domains:        []string{"sales"},
+		},
+		{
+			Name:           "Products Performance Table",
+			Description:    "Product catalog (50K rows) for medium-cardinality join testing.",
+			URL:            "table?table=products_perf&limit=100",
+			RecordCount:    50000,
+			ColumnCount:    4,
+			DefaultColumns: "4 columns",
+			Categories:     "Performance, Testing",
+			Domains:        []string{"sales", "inventory"},
+		},
+		{
+			Name:           "Categories Performance Table",
+			Description:    "Category data (200 rows) for low-cardinality join testing.",
+			URL:            "table?table=categories_perf&limit=100",
+			RecordCount:    200,
+			ColumnCount:    3,
+			DefaultColumns: "3 columns",
+			Categories:     "Performance, Testing",
+			Domains:        []string{"inventory"},
+		},
+		{
+			Name:           "System: Columns Metadata",
+			Description:    "System table containing metadata about all columns across all tables.",
+			URL:            "table?table=_columns&limit=100",
+			RecordCount:    0,
+			ColumnCount:    8,
+			DefaultColumns: "5 columns",
+			Categories:     "System, Metadata",
+			Domains:        []string{"demo", "sales", "inventory"},
 		},
 	})
 
-	return srv, nil
+	if err := products.LoadFromDirectory(productsDir); err != nil {
+		return nil, nil, fmt.Errorf("failed to load products: %w", err)
+	}
+	fmt.Printf("Loaded %d products\n", len(products.GetAll()))
+
+	return srv, products, nil
 }
 
 // printEntityTypeUsageReport prints a comprehensive report of all entity types

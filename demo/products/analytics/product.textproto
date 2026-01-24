@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Analytics product configuration - sales domain only
+
+name: "analytics"
+title: "Analytics Dashboard"
+subtitle: "Performance and transaction analytics"
+
+domains: "sales"
+
+default_columns { table_name: "transactions_perf" columns: "txn_id" columns: "user_id" columns: "amount" columns: "status" }
+default_columns { table_name: "users_perf" columns: "user_id" columns: "username" columns: "country" }

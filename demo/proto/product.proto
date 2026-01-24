@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright 2024 The Taxinomia Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package taxinomia.demo;
+
+option go_package = "github.com/google/taxinomia/demo/proto";
+
+// DefaultColumns maps a table name to its default visible columns.
+message DefaultColumns {
+  // Name of the table.
+  string table_name = 1;
+
+  // List of column names to show by default.
+  repeated string columns = 2;
+}
+
+// Product defines a product configuration.
+// Products filter tables by domain - only tables matching the product's domains are shown.
+message Product {
+  // URL path identifier for this product (e.g., "default", "analytics").
+  string name = 1;
+
+  // Title displayed on the landing page.
+  string title = 2;
+
+  // Subtitle displayed below the title.
+  string subtitle = 3;
+
+  // Domains this product includes. Tables matching any of these domains are shown.
+  repeated string domains = 4;
+
+  // Default columns for each table (overrides table defaults).
+  repeated DefaultColumns default_columns = 5;
+}
