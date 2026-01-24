@@ -26,19 +26,26 @@ import (
 	"github.com/google/safehtml"
 )
 
+// ComputedColumnDef represents a computed column definition from URL
+type ComputedColumnDef struct {
+	Name       string // Column name
+	Expression string // Expression as entered by user (e.g., "add(price,qty)")
+}
+
 // Query represents the parsed state of a table view URL
 type Query struct {
 	// Base path (e.g., "/table")
 	Path string
 
 	// Core parameters
-	Table          string            // The table being viewed
-	Columns        []string          // Ordered list of visible columns (reordered: filtered, grouped, then others)
-	ColumnWidths   map[string]int    // Column widths in pixels (columnName -> width)
-	Expanded       []string          // List of expanded paths in the sidebar
-	GroupedColumns []string          // Ordered list of columns to group by
-	Filters        map[string]string // Column filters (columnName -> filterValue)
-	Limit          int               // Number of rows to display (0 = show all)
+	Table           string              // The table being viewed
+	Columns         []string            // Ordered list of visible columns (reordered: filtered, grouped, then others)
+	ColumnWidths    map[string]int      // Column widths in pixels (columnName -> width)
+	Expanded        []string            // List of expanded paths in the sidebar
+	GroupedColumns  []string            // Ordered list of columns to group by
+	Filters         map[string]string   // Column filters (columnName -> filterValue)
+	Limit           int                 // Number of rows to display (0 = show all)
+	ComputedColumns []ComputedColumnDef // Computed column definitions
 }
 
 // NewQuery creates a Query from a URL
@@ -116,23 +123,55 @@ func NewQuery(u *url.URL) *Query {
 		}
 	}
 
+	// Extract computed columns parameter (format: name=operation(col1,col2);name2=operation2(col3,col4))
+	computedStr := q.Get("computed")
+	if computedStr != "" {
+		state.ComputedColumns = parseComputedColumns(computedStr)
+	}
+
 	// Reorder columns: filtered columns first, then grouped columns, then others
 	state.reorderColumns()
 
 	return state
 }
 
+// parseComputedColumns parses the computed parameter string into ComputedColumnDef slice
+// Format: name=expression (e.g., name=operation(col1,col2) or name=anything)
+func parseComputedColumns(computedStr string) []ComputedColumnDef {
+	var result []ComputedColumnDef
+	definitions := strings.Split(computedStr, ";")
+	for _, def := range definitions {
+		if def == "" {
+			continue
+		}
+		// Parse: name=expression
+		eqIdx := strings.Index(def, "=")
+		if eqIdx == -1 {
+			continue
+		}
+		name := def[:eqIdx]
+		expr := def[eqIdx+1:]
+
+		result = append(result, ComputedColumnDef{
+			Name:       name,
+			Expression: expr,
+		})
+	}
+	return result
+}
+
 // Clone creates a deep copy of the Query
 func (s *Query) Clone() *Query {
 	clone := &Query{
-		Path:           s.Path,
-		Table:          s.Table,
-		Columns:        make([]string, len(s.Columns)),
-		ColumnWidths:   make(map[string]int),
-		Expanded:       make([]string, len(s.Expanded)),
-		GroupedColumns: make([]string, len(s.GroupedColumns)),
-		Filters:        make(map[string]string),
-		Limit:          s.Limit,
+		Path:            s.Path,
+		Table:           s.Table,
+		Columns:         make([]string, len(s.Columns)),
+		ColumnWidths:    make(map[string]int),
+		Expanded:        make([]string, len(s.Expanded)),
+		GroupedColumns:  make([]string, len(s.GroupedColumns)),
+		Filters:         make(map[string]string),
+		Limit:           s.Limit,
+		ComputedColumns: make([]ComputedColumnDef, len(s.ComputedColumns)),
 	}
 
 	// Deep copy columns
@@ -153,6 +192,9 @@ func (s *Query) Clone() *Query {
 	for colName, filterValue := range s.Filters {
 		clone.Filters[colName] = filterValue
 	}
+
+	// Deep copy computed columns
+	copy(clone.ComputedColumns, s.ComputedColumns)
 
 	return clone
 }
@@ -356,6 +398,15 @@ func (s *Query) ToURL() string {
 
 	// Add limit parameter (always included in URL)
 	q.Set("limit", strconv.Itoa(s.Limit))
+
+	// Add computed columns parameter
+	if len(s.ComputedColumns) > 0 {
+		var computedStrs []string
+		for _, comp := range s.ComputedColumns {
+			computedStrs = append(computedStrs, comp.Name+"="+comp.Expression)
+		}
+		q.Set("computed", strings.Join(computedStrs, ";"))
+	}
 
 	u.RawQuery = q.Encode()
 	return u.String()

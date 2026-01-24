@@ -41,10 +41,11 @@ type Compare int
 // This allows the underlying DataTable to remain immutable while views can
 // have their own set of joined columns based on the query context.
 type TableView struct {
-	baseTable      *DataTable
-	tableName      string
-	VisibleColumns []string
-	joins          map[string]columns.IJoinedDataColumn
+	baseTable       *DataTable
+	tableName       string
+	VisibleColumns  []string
+	joins           map[string]columns.IJoinedDataColumn
+	computedColumns map[string]columns.IDataColumn
 
 	groupedColumns map[string]*grouping.GroupedColumn
 	groupingOrder  []string
@@ -332,13 +333,24 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 // NewTableView creates a new TableView wrapping a DataTable
 func NewTableView(baseTable *DataTable, tableName string) *TableView {
 	return &TableView{
-		baseTable:      baseTable,
-		tableName:      tableName,
-		joins:          make(map[string]columns.IJoinedDataColumn),
-		columnViews:    make(map[string]*columns.ColumnView),
-		groupedColumns: make(map[string]*grouping.GroupedColumn),
-		blocksByColumn: make(map[string][]*grouping.Block),
+		baseTable:       baseTable,
+		tableName:       tableName,
+		joins:           make(map[string]columns.IJoinedDataColumn),
+		computedColumns: make(map[string]columns.IDataColumn),
+		columnViews:     make(map[string]*columns.ColumnView),
+		groupedColumns:  make(map[string]*grouping.GroupedColumn),
+		blocksByColumn:  make(map[string][]*grouping.Block),
 	}
+}
+
+// AddComputedColumn adds a computed column to the view
+func (tv *TableView) AddComputedColumn(name string, col columns.IDataColumn) {
+	tv.computedColumns[name] = col
+}
+
+// RemoveComputedColumn removes a computed column from the view
+func (tv *TableView) RemoveComputedColumn(name string) {
+	delete(tv.computedColumns, name)
 }
 
 // GetBaseTable returns the underlying immutable DataTable
@@ -356,7 +368,7 @@ func (tv *TableView) RemoveJoinedColumn(name string) {
 	delete(tv.joins, name)
 }
 
-// GetColumn retrieves a column by name, checking both base table and joined columns
+// GetColumn retrieves a column by name, checking base table, joined columns, and computed columns
 func (tv *TableView) GetColumn(name string) columns.IDataColumn {
 	// First check base table columns
 	if col := tv.baseTable.GetColumn(name); col != nil {
@@ -364,6 +376,10 @@ func (tv *TableView) GetColumn(name string) columns.IDataColumn {
 	}
 	// Then check view's joined columns
 	if col, ok := tv.joins[name]; ok {
+		return col
+	}
+	// Finally check computed columns
+	if col, ok := tv.computedColumns[name]; ok {
 		return col
 	}
 	return nil

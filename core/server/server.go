@@ -130,6 +130,9 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	// Update joined columns to match the current request
 	views.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
 
+	// Create computed columns from the query
+	createComputedColumns(tableView, q)
+
 	// Apply filters to the table view
 	tableView.ApplyFilters(q.Filters)
 
@@ -201,4 +204,12 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product 
 		return err
 	}
 	return nil
+}
+
+// createComputedColumns registers computed columns from the query with the table view.
+// Expression parsing and evaluation will be implemented later.
+func createComputedColumns(tableView *tables.TableView, q *query.Query) {
+	for _, comp := range q.ComputedColumns {
+		tableView.AddComputedColumn(comp.Name, nil)
+	}
 }

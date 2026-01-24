@@ -33,24 +33,35 @@ import (
 
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
-	Title         string
-	Headers       []string            // Column display names
-	Columns       []string            // Column names (for data access)
-	ColumnWidths  map[string]int      // Column widths in pixels (from URL)
-	Rows          []map[string]string // Each row is a map of column name to value (flat table, ungrouped)
-	GroupedRows   []GroupedRow        // Hierarchical rows for grouped display
-	IsGrouped     bool                // Whether the table is currently grouped
-	AllColumns    []ColumnInfo        // All available columns with metadata
-	CurrentQuery  string              // Current query string
-	CurrentURL    safehtml.URL        // Current URL for building toggle links
-	ColumnStats   []string            // Statistics for each visible column (e.g., "5 groups" or "100 rows")
-	ColumnFilters map[string]string   // Filter values for each column (from URL parameters like filter:columnA=abc)
+	Title           string
+	Headers         []string               // Column display names
+	Columns         []string               // Column names (for data access)
+	ColumnWidths    map[string]int         // Column widths in pixels (from URL)
+	Rows            []map[string]string    // Each row is a map of column name to value (flat table, ungrouped)
+	GroupedRows     []GroupedRow           // Hierarchical rows for grouped display
+	IsGrouped       bool                   // Whether the table is currently grouped
+	AllColumns      []ColumnInfo           // All available columns with metadata
+	ComputedColumns []ComputedColumnInfo   // Computed columns defined by the user
+	CurrentQuery    string                 // Current query string
+	CurrentURL      safehtml.URL           // Current URL for building toggle links
+	ColumnStats     []string               // Statistics for each visible column (e.g., "5 groups" or "100 rows")
+	ColumnFilters    map[string]string // Filter values for each column (from URL parameters like filter:columnA=abc)
+	ColumnFormulas   map[string]string // Formula for computed columns (columnName -> formula like "concat(a, b)")
+	IsComputedColumn map[string]bool   // Tracks which columns are computed (for UI, even if formula is empty)
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
 	DisplayedRows int  // Number of rows actually displayed
 	HasMoreRows   bool // True if there are more rows than displayed
 	CurrentLimit  int  // Current row limit
+}
+
+// ComputedColumnInfo contains information about a computed column for UI display
+type ComputedColumnInfo struct {
+	Name        string       // Column name
+	DisplayName string       // Display name (e.g., "concat(col1, col2)")
+	IsVisible   bool         // Whether column is currently visible
+	ToggleURL   safehtml.URL // URL to toggle column visibility
 }
 
 // GroupedRow represents a single row in the grouped table display
@@ -306,14 +317,16 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	currentURL := q.ToSafeURL()
 
 	vm := TableViewModel{
-		Title:         title,
-		Headers:       []string{},
-		Columns:       []string{},
-		ColumnWidths:  make(map[string]int),
-		Rows:          []map[string]string{},
-		AllColumns:    []ColumnInfo{},
-		CurrentURL:    currentURL,
-		ColumnFilters: make(map[string]string),
+		Title:            title,
+		Headers:          []string{},
+		Columns:          []string{},
+		ColumnWidths:     make(map[string]int),
+		Rows:             []map[string]string{},
+		AllColumns:       []ColumnInfo{},
+		CurrentURL:       currentURL,
+		ColumnFilters:    make(map[string]string),
+		ColumnFormulas:   make(map[string]string),
+		IsComputedColumn: make(map[string]bool),
 	}
 
 	// Copy filter parameters from Query
@@ -433,6 +446,12 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		return vm.AllColumns[i].DisplayName < vm.AllColumns[j].DisplayName
 	})
 
+	// Build a map of computed column names for quick lookup
+	computedColNames := make(map[string]bool)
+	for _, comp := range q.ComputedColumns {
+		computedColNames[comp.Name] = true
+	}
+
 	// Build headers and columns from view
 	for _, colName := range view.Columns {
 		// Check if this is a joined column (format: fromColumn.toTable.toColumn.selectedColumn)
@@ -452,10 +471,15 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				vm.Columns = append(vm.Columns, colName)
 			}
 		} else {
-			// Regular column from the main table
+			// Regular column from the main table or computed column
 			col := tableView.GetColumn(colName)
 			if col != nil {
 				vm.Headers = append(vm.Headers, col.ColumnDef().DisplayName())
+				vm.Columns = append(vm.Columns, colName)
+			} else if computedColNames[colName] {
+				// This is a computed column that couldn't be created (e.g., invalid expression)
+				// Still add it to headers with its name so the user can see it
+				vm.Headers = append(vm.Headers, colName)
 				vm.Columns = append(vm.Columns, colName)
 			}
 		}
@@ -478,6 +502,22 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	}
 
 	vm.ColumnStats = buildColumnStats(tableView)
+
+	// Build computed columns info for sidebar display and populate formulas
+	for _, computed := range q.ComputedColumns {
+		isVisible := visibleCols[computed.Name]
+		vm.ComputedColumns = append(vm.ComputedColumns, ComputedColumnInfo{
+			Name:        computed.Name,
+			DisplayName: computed.Expression,
+			IsVisible:   isVisible,
+			ToggleURL:   q.WithColumnToggled(computed.Name),
+		})
+		// Add formula to ColumnFormulas map for display in header row
+		vm.ColumnFormulas[computed.Name] = computed.Expression
+		// Mark this column as computed (for UI, even if formula is empty)
+		vm.IsComputedColumn[computed.Name] = true
+	}
+
 	// Debug: Print final view model info
 	fmt.Printf("Final VM Headers: %v\n", vm.Headers)
 	fmt.Printf("Final VM Columns: %v\n", vm.Columns)

@@ -482,8 +482,41 @@
             border: 1px solid #ccc;
             position: relative;
             overflow: hidden;
+        }
+
+        .th-content {
+            display: block;
+            overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .th-internal-name {
+            display: block;
+            font-size: 0.75em;
+            color: #888;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        .th-name-input {
+            width: 100%;
+            padding: 4px 6px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: bold;
+            background-color: #fff;
+            color: #333;
+            box-sizing: border-box;
+        }
+
+        .th-name-input:focus {
+            outline: none;
+            border-color: #9b59b6;
+            box-shadow: 0 0 0 2px rgba(155, 89, 182, 0.2);
         }
 
         td {
@@ -586,6 +619,73 @@
             border-top: none !important;
         }
 
+        /* Formula row styles */
+        .formula-row {
+            background-color: #f5f0e6;
+        }
+
+        .formula-cell {
+            padding: 4px !important;
+            text-align: center;
+            background-color: #f5f0e6;
+            border-top: none !important;
+        }
+
+        .formula-cell .formula-placeholder {
+            font-size: 11px;
+            color: #999;
+            font-style: italic;
+        }
+
+        .formula-cell .formula-input {
+            width: 100%;
+            padding: 4px 6px;
+            border: 1px solid #d4c9a8;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace;
+            background-color: #fff;
+            color: #6b4423;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .formula-cell .formula-input:focus {
+            outline: none;
+            border-color: #b8860b;
+            box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.2);
+        }
+
+        /* Sidebar add computed column form */
+        .computed-columns-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .computed-columns-header h3 {
+            margin: 0;
+        }
+
+        .add-computed-btn {
+            background-color: #9b59b6;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            width: 24px;
+            height: 24px;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .add-computed-btn:hover {
+            background-color: #8e44ad;
+        }
+
         /* Filter row styles */
         .filter-row {
             background-color: #f9f9f9;
@@ -632,6 +732,46 @@
         .pagination-info p {
             margin: 0;
             color: #495057;
+        }
+
+        .computed-columns-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .computed-columns-section h3 {
+            font-size: 14px;
+            color: #95a5a6;
+            margin-bottom: 10px;
+        }
+
+        .computed-column-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+        }
+
+        .computed-column-item a {
+            color: #9b59b6;
+        }
+
+        .computed-column-item a.visible {
+            color: #e74c3c;
+        }
+
+        .remove-computed-btn {
+            color: #e74c3c;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+        }
+
+        .remove-computed-btn:hover {
+            color: #c0392b;
         }
     </style>
     <script>
@@ -970,6 +1110,23 @@
                     </li>
                     {{end}}
                 </ul>
+
+                <!-- Computed Columns Section -->
+                <div class="computed-columns-section">
+                    <div class="computed-columns-header">
+                        <h3>Computed Columns</h3>
+                        <button class="add-computed-btn" id="add-computed-btn" title="Add new computed column">+</button>
+                    </div>
+                    {{range .ComputedColumns}}
+                    <div class="computed-column-item">
+                        <a href="{{.ToggleURL}}" class="{{if .IsVisible}}visible{{end}}">
+                            {{if .IsVisible}}✓{{else}}○{{end}} {{.Name}}
+                        </a>
+                        <button class="remove-computed-btn" data-column-name="{{.Name}}" title="Remove computed column">×</button>
+                    </div>
+                    {{end}}
+                </div>
+
             </div>
         </aside>
         <main class="main-content" id="main-content">
@@ -999,8 +1156,15 @@
         <thead>
             <tr>
                 {{range $idx, $header := .Headers}}
-                <th data-col-index="{{$idx}}" data-col-name="{{index $.Columns $idx}}" data-col-width="{{index $.ColumnWidths (index $.Columns $idx)}}">
+                {{$colName := index $.Columns $idx}}
+                {{$isComputed := index $.IsComputedColumn $colName}}
+                <th data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}}>
+                    {{if $isComputed}}
+                    <input type="text" class="th-name-input" data-column="{{$colName}}" value="{{$colName}}" title="Edit column name and press Enter">
+                    {{else}}
                     <span class="th-content">{{$header}}</span>
+                    <span class="th-internal-name">{{$colName}}</span>
+                    {{end}}
                     <div class="resize-handle"></div>
                 </th>
                 {{end}}
@@ -1020,6 +1184,24 @@
                 </td>
                         {{end}}
                     {{end}}
+                {{end}}
+            </tr>
+            <tr class="formula-row">
+                {{range $idx, $colName := $.Columns}}
+                {{$isComputed := index $.IsComputedColumn $colName}}
+                {{$formula := index $.ColumnFormulas $colName}}
+                <td class="formula-cell{{if $formula}} has-formula{{end}}">
+                    {{if $isComputed}}
+                    <input type="text"
+                           class="formula-input"
+                           data-column="{{$colName}}"
+                           value="{{$formula}}"
+                           placeholder="op(col1,col2)"
+                           title="Edit formula and press Enter to update">
+                    {{else}}
+                    <span class="formula-placeholder">-</span>
+                    {{end}}
+                </td>
                 {{end}}
             </tr>
             <tr class="stats-row">
@@ -1084,5 +1266,224 @@ Use &quot;quotes&quot; for exact match">
         </main>
     </div>
 
+    <script>
+        function removeComputedColumn(name) {
+            const url = new URL(window.location);
+
+            // Remove from computed definitions
+            const existingComputed = url.searchParams.get('computed') || '';
+            const computedList = existingComputed.split(';').filter(def => !def.startsWith(name + '='));
+            if (computedList.length > 0) {
+                url.searchParams.set('computed', computedList.join(';'));
+            } else {
+                url.searchParams.delete('computed');
+            }
+
+            // Remove from visible columns
+            const columns = url.searchParams.get('columns') || '';
+            const columnList = columns.split(',').filter(col => col !== name && !col.startsWith(name + ':'));
+            if (columnList.length > 0) {
+                url.searchParams.set('columns', columnList.join(','));
+            } else {
+                url.searchParams.delete('columns');
+            }
+
+            window.location.href = url.toString();
+        }
+
+        // Update the formula for an existing computed column
+        function updateComputedFormula(columnName, newExpression) {
+            newExpression = newExpression.trim();
+            if (!newExpression) {
+                return false;
+            }
+
+            const url = new URL(window.location);
+            const existingComputed = url.searchParams.get('computed') || '';
+            const computedList = existingComputed.split(';');
+
+            // Find and update the formula for this column
+            const updatedList = computedList.map(def => {
+                if (def.startsWith(columnName + '=')) {
+                    return columnName + '=' + newExpression;
+                }
+                return def;
+            });
+
+            url.searchParams.set('computed', updatedList.join(';'));
+            window.location.href = url.toString();
+            return true;
+        }
+
+        // Rename a computed column
+        function renameComputedColumn(oldName, newName) {
+            newName = newName.trim();
+            if (!newName || newName === oldName) {
+                return false;
+            }
+
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newName)) {
+                alert('Invalid column name. Must start with a letter or underscore.');
+                return false;
+            }
+
+            const url = new URL(window.location);
+
+            // Update computed definitions
+            const existingComputed = url.searchParams.get('computed') || '';
+            const computedList = existingComputed.split(';');
+            const updatedComputed = computedList.map(def => {
+                if (def.startsWith(oldName + '=')) {
+                    return newName + '=' + def.substring(oldName.length + 1);
+                }
+                return def;
+            });
+            url.searchParams.set('computed', updatedComputed.join(';'));
+
+            // Update columns list
+            const columns = url.searchParams.get('columns') || '';
+            const columnList = columns.split(',').map(col => {
+                // Handle column with width suffix
+                const colonIdx = col.lastIndexOf(':');
+                if (colonIdx !== -1) {
+                    const colName = col.substring(0, colonIdx);
+                    const width = col.substring(colonIdx + 1);
+                    if (/^\d+$/.test(width) && colName === oldName) {
+                        return newName + ':' + width;
+                    }
+                }
+                return col === oldName ? newName : col;
+            });
+            url.searchParams.set('columns', columnList.join(','));
+
+            window.location.href = url.toString();
+            return true;
+        }
+
+        // Create a new computed column with a unique name
+        function createNewComputedColumn() {
+            const url = new URL(window.location);
+            const existingComputed = url.searchParams.get('computed') || '';
+
+            // Find a unique name
+            let counter = 1;
+            let newName = 'new_column';
+            const existingNames = existingComputed.split(';').map(def => {
+                const eqIdx = def.indexOf('=');
+                return eqIdx > 0 ? def.substring(0, eqIdx) : '';
+            });
+            while (existingNames.includes(newName)) {
+                counter++;
+                newName = 'new_column_' + counter;
+            }
+
+            // Add the new column with empty expression
+            const newDef = newName + '=';
+            const computedList = existingComputed ? existingComputed.split(';') : [];
+            computedList.push(newDef);
+            url.searchParams.set('computed', computedList.join(';'));
+
+            // Add to visible columns
+            const columns = url.searchParams.get('columns') || '';
+            const columnList = columns ? columns.split(',') : [];
+            columnList.push(newName);
+            url.searchParams.set('columns', columnList.join(','));
+
+            // Add hash to focus on the new column's formula input after page load
+            url.hash = 'focus=' + newName;
+            window.location.href = url.toString();
+        }
+
+        // Handle computed column UI
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we need to focus on a newly created column
+            if (window.location.hash.startsWith('#focus=')) {
+                const columnName = window.location.hash.substring(7); // Remove '#focus='
+                const formulaInput = document.querySelector('.formula-input[data-column="' + columnName + '"]');
+                if (formulaInput) {
+                    formulaInput.focus();
+                    formulaInput.select();
+                    // Clear the hash to avoid re-focusing on refresh
+                    history.replaceState(null, '', window.location.pathname + window.location.search);
+                }
+            }
+
+            // Handle + button to create new column
+            const addBtn = document.getElementById('add-computed-btn');
+            if (addBtn) {
+                addBtn.addEventListener('click', createNewComputedColumn);
+            }
+
+            // Handle column name inputs in header
+            const nameInputs = document.querySelectorAll('.th-name-input');
+            nameInputs.forEach(function(input) {
+                const originalName = input.value;
+
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const newName = this.value.trim();
+                        if (newName !== originalName) {
+                            renameComputedColumn(originalName, newName);
+                        }
+                        this.blur();
+                    } else if (e.key === 'Escape') {
+                        this.value = originalName;
+                        this.blur();
+                    }
+                });
+
+                input.addEventListener('blur', function() {
+                    const newName = this.value.trim();
+                    if (newName && newName !== originalName) {
+                        renameComputedColumn(originalName, newName);
+                    } else {
+                        this.value = originalName;
+                    }
+                });
+            });
+
+            // Handle formula inputs in the formula row
+            const formulaInputs = document.querySelectorAll('.formula-cell .formula-input');
+            formulaInputs.forEach(function(input) {
+                const originalValue = input.value;
+
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const columnName = this.dataset.column;
+                        const newValue = this.value.trim();
+                        if (newValue !== originalValue) {
+                            updateComputedFormula(columnName, newValue);
+                        }
+                        this.blur();
+                    } else if (e.key === 'Escape') {
+                        this.value = originalValue;
+                        this.blur();
+                    }
+                });
+
+                input.addEventListener('blur', function() {
+                    const columnName = this.dataset.column;
+                    const newValue = this.value.trim();
+                    if (newValue !== originalValue && newValue !== '') {
+                        updateComputedFormula(columnName, newValue);
+                    } else if (newValue === '') {
+                        this.value = originalValue;
+                    }
+                });
+            });
+        });
+
+        // Handle remove computed column button clicks using event delegation
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-computed-btn')) {
+                const columnName = e.target.dataset.columnName;
+                if (columnName) {
+                    removeComputedColumn(columnName);
+                }
+            }
+        });
+    </script>
 </body>
 </html>
