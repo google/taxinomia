@@ -42,7 +42,7 @@ func main() {
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		srv.HandleLandingRequest(w, w.Header().Set)
+		srv.HandleLandingRequest(w, r.URL, w.Header().Set)
 	})
 
 	fmt.Printf("\nServer starting on http://%s\n", serverAddress)

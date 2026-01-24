@@ -29,6 +29,7 @@ import (
 	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/rendering"
 	"github.com/google/taxinomia/core/tables"
+	"github.com/google/taxinomia/core/users"
 	"github.com/google/taxinomia/core/views"
 )
 
@@ -39,6 +40,7 @@ type Server struct {
 	tableViewCache   map[string]*tables.TableView
 	defaultColumns   map[string][]string
 	landingViewModel views.LandingViewModel
+	userStore        users.UserStore
 }
 
 // NewServer creates a new server with the given data model
@@ -64,6 +66,11 @@ func (s *Server) SetDefaultColumns(tableName string, columns []string) {
 // SetLandingViewModel sets the landing page view model
 func (s *Server) SetLandingViewModel(vm views.LandingViewModel) {
 	s.landingViewModel = vm
+}
+
+// SetUserStore sets the user store for authentication
+func (s *Server) SetUserStore(store users.UserStore) {
+	s.userStore = store
 }
 
 // TableHandlerResult represents the result of handling a table request
@@ -159,9 +166,40 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, setHeader 
 }
 
 // HandleLandingRequest processes the landing page request
-func (s *Server) HandleLandingRequest(w io.Writer, setHeader func(key, value string)) error {
+func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, setHeader func(key, value string)) error {
 	setHeader("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderer.RenderLanding(w, s.landingViewModel); err != nil {
+
+	// Get user from URL parameter (for testing)
+	userName := requestURL.Query().Get("user")
+
+	// Create a copy of the landing view model to filter tables
+	vm := views.LandingViewModel{
+		Title:    s.landingViewModel.Title,
+		Subtitle: s.landingViewModel.Subtitle,
+	}
+
+	// If we have a user store and a user parameter, filter tables by domain
+	if s.userStore != nil && userName != "" {
+		user := s.userStore.GetUser(userName)
+		if user != nil {
+			vm.UserName = userName
+
+			// Filter tables to only those matching user's domains
+			for _, table := range s.landingViewModel.Tables {
+				if users.HasAnyDomain(user, table.Domains) {
+					vm.Tables = append(vm.Tables, table)
+				}
+			}
+		} else {
+			// Unknown user - show no tables
+			vm.UserName = userName + " (unknown)"
+		}
+	} else {
+		// No user filtering - show all tables
+		vm.Tables = s.landingViewModel.Tables
+	}
+
+	if err := s.renderer.RenderLanding(w, vm); err != nil {
 		log.Printf("Landing page rendering error: %v", err)
 		return err
 	}

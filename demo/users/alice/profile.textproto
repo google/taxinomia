@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
+# User profile for alice - has access to demo domain
+
+domains: "demo"

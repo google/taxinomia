@@ -20,6 +20,8 @@ package demo
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
 
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/server"
@@ -74,6 +76,17 @@ func SetupDemoServer() (*server.Server, error) {
 		return nil, err
 	}
 
+	// Load user profiles
+	_, currentFile, _, _ := runtime.Caller(0)
+	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
+	userStore := NewUserStore()
+	if err := userStore.LoadFromDirectory(usersDir); err != nil {
+		fmt.Printf("Warning: Failed to load user profiles: %v\n", err)
+	} else {
+		fmt.Printf("Loaded %d user profiles\n", len(userStore.GetAllUsers()))
+		srv.SetUserStore(userStore)
+	}
+
 	// Configure default columns for each table
 	srv.SetDefaultColumns("orders", []string{"status", "region", "category", "amount"})
 	srv.SetDefaultColumns("regions", []string{"region", "population", "capital", "timezone", "gdp"})
@@ -98,6 +111,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    4,
 				DefaultColumns: "4 columns",
 				Categories:     "Sales, Logistics",
+				Domains:        []string{"demo"},
 			},
 			{
 				Name:           "Regions Table",
@@ -107,6 +121,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    8,
 				DefaultColumns: "5 columns",
 				Categories:     "Geographic, Economic",
+				Domains:        []string{"demo"},
 			},
 			{
 				Name:           "Capitals Table",
@@ -116,6 +131,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    11,
 				DefaultColumns: "6 columns",
 				Categories:     "Cities, Demographics",
+				Domains:        []string{"demo"},
 			},
 			{
 				Name:           "Items Table",
@@ -125,6 +141,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    11,
 				DefaultColumns: "6 columns",
 				Categories:     "Inventory, Products",
+				Domains:        []string{"demo", "inventory"},
 			},
 			{
 				Name:           "Transactions Performance Table",
@@ -134,6 +151,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    6,
 				DefaultColumns: "6 columns",
 				Categories:     "Performance, Testing",
+				Domains:        []string{"sales", "inventory"},
 			},
 			{
 				Name:           "Users Performance Table",
@@ -143,6 +161,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    4,
 				DefaultColumns: "4 columns",
 				Categories:     "Performance, Testing",
+				Domains:        []string{"sales"},
 			},
 			{
 				Name:           "Products Performance Table",
@@ -152,6 +171,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    4,
 				DefaultColumns: "4 columns",
 				Categories:     "Performance, Testing",
+				Domains:        []string{"sales", "inventory"},
 			},
 			{
 				Name:           "Categories Performance Table",
@@ -161,6 +181,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    3,
 				DefaultColumns: "3 columns",
 				Categories:     "Performance, Testing",
+				Domains:        []string{"inventory"},
 			},
 			{
 				Name:           "System: Columns Metadata",
@@ -170,6 +191,7 @@ func SetupDemoServer() (*server.Server, error) {
 				ColumnCount:    8,
 				DefaultColumns: "5 columns",
 				Categories:     "System, Metadata",
+				Domains:        []string{"demo", "sales", "inventory"}, // System tables visible to all
 			},
 		},
 	})

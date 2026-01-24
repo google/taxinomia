@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# User-specific table sources for alice
+
+# Orders table - alice's personal data source
+tables {
+  name: "orders"
+  csv_file: "orders.csv"
+  domains: "demo"
+  columns {
+    name: "status"
+    display_name: "Status"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "region"
+    display_name: "Region"
+    entity_type: "region"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "category"
+    display_name: "Category"
+    entity_type: "category"
+    type: COLUMN_TYPE_STRING
+  }
+  columns {
+    name: "amount"
+    display_name: "Amount"
+    type: COLUMN_TYPE_UINT32
+  }
+}

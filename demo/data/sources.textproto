@@ -1,34 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Table sources for demo CSV files
-
-# Orders table
-tables {
-  name: "orders"
-  csv_file: "orders.csv"
-  domains: "demo"
-  columns {
-    name: "status"
-    display_name: "Status"
-    type: COLUMN_TYPE_STRING
-  }
-  columns {
-    name: "region"
-    display_name: "Region"
-    entity_type: "region"
-    type: COLUMN_TYPE_STRING
-  }
-  columns {
-    name: "category"
-    display_name: "Category"
-    entity_type: "category"
-    type: COLUMN_TYPE_STRING
-  }
-  columns {
-    name: "amount"
-    display_name: "Amount"
-    type: COLUMN_TYPE_UINT32
-  }
-}
+# Note: orders table has been moved to alice's user folder
 
 # Regions table
 tables {

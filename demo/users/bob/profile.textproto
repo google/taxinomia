@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
+# User profile for bob - has access to sales domain only
+
+domains: "sales"

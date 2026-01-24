@@ -23,6 +23,7 @@ type LandingViewModel struct {
 	Title    string
 	Subtitle string
 	Tables   []TableInfo
+	UserName string // Current user's display name (empty if no user)
 }
 
 // TableInfo contains information about a table for the landing page
@@ -34,4 +35,5 @@ type TableInfo struct {
 	ColumnCount    int
 	DefaultColumns string
 	Categories     string
+	Domains        []string // Domains this table belongs to
 }

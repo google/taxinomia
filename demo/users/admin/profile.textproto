@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# User profile for admin - has access to all domains
+
+domains: "demo"
+domains: "sales"
+domains: "inventory"
