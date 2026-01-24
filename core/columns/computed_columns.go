@@ -18,7 +18,10 @@ limitations under the License.
 
 package columns
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // ComputeStringFn is a function that computes a string value for a given row index.
 // The function should capture any source columns it needs in a closure.
@@ -27,6 +30,14 @@ type ComputeStringFn func(i uint32) (string, error)
 // ComputeUint32Fn is a function that computes a uint32 value for a given row index.
 // The function should capture any source columns it needs in a closure.
 type ComputeUint32Fn func(i uint32) (uint32, error)
+
+// ComputeFloat64Fn is a function that computes a float64 value for a given row index.
+// The function should capture any source columns it needs in a closure.
+type ComputeFloat64Fn func(i uint32) (float64, error)
+
+// ComputeInt64Fn is a function that computes an int64 value for a given row index.
+// The function should capture any source columns it needs in a closure.
+type ComputeInt64Fn func(i uint32) (int64, error)
 
 // ComputedStringColumn represents a column whose values are computed from other columns.
 type ComputedStringColumn struct {
@@ -156,6 +167,159 @@ func (c *ComputedUint32Column) CreateJoinedColumn(columnDef *ColumnDef, joiner I
 func (c *ComputedUint32Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
 	groupedIndices := map[uint32][]uint32{}
 	valueToGroupKey := map[uint32]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		value, err := c.GetValue(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}
+
+// ComputedFloat64Column represents a column whose float64 values are computed from other columns.
+type ComputedFloat64Column struct {
+	columnDef *ColumnDef
+	computeFn ComputeFloat64Fn
+	length    int
+}
+
+// NewComputedFloat64Column creates a new computed float64 column.
+// The length parameter specifies the number of rows (should match source columns).
+// The computeFn should be a closure that captures source columns and computes the value for each row.
+func NewComputedFloat64Column(columnDef *ColumnDef, length int, computeFn ComputeFloat64Fn) *ComputedFloat64Column {
+	return &ComputedFloat64Column{
+		columnDef: columnDef,
+		computeFn: computeFn,
+		length:    length,
+	}
+}
+
+func (c *ComputedFloat64Column) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *ComputedFloat64Column) Length() int {
+	return c.length
+}
+
+func (c *ComputedFloat64Column) GetValue(i uint32) (float64, error) {
+	if i >= uint32(c.length) {
+		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
+	}
+	return c.computeFn(i)
+}
+
+func (c *ComputedFloat64Column) GetString(i uint32) (string, error) {
+	value, err := c.GetValue(i)
+	if err != nil {
+		return "", err
+	}
+	// Format without trailing zeros
+	return strconv.FormatFloat(value, 'f', -1, 64), nil
+}
+
+func (c *ComputedFloat64Column) GetIndex(value float64) (uint32, error) {
+	return 0, fmt.Errorf("column %q is a computed column and doesn't support reverse lookups", c.columnDef.Name())
+}
+
+func (c *ComputedFloat64Column) IsKey() bool {
+	return false
+}
+
+func (c *ComputedFloat64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *ComputedFloat64Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[float64]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		value, err := c.GetValue(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}
+
+// ComputedInt64Column represents a column whose int64 values are computed from other columns.
+type ComputedInt64Column struct {
+	columnDef *ColumnDef
+	computeFn ComputeInt64Fn
+	length    int
+}
+
+// NewComputedInt64Column creates a new computed int64 column.
+// The length parameter specifies the number of rows (should match source columns).
+// The computeFn should be a closure that captures source columns and computes the value for each row.
+func NewComputedInt64Column(columnDef *ColumnDef, length int, computeFn ComputeInt64Fn) *ComputedInt64Column {
+	return &ComputedInt64Column{
+		columnDef: columnDef,
+		computeFn: computeFn,
+		length:    length,
+	}
+}
+
+func (c *ComputedInt64Column) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *ComputedInt64Column) Length() int {
+	return c.length
+}
+
+func (c *ComputedInt64Column) GetValue(i uint32) (int64, error) {
+	if i >= uint32(c.length) {
+		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
+	}
+	return c.computeFn(i)
+}
+
+func (c *ComputedInt64Column) GetString(i uint32) (string, error) {
+	value, err := c.GetValue(i)
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatInt(value, 10), nil
+}
+
+func (c *ComputedInt64Column) GetIndex(value int64) (uint32, error) {
+	return 0, fmt.Errorf("column %q is a computed column and doesn't support reverse lookups", c.columnDef.Name())
+}
+
+func (c *ComputedInt64Column) IsKey() bool {
+	return false
+}
+
+func (c *ComputedInt64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *ComputedInt64Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[int64]uint32{}
 	var unmapped []uint32
 
 	for _, i := range indices {

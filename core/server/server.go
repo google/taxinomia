@@ -23,8 +23,11 @@ import (
 	"io"
 	"log"
 	"net/url"
+	"strconv"
 	"strings"
 
+	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/expr"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/rendering"
@@ -49,6 +52,10 @@ type Server struct {
 	renderer       *rendering.TableRenderer
 	tableViewCache map[string]*tables.TableView
 	userStore      users.UserStore
+
+	// Caches for computed columns
+	exprCache        map[string]*expr.Expression       // expression string -> compiled expression
+	computedColState map[string]map[string]string      // tableName -> columnName -> expression
 }
 
 // NewServer creates a new server with the given data model
@@ -59,9 +66,11 @@ func NewServer(dataModel *models.DataModel) (*Server, error) {
 	}
 
 	return &Server{
-		dataModel:      dataModel,
-		renderer:       renderer,
-		tableViewCache: make(map[string]*tables.TableView),
+		dataModel:        dataModel,
+		renderer:         renderer,
+		tableViewCache:   make(map[string]*tables.TableView),
+		exprCache:        make(map[string]*expr.Expression),
+		computedColState: make(map[string]map[string]string),
 	}, nil
 }
 
@@ -130,8 +139,8 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	// Update joined columns to match the current request
 	views.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
 
-	// Create computed columns from the query
-	createComputedColumns(tableView, q)
+	// Create computed columns from the query (with caching)
+	s.updateComputedColumns(tableView, q)
 
 	// Apply filters to the table view
 	tableView.ApplyFilters(q.Filters)
@@ -206,10 +215,150 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product 
 	return nil
 }
 
-// createComputedColumns registers computed columns from the query with the table view.
-// Expression parsing and evaluation will be implemented later.
-func createComputedColumns(tableView *tables.TableView, q *query.Query) {
+// updateComputedColumns manages computed columns with caching.
+// Only recompiles expressions and recreates columns when something has changed.
+func (s *Server) updateComputedColumns(tableView *tables.TableView, q *query.Query) {
+	tableName := q.Table
+
+	// Get current state for this table
+	currentState, exists := s.computedColState[tableName]
+	if !exists {
+		currentState = make(map[string]string)
+		s.computedColState[tableName] = currentState
+	}
+
+	// Build map of requested columns
+	requested := make(map[string]string)
 	for _, comp := range q.ComputedColumns {
-		tableView.AddComputedColumn(comp.Name, nil)
+		requested[comp.Name] = comp.Expression
+	}
+
+	// Remove columns that are no longer requested
+	for name := range currentState {
+		if _, ok := requested[name]; !ok {
+			tableView.RemoveComputedColumn(name)
+			delete(currentState, name)
+		}
+	}
+
+	// Add or update columns
+	for _, comp := range q.ComputedColumns {
+		existingExpr, exists := currentState[comp.Name]
+
+		// Skip if column exists with same expression
+		if exists && existingExpr == comp.Expression {
+			continue
+		}
+
+		// Create the column
+		s.createComputedColumn(tableView, comp.Name, comp.Expression)
+		currentState[comp.Name] = comp.Expression
+	}
+}
+
+// createComputedColumn creates a single computed column, using cached compiled expressions.
+func (s *Server) createComputedColumn(tableView *tables.TableView, name, expression string) {
+	if expression == "" {
+		tableView.AddComputedColumn(name, nil)
+		return
+	}
+
+	// Check expression cache first
+	compiled, ok := s.exprCache[expression]
+	if !ok {
+		var err error
+		compiled, err = expr.Compile(expression)
+		if err != nil {
+			fmt.Printf("Warning: Failed to compile expression for column %s: %v\n", name, err)
+			tableView.AddComputedColumn(name, nil)
+			return
+		}
+		s.exprCache[expression] = compiled
+	}
+
+	// Get a reference column to determine length
+	var length int
+	colNames := tableView.GetColumnNames()
+	if len(colNames) > 0 {
+		if col := tableView.GetColumn(colNames[0]); col != nil {
+			length = col.Length()
+		}
+	}
+	if length == 0 {
+		tableView.AddComputedColumn(name, nil)
+		return
+	}
+
+	// Create a column getter function that retrieves values from the table view
+	getColumn := func(colName string, rowIndex uint32) (expr.Value, error) {
+		col := tableView.GetColumn(colName)
+		if col == nil {
+			return expr.NilValue(), fmt.Errorf("column '%s' not found", colName)
+		}
+		strVal, err := col.GetString(rowIndex)
+		if err != nil {
+			return expr.NilValue(), err
+		}
+		// Try to parse as number first
+		if numVal, err := strconv.ParseFloat(strVal, 64); err == nil {
+			return expr.NewNumber(numVal), nil
+		}
+		return expr.NewString(strVal), nil
+	}
+
+	// Bind the expression to the column getter
+	bound := compiled.Bind(getColumn)
+
+	// Create the computed column definition
+	colDef := columns.NewColumnDef(name, name, "")
+
+	// Evaluate once on row 0 to detect the return type
+	sampleVal, err := bound.Eval(0)
+	if err != nil {
+		// Can't determine type, fall back to string
+		computedCol := columns.NewComputedStringColumn(colDef, length, func(i uint32) (string, error) {
+			val, err := bound.Eval(i)
+			if err != nil {
+				return "", err
+			}
+			return val.AsString(), nil
+		})
+		tableView.AddComputedColumn(name, computedCol)
+		return
+	}
+
+	// Create the appropriate column type based on the expression result
+	if sampleVal.IsNumber() {
+		num := sampleVal.AsNumber()
+		// Check if it's an integer (no fractional part)
+		if num == float64(int64(num)) {
+			computedCol := columns.NewComputedInt64Column(colDef, length, func(i uint32) (int64, error) {
+				val, err := bound.Eval(i)
+				if err != nil {
+					return 0, err
+				}
+				return int64(val.AsNumber()), nil
+			})
+			tableView.AddComputedColumn(name, computedCol)
+		} else {
+			computedCol := columns.NewComputedFloat64Column(colDef, length, func(i uint32) (float64, error) {
+				val, err := bound.Eval(i)
+				if err != nil {
+					return 0, err
+				}
+				return val.AsNumber(), nil
+			})
+			tableView.AddComputedColumn(name, computedCol)
+		}
+	} else {
+		// String or bool - use string column
+		computedCol := columns.NewComputedStringColumn(colDef, length, func(i uint32) (string, error) {
+			val, err := bound.Eval(i)
+			if err != nil {
+				return "", err
+			}
+			return val.AsString(), nil
+		})
+		tableView.AddComputedColumn(name, computedCol)
 	}
 }
