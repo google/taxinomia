@@ -1383,9 +1383,24 @@ Use &quot;quotes&quot; for exact match">
             computedList.push(newDef);
             url.searchParams.set('computed', computedList.join(';'));
 
-            // Add to visible columns
-            const columns = url.searchParams.get('columns') || '';
-            const columnList = columns ? columns.split(',') : [];
+            // Add to visible columns - get from URL or from current table headers
+            let columns = url.searchParams.get('columns') || '';
+            let columnList;
+            if (columns) {
+                columnList = columns.split(',');
+            } else {
+                // No columns param - get current visible columns from the table headers
+                columnList = [];
+                document.querySelectorAll('th[data-col-name]').forEach(function(th) {
+                    const colName = th.getAttribute('data-col-name');
+                    const width = th.getAttribute('data-col-width');
+                    if (width && width !== '0') {
+                        columnList.push(colName + ':' + width);
+                    } else {
+                        columnList.push(colName);
+                    }
+                });
+            }
             columnList.push(newName);
             url.searchParams.set('columns', columnList.join(','));
 

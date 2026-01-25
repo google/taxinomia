@@ -441,6 +441,28 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		}
 	}
 
+	// Add computed columns to AllColumns
+	for _, comp := range q.ComputedColumns {
+		// Check if this column has an active filter
+		_, isFiltered := q.Filters[comp.Name]
+
+		vm.AllColumns = append(vm.AllColumns, ColumnInfo{
+			Name:              comp.Name,
+			DisplayName:       comp.Name,
+			IsVisible:         visibleCols[comp.Name],
+			IsGrouped:         q.IsColumnGrouped(comp.Name),
+			IsFiltered:        isFiltered,
+			IsKey:             false,
+			HasEntityType:     false,
+			JoinTargets:       nil,
+			IsExpanded:        false,
+			Path:              comp.Name,
+			ToggleURL:         BuildToggleExpansionURL(q, comp.Name),
+			ToggleColumnURL:   BuildToggleColumnURL(q, comp.Name),
+			ToggleGroupingURL: BuildToggleGroupingURL(q, comp.Name),
+		})
+	}
+
 	// Sort all columns alphabetically by DisplayName
 	sort.Slice(vm.AllColumns, func(i, j int) bool {
 		return vm.AllColumns[i].DisplayName < vm.AllColumns[j].DisplayName

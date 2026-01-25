@@ -346,11 +346,14 @@ func NewTableView(baseTable *DataTable, tableName string) *TableView {
 // AddComputedColumn adds a computed column to the view
 func (tv *TableView) AddComputedColumn(name string, col columns.IDataColumn) {
 	tv.computedColumns[name] = col
+	// Also add a column view so the column can be used for grouping
+	tv.columnViews[name] = &columns.ColumnView{}
 }
 
 // RemoveComputedColumn removes a computed column from the view
 func (tv *TableView) RemoveComputedColumn(name string) {
 	delete(tv.computedColumns, name)
+	delete(tv.columnViews, name)
 }
 
 // GetBaseTable returns the underlying immutable DataTable
