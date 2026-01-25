@@ -1,0 +1,63 @@
+# Sample customer orders data demonstrating linear hierarchy
+# Hierarchy: CustomerOrders -> orders -> line_items -> discounts
+
+customer_id: "CUST001"
+customer_name: "Alice Johnson"
+customer_email: "alice@example.com"
+
+orders {
+  order_id: "ORD-2024-001"
+  order_date: "2024-01-15"
+  status: "completed"
+  line_items {
+    product_id: "PROD-A1"
+    product_name: "Laptop Pro 15"
+    quantity: 1
+    unit_price: 1299.99
+    discounts {
+      discount_code: "NEWYEAR10"
+      discount_percent: 10.0
+      reason: "New Year Sale"
+    }
+    discounts {
+      discount_code: "LOYAL5"
+      discount_percent: 5.0
+      reason: "Loyalty Reward"
+    }
+  }
+  line_items {
+    product_id: "PROD-A2"
+    product_name: "Wireless Mouse"
+    quantity: 2
+    unit_price: 49.99
+  }
+}
+
+orders {
+  order_id: "ORD-2024-002"
+  order_date: "2024-02-20"
+  status: "shipped"
+  line_items {
+    product_id: "PROD-B1"
+    product_name: "USB-C Hub"
+    quantity: 1
+    unit_price: 79.99
+    discounts {
+      discount_code: "FLASH20"
+      discount_percent: 20.0
+      reason: "Flash Sale"
+    }
+  }
+  line_items {
+    product_id: "PROD-B2"
+    product_name: "Monitor Stand"
+    quantity: 1
+    unit_price: 129.99
+  }
+  line_items {
+    product_id: "PROD-B3"
+    product_name: "Keyboard Cover"
+    quantity: 3
+    unit_price: 19.99
+  }
+}

@@ -61,6 +61,25 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	fmt.Println("=== Performance Tables Created ===")
 	fmt.Println()
 
+	// Load textproto tables using protoloader
+	fmt.Println("=== Loading Textproto Tables ===")
+	_, currentFile, _, _ := runtime.Caller(0)
+	protoLoader := NewProtoTableLoader()
+	descriptorPath := filepath.Join(filepath.Dir(currentFile), "proto", "customer_orders.pb")
+	if err := protoLoader.LoadDescriptorSet(descriptorPath); err != nil {
+		fmt.Printf("Warning: Failed to load proto descriptors: %v\n", err)
+	} else {
+		textprotoPath := filepath.Join(filepath.Dir(currentFile), "data", "customer_orders.textproto")
+		if customerOrdersTable, err := protoLoader.LoadTextprotoAsTable(textprotoPath, "taxinomia.demo.CustomerOrders"); err != nil {
+			fmt.Printf("Warning: Failed to load customer_orders.textproto: %v\n", err)
+		} else {
+			dataModel.AddTable("customer_orders", customerOrdersTable)
+			fmt.Printf("Loaded customer_orders table with %d rows\n", customerOrdersTable.Length())
+		}
+	}
+	fmt.Println("=== Textproto Tables Loaded ===")
+	fmt.Println()
+
 	// Print reports
 	printEntityTypeUsageReport(dataModel)
 	printJoinDiscoveryReport(dataModel)
@@ -77,7 +96,6 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	}
 
 	// Load user profiles
-	_, currentFile, _, _ := runtime.Caller(0)
 	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
 	userStore := NewUserStore()
 	if err := userStore.LoadFromDirectory(usersDir); err != nil {
@@ -133,6 +151,16 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 			DefaultColumns: "6 columns",
 			Categories:     "Inventory, Products",
 			Domains:        []string{"demo", "inventory"},
+		},
+		{
+			Name:           "Customer Orders (Textproto)",
+			Description:    "Denormalized customer order data loaded from textproto. Shows customer, orders, line items, and discounts.",
+			URL:            "table?table=customer_orders&limit=25",
+			RecordCount:    6,
+			ColumnCount:    13,
+			DefaultColumns: "all columns",
+			Categories:     "Sales, Demo",
+			Domains:        []string{"demo"},
 		},
 		{
 			Name:           "Transactions Performance Table",

@@ -67,6 +67,7 @@ type TableView struct {
 // Filter matching:
 //   - If filter value is enclosed in double quotes (e.g., "exact"), performs case-sensitive exact match
 //   - Otherwise, performs case-insensitive substring match
+//
 // All filters must match (AND logic) for a row to pass
 //
 // Optimization: Processes each column once, applying filter logic column-by-column
@@ -275,9 +276,6 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 			}
 		}
 	}
-	// groupedColumns: map[string]*GroupedColumn{},
-	// 	// groupsByColumn: map[string][]*Group2{},
-	// 	blocksByColumn: map[string][]*Block{},
 
 	// Process first column
 	// groupedTable.columns = columns

@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright 2024 The Taxinomia Authors
+
+syntax = "proto3";
+
+package taxinomia.demo;
+
+option go_package = "github.com/google/taxinomia/demo/proto";
+
+// CustomerOrders demonstrates a linear hierarchy for textproto loading.
+// Hierarchy: CustomerOrders -> orders -> line_items -> discounts
+message CustomerOrders {
+  string customer_id = 1;
+  string customer_name = 2;
+  string customer_email = 3;
+  repeated Order orders = 4;
+}
+
+message Order {
+  string order_id = 1;
+  string order_date = 2;
+  string status = 3;
+  repeated LineItem line_items = 4;
+}
+
+message LineItem {
+  string product_id = 1;
+  string product_name = 2;
+  int32 quantity = 3;
+  double unit_price = 4;
+  repeated Discount discounts = 5;
+}
+
+message Discount {
+  string discount_code = 1;
+  double discount_percent = 2;
+  string reason = 3;
+}
