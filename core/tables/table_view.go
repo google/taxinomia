@@ -54,7 +54,12 @@ type TableView struct {
 	firstBlock     *grouping.Block
 
 	// Filtering
-	filterMask []bool // Cached filter mask (nil = no filter, all rows shown)
+	filterMask  []bool            // Cached filter mask (nil = no filter, all rows shown)
+	lastFilters map[string]string // Filters that produced current mask (for change detection)
+
+	// Grouping cache tracking
+	lastGroupingOrder   []string          // Grouping order when grouping was computed
+	lastGroupingFilters map[string]string // Filter state when grouping was computed
 }
 
 // ApplyFilters builds and caches a filter mask based on the provided filters
@@ -67,10 +72,18 @@ type TableView struct {
 // Optimization: Processes each column once, applying filter logic column-by-column
 // rather than row-by-row. This minimizes redundant condition checks and improves
 // cache locality when accessing column data sequentially.
+//
+// Caching: Skips recomputation if filters are identical to the previous call.
 func (t *TableView) ApplyFilters(filters map[string]string) {
+	// Check if filters are unchanged - skip recomputation
+	if t.filtersEqual(filters) {
+		return
+	}
+
 	// If no filters, clear the mask
 	if len(filters) == 0 {
 		t.filterMask = nil
+		t.lastFilters = nil
 		return
 	}
 
@@ -120,11 +133,31 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 			}
 		}
 	}
+
+	// Save the filters that produced this mask
+	t.lastFilters = make(map[string]string, len(filters))
+	for k, v := range filters {
+		t.lastFilters[k] = v
+	}
+}
+
+// filtersEqual checks if the provided filters match the last applied filters
+func (t *TableView) filtersEqual(filters map[string]string) bool {
+	if len(filters) != len(t.lastFilters) {
+		return false
+	}
+	for k, v := range filters {
+		if t.lastFilters[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // ClearFilters removes the active filter mask
 func (t *TableView) ClearFilters() {
 	t.filterMask = nil
+	t.lastFilters = nil
 }
 
 // GetFilteredRowCount returns the number of rows that pass the current filter
@@ -211,9 +244,16 @@ func (t *TableView) GetGroupCount(col string) int {
 func (t *TableView) ClearGroupings() {
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
+	t.lastGroupingOrder = nil
+	t.lastGroupingFilters = nil
 }
 
 func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
+	// Check if grouping inputs are unchanged - skip recomputation
+	if t.groupingEqual(groupingOrder) {
+		return
+	}
+
 	// clear current groups
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
@@ -247,6 +287,36 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 	// Process subsequent columns
 	t.groupSubsequentColumnsInTable(indices, t.groupingOrder[1:], parentBlocks)
 
+	// Save the state that produced this grouping
+	t.lastGroupingOrder = make([]string, len(groupingOrder))
+	copy(t.lastGroupingOrder, groupingOrder)
+	t.lastGroupingFilters = make(map[string]string, len(t.lastFilters))
+	for k, v := range t.lastFilters {
+		t.lastGroupingFilters[k] = v
+	}
+}
+
+// groupingEqual checks if the grouping inputs match the last computed grouping
+func (t *TableView) groupingEqual(groupingOrder []string) bool {
+	// Check grouping order
+	if len(groupingOrder) != len(t.lastGroupingOrder) {
+		return false
+	}
+	for i, col := range groupingOrder {
+		if t.lastGroupingOrder[i] != col {
+			return false
+		}
+	}
+	// Check if filter state matches what was used for grouping
+	if len(t.lastFilters) != len(t.lastGroupingFilters) {
+		return false
+	}
+	for k, v := range t.lastFilters {
+		if t.lastGroupingFilters[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block {
