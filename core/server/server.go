@@ -79,6 +79,15 @@ func (s *Server) SetUserStore(store users.UserStore) {
 	s.userStore = store
 }
 
+// makeCacheKey creates a cache key combining user and table name
+// This ensures each user has their own TableView with their own computed columns
+func (s *Server) makeCacheKey(userName, tableName string) string {
+	if userName == "" {
+		return tableName
+	}
+	return userName + ":" + tableName
+}
+
 // TableHandlerResult represents the result of handling a table request
 type TableHandlerResult struct {
 	Error      error
@@ -91,6 +100,10 @@ type TableHandlerResult struct {
 func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
 	// Parse URL into Query
 	q := query.NewQuery(requestURL)
+
+	// Get user from URL parameter - cache is user-specific
+	userName := requestURL.Query().Get("user")
+	cacheKey := s.makeCacheKey(userName, q.Table)
 
 	// Validate table parameter
 	if q.Table == "" {
@@ -133,14 +146,14 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 		GroupedColumns: q.GroupedColumns,
 	}
 
-	// Get or create a cached TableView for this table
-	tableView := views.GetOrCreateTableView(q.Table, table, s.tableViewCache)
+	// Get or create a cached TableView for this user+table combination
+	tableView := views.GetOrCreateTableView(cacheKey, table, s.tableViewCache)
 
 	// Update joined columns to match the current request
 	views.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
 
 	// Create computed columns from the query (with caching)
-	s.updateComputedColumns(tableView, q)
+	s.updateComputedColumns(tableView, q, cacheKey)
 
 	// Apply filters to the table view
 	tableView.ApplyFilters(q.Filters)
@@ -217,14 +230,13 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product 
 
 // updateComputedColumns manages computed columns with caching.
 // Only recompiles expressions and recreates columns when something has changed.
-func (s *Server) updateComputedColumns(tableView *tables.TableView, q *query.Query) {
-	tableName := q.Table
-
-	// Get current state for this table
-	currentState, exists := s.computedColState[tableName]
+// The cacheKey is user+table specific to ensure users have isolated computed columns.
+func (s *Server) updateComputedColumns(tableView *tables.TableView, q *query.Query, cacheKey string) {
+	// Get current state for this user+table combination
+	currentState, exists := s.computedColState[cacheKey]
 	if !exists {
 		currentState = make(map[string]string)
-		s.computedColState[tableName] = currentState
+		s.computedColState[cacheKey] = currentState
 	}
 
 	// Build map of requested columns
