@@ -754,6 +754,46 @@
             color: #fff;
         }
 
+        /* Multi-select filter mode */
+        .multiselect-toggle {
+            padding: 2px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background: #f5f5f5;
+            color: #888;
+            font-size: 11px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .multiselect-toggle:hover {
+            background: #e8e8e8;
+            border-color: #ccc;
+        }
+
+        .multiselect-toggle.active {
+            background: #3498db;
+            border-color: #2980b9;
+            color: #fff;
+        }
+
+        .multiselect-checkbox {
+            display: none;
+            margin-left: 6px;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+
+        /* When in multi-select mode for a column */
+        .multiselect-active .filter-link {
+            display: none;
+        }
+
+        .multiselect-active .multiselect-checkbox {
+            display: inline;
+        }
+
         h1 {
             margin-bottom: 20px;
         }
@@ -939,6 +979,48 @@
             });
         }
 
+        // Multi-select filter mode handling
+        function setupMultiselectMode() {
+            const toggleButtons = document.querySelectorAll('.multiselect-toggle');
+            const table = document.getElementById('data-table');
+            if (!table) return;
+
+            toggleButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const columnName = this.dataset.column;
+                    const isActive = this.classList.contains('active');
+
+                    if (isActive) {
+                        // Exiting multi-select mode - apply filter with selected values
+                        const checkboxes = table.querySelectorAll(`.multiselect-checkbox[data-column="${columnName}"]:checked`);
+                        const values = Array.from(checkboxes).map(cb => cb.dataset.value);
+
+                        // Remove multiselect-active class from cells
+                        table.querySelectorAll(`td[data-column="${columnName}"]`).forEach(td => {
+                            td.classList.remove('multiselect-active');
+                        });
+                        this.classList.remove('active');
+
+                        // Apply multi-value filter if any values selected
+                        if (values.length > 0) {
+                            applyFilter(columnName, values.join('|'));
+                        }
+                    } else {
+                        // Entering multi-select mode
+                        this.classList.add('active');
+                        // Add multiselect-active class to cells of this column
+                        table.querySelectorAll(`td[data-column="${columnName}"]`).forEach(td => {
+                            td.classList.add('multiselect-active');
+                        });
+                        // Uncheck all checkboxes for this column
+                        table.querySelectorAll(`.multiselect-checkbox[data-column="${columnName}"]`).forEach(cb => {
+                            cb.checked = false;
+                        });
+                    }
+                });
+            });
+        }
+
         // Apply filter by updating URL
         function applyFilter(columnName, filterValue) {
             const url = new URL(window.location);
@@ -973,6 +1055,7 @@
             parseUrlParams();
             setupFilterInputs();
             setupFilterClearButtons();
+            setupMultiselectMode();
             initColumnResize();
             restoreScrollPosition();
         });
@@ -1233,13 +1316,9 @@
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
                 <td class="grouping-cell">
-                    {{if .IsFiltered}}
-                    <span class="group-toggle-btn disabled" title="Grouping is disabled for filtered columns">⊞</span>
-                    {{else}}
                     <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
                         {{if .IsGrouped}}⊟{{else}}⊞{{end}}
                     </a>
-                    {{end}}
                 </td>
                         {{end}}
                     {{end}}
@@ -1284,6 +1363,7 @@
                                title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
 Use &quot;quotes&quot; for exact match">
                         <button type="button" class="filter-clear" data-column="{{$colName}}" title="Clear filter">×</button>
+                        {{range $.AllColumns}}{{if eq .Name $colName}}{{if .IsGrouped}}<button type="button" class="multiselect-toggle" data-column="{{$colName}}" title="Multi-select filter mode">☑</button>{{end}}{{end}}{{end}}
                     </div>
                 </td>
                 {{end}}
@@ -1296,9 +1376,9 @@ Use &quot;quotes&quot; for exact match">
                 <tr>
                     {{range $cell := $row.Cells}}
                         {{if gt $cell.Rowspan 1}}
-                            <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}">{{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a>{{end}}</td>
+                            <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">{{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}</td>
                         {{else}}
-                            <td title="{{$cell.Title}}">{{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a>{{end}}</td>
+                            <td title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">{{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}</td>
                         {{end}}
                     {{end}}
                 </tr>

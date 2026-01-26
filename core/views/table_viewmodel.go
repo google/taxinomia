@@ -77,6 +77,8 @@ type GroupedCell struct {
 	Title           string       // Tooltip text for hover-over information
 	FilterURL       safehtml.URL // URL to filter on this value and remove grouping
 	IsGroupedColumn bool         // True if this is a grouped column cell (shows filter link)
+	ColumnName      string       // Column name for identifying cells in multi-select mode
+	RawValue        string       // Raw value for multi-select filtering (without display formatting)
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -832,6 +834,8 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			Title:           tooltip,
 			FilterURL:       q.WithFilterAndUngrouped(colName, rawValue),
 			IsGroupedColumn: true,
+			ColumnName:      colName,
+			RawValue:        rawValue,
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 

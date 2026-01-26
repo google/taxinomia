@@ -142,12 +142,12 @@ func TestColumnReorderingOnFiltering(t *testing.T) {
 		}
 	})
 
-	// Test 4: Column that is both filtered and grouped (filter takes precedence)
+	// Test 4: Column that is both filtered and grouped (grouped takes precedence for position)
 	t.Run("Column both filtered and grouped", func(t *testing.T) {
 		baseURL, _ := url.Parse("/table?table=test&columns=status,region,category,amount&grouped=status&filter:status=active")
 		q := NewQuery(baseURL)
 
-		// Columns: status (filtered, takes precedence over grouped), then others
+		// Columns: status stays in grouped section (not moved to filtered), then others
 		expectedColumns := []string{"status", "region", "category", "amount"}
 		if !equalStringSlices(q.Columns, expectedColumns) {
 			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
@@ -166,18 +166,19 @@ func TestColumnReorderingOnFiltering(t *testing.T) {
 		}
 	})
 
-	// Test 6: Filtering a grouped column should ungroup it
-	t.Run("Filter removes column from grouped list", func(t *testing.T) {
+	// Test 6: A column can be both filtered and grouped (stays in grouped position)
+	t.Run("Column can be both filtered and grouped", func(t *testing.T) {
 		baseURL, _ := url.Parse("/table?table=test&columns=status,region,category,amount&grouped=status,category&filter:status=active")
 		q := NewQuery(baseURL)
 
-		// Expected: status should be removed from grouped columns
-		expectedGrouped := []string{"category"}
+		// Expected: status should remain in grouped columns (filtering no longer removes grouping)
+		expectedGrouped := []string{"status", "category"}
 		if !equalStringSlices(q.GroupedColumns, expectedGrouped) {
 			t.Errorf("Expected grouped columns %v, got %v", expectedGrouped, q.GroupedColumns)
 		}
 
-		// Columns: status (filtered), category (grouped), then others
+		// Columns: status and category stay in grouped section, then others
+		// (status is both filtered and grouped, so it stays in grouped position)
 		expectedColumns := []string{"status", "category", "region", "amount"}
 		if !equalStringSlices(q.Columns, expectedColumns) {
 			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)

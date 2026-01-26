@@ -200,10 +200,11 @@ func (s *Query) Clone() *Query {
 }
 
 // reorderColumns reorders the Columns slice to maintain:
-// 1. Filtered columns (leftmost)
-// 2. Grouped columns (middle)
+// 1. Filtered columns (leftmost) - only columns that are filtered but NOT grouped
+// 2. Grouped columns (middle) - in GroupedColumns order (the grouping hierarchy)
 // 3. Other columns (rightmost)
-// Also removes any filtered columns from the grouped list
+// Note: A column can be both filtered and grouped simultaneously. In this case,
+// it stays in the grouped section to preserve the grouping display position.
 func (s *Query) reorderColumns() {
 	if len(s.Columns) == 0 {
 		return
@@ -215,30 +216,35 @@ func (s *Query) reorderColumns() {
 		filteredCols[colName] = true
 	}
 
-	// Remove filtered columns from GroupedColumns
-	var newGroupedColumns []string
-	for _, colName := range s.GroupedColumns {
-		if !filteredCols[colName] {
-			newGroupedColumns = append(newGroupedColumns, colName)
-		}
-	}
-	s.GroupedColumns = newGroupedColumns
-
 	groupedCols := make(map[string]bool)
 	for _, colName := range s.GroupedColumns {
 		groupedCols[colName] = true
 	}
 
-	// Partition columns into three groups
-	var filtered, grouped, others []string
-
+	// Track which columns are visible
+	visibleCols := make(map[string]bool)
 	for _, colName := range s.Columns {
-		if filteredCols[colName] {
+		visibleCols[colName] = true
+	}
+
+	// Collect filtered-only and other columns from s.Columns
+	var filtered, others []string
+	for _, colName := range s.Columns {
+		if groupedCols[colName] {
+			// Skip - will add from GroupedColumns in their order
+			continue
+		} else if filteredCols[colName] {
 			filtered = append(filtered, colName)
-		} else if groupedCols[colName] {
-			grouped = append(grouped, colName)
 		} else {
 			others = append(others, colName)
+		}
+	}
+
+	// Collect visible grouped columns in GroupedColumns order (grouping hierarchy)
+	var grouped []string
+	for _, colName := range s.GroupedColumns {
+		if visibleCols[colName] {
+			grouped = append(grouped, colName)
 		}
 	}
 

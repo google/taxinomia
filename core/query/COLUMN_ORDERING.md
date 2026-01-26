@@ -9,15 +9,16 @@ Columns in the table view are automatically reordered based on their state to pr
 Columns are displayed in the following order from left to right:
 
 1. **Filtered Columns** (leftmost)
-   - Columns with active filters appear first
+   - Columns with active filters that are NOT grouped appear first
    - Filter parameters: `filter:columnName=value`
    - Example: `filter:status=active`
-   - **Important**: Filtered columns cannot be grouped - grouping is automatically disabled
 
 2. **Grouped Columns** (middle)
-   - Columns used for grouping appear after filtered columns
+   - Columns used for grouping appear after filtered-only columns
    - Grouped parameter: `grouped=col1,col2`
-   - Note: If a filter is applied to a grouped column, it is automatically removed from the grouped list
+   - **Important**: Grouped columns appear in the order specified by the `grouped` parameter (the grouping hierarchy), not their original position in `columns`
+   - Note: Columns that are both filtered and grouped stay in the grouped section
+   - This allows multi-select filtering while preserving the grouping structure
 
 3. **Other Columns** (rightmost)
    - All remaining columns appear last
@@ -47,16 +48,14 @@ Columns are displayed in the following order from left to right:
 - `status` is second (grouped)
 - `region` and `category` remain at the end
 
-### Example 4: Filtered Column Automatically Ungrouped
+### Example 4: Filtered Column Stays in Grouped Position
 **URL**: `/table?table=orders&columns=status,region,category,amount&grouped=status,category&filter:status=active`
-
-**Initial State**: `status` and `category` are grouped
-**After Filter Applied**: `status` is automatically removed from grouped columns
 
 **Result**:
 - Columns: `status, category, region, amount`
-- Grouped: `category` (only)
-- `status` appears in filtered section and is no longer grouped
+- Grouped: `status, category` (both remain grouped)
+- `status` stays in the grouped section (not moved to filtered section)
+- This allows multi-select filtering while maintaining column position and grouping structure
 
 ### Example 5: Complex Scenario
 **URL**: `/table?table=test&columns=a,b,c,d,e,f&grouped=c,d&filter:e=val1&filter:f=val2`
