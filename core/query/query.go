@@ -486,3 +486,25 @@ func (s *Query) IsColumnGrouped(column string) bool {
 	}
 	return false
 }
+
+// WithFilterAndUngrouped returns a URL that adds a filter for the column and removes it from grouping
+func (s *Query) WithFilterAndUngrouped(column, value string) safehtml.URL {
+	newState := s.Clone()
+
+	// Add the filter
+	newState.Filters[column] = value
+
+	// Remove column from grouping
+	newGrouped := make([]string, 0, len(s.GroupedColumns))
+	for _, col := range s.GroupedColumns {
+		if col != column {
+			newGrouped = append(newGrouped, col)
+		}
+	}
+	newState.GroupedColumns = newGrouped
+
+	// Reorder columns: filtered first, then grouped, then others
+	newState.reorderColumns()
+
+	return newState.ToSafeURL()
+}

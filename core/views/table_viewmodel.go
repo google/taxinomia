@@ -72,9 +72,11 @@ type GroupedRow struct {
 // GroupedCell represents a cell to be rendered in the grouped table
 // Rowspan indicates how many rows this cell spans (1 = no span, >1 = spans multiple rows)
 type GroupedCell struct {
-	Value   string
-	Rowspan int
-	Title   string // Tooltip text for hover-over information
+	Value           string
+	Rowspan         int
+	Title           string       // Tooltip text for hover-over information
+	FilterURL       safehtml.URL // URL to filter on this value and remove grouping
+	IsGroupedColumn bool         // True if this is a grouped column cell (shows filter link)
 }
 
 // ColumnInfo contains information about a column for UI display
@@ -520,7 +522,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	// Check if table is grouped and build grouped rows if needed
 	if tableView.IsGrouped() {
 		vm.IsGrouped = true
-		vm.GroupedRows = buildGroupedRows(tableView, view.Columns)
+		vm.GroupedRows = buildGroupedRows(tableView, view.Columns, q)
 	}
 
 	vm.ColumnStats = buildColumnStats(tableView)
@@ -789,39 +791,47 @@ func BuildToggleGroupingURL(q *query.Query, columnName string) safehtml.URL {
 
 // buildGroupedRows converts the hierarchical grouping structure into rows with rowspan
 // It walks the group hierarchy recursively, using group.Height() for rowspan
-func buildGroupedRows(tableView *tables.TableView, visibleColumns []string) []GroupedRow {
+func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *query.Query) []GroupedRow {
 	firstBlock := tableView.GetFirstBlock()
 	if firstBlock == nil {
 		return nil
 	}
 	var rows []GroupedRow = []GroupedRow{{Cells: []GroupedCell{}}}
-	walkGroupHierarchy(tableView, firstBlock, &rows, 0)
+	walkGroupHierarchy(tableView, firstBlock, &rows, 0, q)
 	return rows
 }
 
 // walkGroupHierarchy recursively walks the group hierarchy and builds rows
 // level indicates the depth in the grouping hierarchy (0 = first grouped column)
-func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int) {
+func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *query.Query) {
 	if block == nil {
 		return
 	}
+	// Get the column name for this grouping level
+	colName := block.GroupedColumn.DataColumn.ColumnDef().Name()
+
 	for _, group := range block.Groups {
+		// Get the raw value for filtering
+		rawValue := group.GetValue()
+
 		// Format: "value [#subgroups/#rows]" for non-leaf, "value [#rows]" for leaf
 		var groupInfo, tooltip string
 		numRows := len(group.Indices)
 		if group.NumSubgroups() > 0 {
-			groupInfo = fmt.Sprintf("%s [%d/%d]", group.GetValue(), group.NumSubgroups(), numRows)
+			groupInfo = fmt.Sprintf("%s [%d/%d]", rawValue, group.NumSubgroups(), numRows)
 			tooltip = "[subgroups/rows]"
 		} else {
-			groupInfo = fmt.Sprintf("%s [%d]", group.GetValue(), numRows)
+			groupInfo = fmt.Sprintf("%s [%d]", rawValue, numRows)
 			tooltip = "[rows]"
 		}
 
 		// Add the grouped column cell for this group
 		groupedCell := GroupedCell{
-			Value:   groupInfo,
-			Rowspan: group.Height(),
-			Title:   tooltip,
+			Value:           groupInfo,
+			Rowspan:         group.Height(),
+			Title:           tooltip,
+			FilterURL:       q.WithFilterAndUngrouped(colName, rawValue),
+			IsGroupedColumn: true,
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 
@@ -851,7 +861,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
 		} else {
 			// Non-leaf group - recurse into child blocks
-			walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1)
+			walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1, q)
 		}
 	}
 }
