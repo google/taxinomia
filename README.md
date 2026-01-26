@@ -18,6 +18,19 @@
 
 Taxinomia is a table oriented analytics system. 
 
+Next features
+ * direct filering on grouped values
+ * aggregation
+ * sub columns, e.g. a column consists of a proto message, expand it on demand
+ * when by definition the value of two columns always match, display the value of the other columns when the first one is grouped
+ * grouping function
+ * support extremely large tables - user will have to filter on specific columns to reduce the table before being able to load it
+ * display limit for grouped tables
+ * more data types
+ * column optimisations
+ * graphs, etc
+
+
 
 
 Column types
