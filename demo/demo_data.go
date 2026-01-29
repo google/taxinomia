@@ -22,7 +22,9 @@ import (
 	_ "embed"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/csvimport"
 	"github.com/google/taxinomia/core/tables"
 )
@@ -100,4 +102,69 @@ func CreateSalesTable() *tables.DataTable {
 
 	fmt.Printf("\nSales Data: %d rows imported from CSV (auto-detected types)\n", table.Length())
 	return table
+}
+
+// CreateEventsTable creates a table with datetime columns for demonstrating datetime functionality
+func CreateEventsTable() *tables.DataTable {
+	fmt.Println("Creating events table with datetime columns...")
+
+	t := tables.NewDataTable()
+
+	// Create columns
+	eventIDCol := columns.NewUint32Column(columns.NewColumnDef("event_id", "Event ID", "event_id"))
+	eventNameCol := columns.NewStringColumn(columns.NewColumnDef("event_name", "Event Name", ""))
+	eventTypeCol := columns.NewStringColumn(columns.NewColumnDef("event_type", "Event Type", ""))
+	createdAtCol := columns.NewDatetimeColumn(columns.NewColumnDef("created_at", "Created At", ""))
+	scheduledAtCol := columns.NewDatetimeColumn(columns.NewColumnDef("scheduled_at", "Scheduled At", ""))
+	statusCol := columns.NewStringColumn(columns.NewColumnDef("status", "Status", ""))
+
+	t.AddColumn(eventIDCol)
+	t.AddColumn(eventNameCol)
+	t.AddColumn(eventTypeCol)
+	t.AddColumn(createdAtCol)
+	t.AddColumn(scheduledAtCol)
+	t.AddColumn(statusCol)
+
+	// Event types and statuses
+	eventTypes := []string{"meeting", "webinar", "workshop", "conference", "training"}
+	statuses := []string{"scheduled", "completed", "cancelled", "in_progress"}
+	eventNames := []string{
+		"Q1 Planning Session", "Product Demo", "Team Standup", "Customer Workshop",
+		"Tech Talk", "Sales Review", "Design Sprint", "Code Review", "Strategy Meeting",
+		"Launch Event", "Training Session", "Onboarding", "Retrospective", "Roadmap Review",
+		"Budget Meeting", "Hackathon", "Town Hall", "1:1 Meeting", "Board Meeting", "AMA Session",
+	}
+
+	// Base time for generating realistic data
+	baseTime := time.Date(2023, 1, 1, 9, 0, 0, 0, time.UTC)
+
+	// Generate 50 events spread across 2 years
+	for i := uint32(0); i < 50; i++ {
+		eventIDCol.Append(i + 1)
+		eventNameCol.Append(eventNames[i%uint32(len(eventNames))])
+		eventTypeCol.Append(eventTypes[i%uint32(len(eventTypes))])
+
+		// Created at: spread across 2 years, with some clustering
+		createdOffset := time.Duration(i*7*24+i*3) * time.Hour // ~weekly spread with variation
+		createdAt := baseTime.Add(createdOffset)
+		createdAtCol.Append(createdAt)
+
+		// Scheduled at: 1-14 days after creation
+		scheduleOffset := time.Duration((i%14)+1) * 24 * time.Hour
+		scheduledAt := createdAt.Add(scheduleOffset)
+		scheduledAtCol.Append(scheduledAt)
+
+		statusCol.Append(statuses[i%uint32(len(statuses))])
+	}
+
+	// Finalize columns
+	eventIDCol.FinalizeColumn()
+	eventNameCol.FinalizeColumn()
+	eventTypeCol.FinalizeColumn()
+	createdAtCol.FinalizeColumn()
+	scheduledAtCol.FinalizeColumn()
+	statusCol.FinalizeColumn()
+
+	fmt.Printf("  Created %d events with datetime columns\n", 50)
+	return t
 }

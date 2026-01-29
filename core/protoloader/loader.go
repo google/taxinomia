@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/tables"
@@ -132,15 +133,16 @@ func (l *Loader) FindLinearHierarchy(msgDesc protoreflect.MessageDescriptor) []H
 		for i := 0; i < fields.Len(); i++ {
 			fd := fields.Get(i)
 
-			if fd.Kind() == protoreflect.MessageKind && fd.Cardinality() == protoreflect.Repeated {
-				// This is the next level in the hierarchy
+			if fd.Kind() == protoreflect.MessageKind && fd.Cardinality() == protoreflect.Repeated && !isTimestampField(fd) {
+				// This is the next level in the hierarchy (but not Timestamp which is treated as scalar)
 				level.FieldDesc = fd
 				nextLevel = fd.Message()
-			} else if fd.Kind() != protoreflect.MessageKind || fd.Cardinality() != protoreflect.Repeated {
-				// Scalar field or singular message - include as column
-				if fd.Kind() != protoreflect.MessageKind {
-					level.ScalarFields = append(level.ScalarFields, fd)
-				}
+			} else if fd.Kind() != protoreflect.MessageKind {
+				// Scalar field - include as column
+				level.ScalarFields = append(level.ScalarFields, fd)
+			} else if isTimestampField(fd) {
+				// Timestamp messages are treated as scalar fields
+				level.ScalarFields = append(level.ScalarFields, fd)
 			}
 		}
 
@@ -271,9 +273,43 @@ func formatValue(val protoreflect.Value, fd protoreflect.FieldDescriptor) string
 			return string(enumVal.Name())
 		}
 		return fmt.Sprintf("%d", val.Enum())
+	case protoreflect.MessageKind:
+		// Handle google.protobuf.Timestamp
+		if isTimestampField(fd) {
+			return formatTimestamp(val.Message())
+		}
+		return val.String()
 	default:
 		return val.String()
 	}
+}
+
+// isTimestampField checks if a field is a google.protobuf.Timestamp
+func isTimestampField(fd protoreflect.FieldDescriptor) bool {
+	if fd.Kind() != protoreflect.MessageKind {
+		return false
+	}
+	return fd.Message().FullName() == "google.protobuf.Timestamp"
+}
+
+// formatTimestamp converts a google.protobuf.Timestamp message to ISO 8601 string
+func formatTimestamp(msg protoreflect.Message) string {
+	fields := msg.Descriptor().Fields()
+	secondsField := fields.ByName("seconds")
+	nanosField := fields.ByName("nanos")
+
+	if secondsField == nil {
+		return ""
+	}
+
+	seconds := msg.Get(secondsField).Int()
+	nanos := int64(0)
+	if nanosField != nil {
+		nanos = msg.Get(nanosField).Int()
+	}
+
+	t := time.Unix(seconds, nanos).UTC()
+	return t.Format(time.RFC3339)
 }
 
 // CreateDataTable creates a DataTable from extracted rows.

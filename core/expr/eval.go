@@ -11,6 +11,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Value represents a runtime value
@@ -511,6 +512,92 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		}
 		return NewBool(args[0].AsBool()), nil
 
+	// Datetime epoch functions
+	case "seconds":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("seconds() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("seconds(): %w", err)
+		}
+		return NewNumber(float64(t.Unix())), nil
+
+	case "minutes":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("minutes() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("minutes(): %w", err)
+		}
+		return NewNumber(float64(t.Unix() / 60)), nil
+
+	case "hours":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("hours() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("hours(): %w", err)
+		}
+		return NewNumber(float64(t.Unix() / 3600)), nil
+
+	case "days":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("days() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("days(): %w", err)
+		}
+		return NewNumber(float64(t.Unix() / 86400)), nil
+
+	case "weeks":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("weeks() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("weeks(): %w", err)
+		}
+		return NewNumber(float64(t.Unix() / (86400 * 7))), nil
+
+	case "months":
+		// Exact months since epoch: (year - 1970) * 12 + (month - 1)
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("months() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("months(): %w", err)
+		}
+		months := int64(t.Year()-1970)*12 + int64(t.Month()-1)
+		return NewNumber(float64(months)), nil
+
+	case "quarters":
+		// Exact quarters since epoch: (year - 1970) * 4 + ((month - 1) / 3)
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("quarters() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("quarters(): %w", err)
+		}
+		quarters := int64(t.Year()-1970)*4 + int64(t.Month()-1)/3
+		return NewNumber(float64(quarters)), nil
+
+	case "years":
+		// Years since epoch (1970)
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("years() takes 1 argument")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("years(): %w", err)
+		}
+		return NewNumber(float64(t.Year() - 1970)), nil
+
 	default:
 		return NilValue(), fmt.Errorf("unknown function: %s", name)
 	}
@@ -634,4 +721,57 @@ func (e *Evaluator) evalAttr(obj Value, attr string) (Value, error) {
 	// For now, attributes are treated as potential method calls without args
 	// This is mainly for things like checking if an attribute exists
 	return NilValue(), fmt.Errorf("attribute access not supported: %s", attr)
+}
+
+// dateParseFormats lists formats to try when parsing datetime strings
+var dateParseFormats = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05",
+	"2006-01-02 15:04:05",
+	"2006-01-02",
+	"2006/01/02",
+	"02-Jan-2006",
+	"Jan 2, 2006",
+	"January 2, 2006",
+	"2006-01-02T15:04:05.000",
+	"2006-01-02 15:04:05.000",
+}
+
+// parseDatetimeValue converts a Value to time.Time
+func parseDatetimeValue(v Value) (time.Time, error) {
+	s := v.AsString()
+	if s == "" {
+		return time.Time{}, nil
+	}
+
+	// Try parsing as Unix timestamp if it's a number
+	if v.IsNumber() {
+		n := int64(v.AsNumber())
+		absN := n
+		if absN < 0 {
+			absN = -absN
+		}
+		// Determine if seconds, milliseconds, or nanoseconds
+		switch {
+		case absN > 1e16:
+			// Nanoseconds (current epoch ~1.7e18)
+			return time.Unix(0, n), nil
+		case absN > 1e11:
+			// Milliseconds (current epoch ~1.7e12)
+			return time.Unix(n/1000, (n%1000)*1e6), nil
+		default:
+			// Seconds (current epoch ~1.7e9)
+			return time.Unix(n, 0), nil
+		}
+	}
+
+	// Try each format
+	for _, format := range dateParseFormats {
+		if t, err := time.Parse(format, s); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unable to parse datetime: %q", s)
 }

@@ -197,3 +197,73 @@ func (c *JoinedUint32Column) GroupIndices(indices []uint32, columnView *ColumnVi
 	}
 	return groupedIndices, unmapped
 }
+
+// JoinedDatetimeColumn represents a column that gets its data by joining to a datetime column in another table
+type JoinedDatetimeColumn struct {
+	columnDef    *ColumnDef
+	sourceColumn *DatetimeColumn
+	joiner       IJoiner
+}
+
+// NewJoinedDatetimeColumn creates a new joined column for datetime data
+func NewJoinedDatetimeColumn(columnDef *ColumnDef, joiner IJoiner, sourceColumn *DatetimeColumn) *JoinedDatetimeColumn {
+	return &JoinedDatetimeColumn{
+		columnDef:    columnDef,
+		joiner:       joiner,
+		sourceColumn: sourceColumn,
+	}
+}
+
+func (c *JoinedDatetimeColumn) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *JoinedDatetimeColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *JoinedDatetimeColumn) Length() int {
+	return c.sourceColumn.Length()
+}
+
+func (c *JoinedDatetimeColumn) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", ErrUnmatched
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedDatetimeColumn) IsKey() bool {
+	return false
+}
+
+func (c *JoinedDatetimeColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[int64]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		nanos := value.UnixNano()
+		if groupKey, ok := valueToGroupKey[nanos]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[nanos] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}

@@ -21,6 +21,7 @@ package columns
 import (
 	"fmt"
 	"strconv"
+	"time"
 )
 
 // ComputeStringFn is a function that computes a string value for a given row index.
@@ -338,4 +339,106 @@ func (c *ComputedInt64Column) GroupIndices(indices []uint32, columnView *ColumnV
 		}
 	}
 	return groupedIndices, unmapped
+}
+
+// ComputeDatetimeFn is a function that computes a time.Time value for a given row index.
+// The function should capture any source columns it needs in a closure.
+type ComputeDatetimeFn func(i uint32) (int64, error) // Returns Unix nanoseconds
+
+// ComputedDatetimeColumn represents a column whose datetime values are computed from other columns.
+type ComputedDatetimeColumn struct {
+	columnDef     *ColumnDef
+	computeFn     ComputeDatetimeFn
+	length        int
+	displayFormat string
+}
+
+// NewComputedDatetimeColumn creates a new computed datetime column.
+// The length parameter specifies the number of rows (should match source columns).
+// The computeFn returns Unix nanoseconds.
+func NewComputedDatetimeColumn(columnDef *ColumnDef, length int, computeFn ComputeDatetimeFn) *ComputedDatetimeColumn {
+	return &ComputedDatetimeColumn{
+		columnDef:     columnDef,
+		computeFn:     computeFn,
+		length:        length,
+		displayFormat: "2006-01-02 15:04:05",
+	}
+}
+
+// NewComputedDatetimeColumnWithFormat creates a new computed datetime column with a custom display format.
+func NewComputedDatetimeColumnWithFormat(columnDef *ColumnDef, length int, computeFn ComputeDatetimeFn, format string) *ComputedDatetimeColumn {
+	return &ComputedDatetimeColumn{
+		columnDef:     columnDef,
+		computeFn:     computeFn,
+		length:        length,
+		displayFormat: format,
+	}
+}
+
+func (c *ComputedDatetimeColumn) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *ComputedDatetimeColumn) Length() int {
+	return c.length
+}
+
+func (c *ComputedDatetimeColumn) GetValue(i uint32) (int64, error) {
+	if i >= uint32(c.length) {
+		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
+	}
+	return c.computeFn(i)
+}
+
+func (c *ComputedDatetimeColumn) GetString(i uint32) (string, error) {
+	nanos, err := c.GetValue(i)
+	if err != nil {
+		return "", err
+	}
+	if nanos == 0 {
+		return "", nil
+	}
+	t := nanoToTime(nanos)
+	return t.UTC().Format(c.displayFormat), nil
+}
+
+func (c *ComputedDatetimeColumn) IsKey() bool {
+	return false
+}
+
+func (c *ComputedDatetimeColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *ComputedDatetimeColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[int64]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		value, err := c.GetValue(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}
+
+// SetDisplayFormat changes the display format for GetString().
+func (c *ComputedDatetimeColumn) SetDisplayFormat(format string) {
+	c.displayFormat = format
+}
+
+// nanoToTime converts Unix nanoseconds to time.Time
+func nanoToTime(nanos int64) time.Time {
+	return time.Unix(0, nanos)
 }

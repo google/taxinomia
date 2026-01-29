@@ -47,6 +47,12 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	dataModel.AddTable("capitals", capitalsTable)
 	dataModel.AddTable("items", itemsTable)
 
+	// Create events table with datetime columns
+	fmt.Println("\n=== Creating Events Table (Datetime Demo) ===")
+	eventsTable := CreateEventsTable()
+	dataModel.AddTable("events", eventsTable)
+	fmt.Println("=== Events Table Created ===")
+
 	// Create performance test tables for scalability testing
 	fmt.Println("\n=== Creating Performance Test Tables ===")
 	transactionsTable := CreatePerfTransactionsTable()
@@ -160,6 +166,16 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 			ColumnCount:    13,
 			DefaultColumns: "all columns",
 			Categories:     "Sales, Demo",
+			Domains:        []string{"demo"},
+		},
+		{
+			Name:           "Events Table (Datetime Demo)",
+			Description:    "Demonstrates datetime column functionality with event scheduling data. Use epoch functions like months(), quarters(), years() for grouping.",
+			URL:            "table?table=events&limit=50",
+			RecordCount:    50,
+			ColumnCount:    6,
+			DefaultColumns: "6 columns",
+			Categories:     "Demo, Datetime",
 			Domains:        []string{"demo"},
 		},
 		{
