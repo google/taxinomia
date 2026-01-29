@@ -18,7 +18,7 @@ syntax = "proto3";
 
 package taxinomia.users;
 
-option go_package = "github.com/google/taxinomia/core/users/proto";
+option go_package = "github.com/google/taxinomia/core/users";
 
 // UserProfile defines a user's preferences and access configuration.
 // The username is derived from the folder name containing the profile.

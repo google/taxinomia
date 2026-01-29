@@ -18,19 +18,15 @@ limitations under the License.
 
 package users
 
-import (
-	pb "github.com/google/taxinomia/core/users/proto"
-)
-
 // UserStore defines the interface for accessing user profiles.
 // Implementations handle loading and storing user data.
 type UserStore interface {
 	// GetUser returns a user profile by name, or nil if not found.
-	GetUser(name string) *pb.UserProfile
+	GetUser(name string) *UserProfile
 }
 
 // HasDomain checks if a user has access to a given domain.
-func HasDomain(user *pb.UserProfile, domain string) bool {
+func HasDomain(user *UserProfile, domain string) bool {
 	if user == nil {
 		return false
 	}
@@ -43,7 +39,7 @@ func HasDomain(user *pb.UserProfile, domain string) bool {
 }
 
 // HasAnyDomain checks if a user has access to any of the given domains.
-func HasAnyDomain(user *pb.UserProfile, domains []string) bool {
+func HasAnyDomain(user *UserProfile, domains []string) bool {
 	if user == nil {
 		return false
 	}

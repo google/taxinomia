@@ -21,41 +21,40 @@ package csvimport
 import (
 	"fmt"
 
-	pb "github.com/google/taxinomia/core/csvimport/proto"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
 // ParseTableSource parses a textproto string into a TableSource proto.
-func ParseTableSource(textproto string) (*pb.TableSource, error) {
-	source := &pb.TableSource{}
+func ParseTableSource(textproto string) (*TableSource, error) {
+	source := &TableSource{}
 	if err := prototext.Unmarshal([]byte(textproto), source); err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
 	}
 	return source, nil
 }
 
-// protoTypeToColumnType converts proto ColumnType to csvimport ColumnType.
-func protoTypeToColumnType(t pb.ColumnType) ColumnType {
+// protoTypeToCsvColumnType converts proto ColumnType to CsvColumnType.
+func protoTypeToCsvColumnType(t ColumnType) CsvColumnType {
 	switch t {
-	case pb.ColumnType_COLUMN_TYPE_STRING:
-		return ColumnTypeString
-	case pb.ColumnType_COLUMN_TYPE_UINT32:
-		return ColumnTypeUint32
+	case ColumnType_COLUMN_TYPE_STRING:
+		return CsvColumnTypeString
+	case ColumnType_COLUMN_TYPE_UINT32:
+		return CsvColumnTypeUint32
 	default:
-		return ColumnTypeAuto
+		return CsvColumnTypeAuto
 	}
 }
 
-// TableSourceToColumnSources converts a proto TableSource to a map of ColumnSource
+// TableSourceToColumnSources converts a proto TableSource to a map of CsvColumnSource
 // suitable for use with ImportOptions.
-func TableSourceToColumnSources(source *pb.TableSource) map[string]ColumnSource {
-	result := make(map[string]ColumnSource)
+func TableSourceToColumnSources(source *TableSource) map[string]CsvColumnSource {
+	result := make(map[string]CsvColumnSource)
 	for _, col := range source.GetColumns() {
-		result[col.GetName()] = ColumnSource{
+		result[col.GetName()] = CsvColumnSource{
 			Name:        col.GetName(),
 			DisplayName: col.GetDisplayName(),
 			EntityType:  col.GetEntityType(),
-			Type:        protoTypeToColumnType(col.GetType()),
+			Type:        protoTypeToCsvColumnType(col.GetType()),
 		}
 	}
 	return result
@@ -74,8 +73,8 @@ func OptionsFromTextproto(textproto string) (ImportOptions, error) {
 }
 
 // ParseTableSources parses a textproto string containing multiple table sources.
-func ParseTableSources(textproto string) (*pb.TableSources, error) {
-	sources := &pb.TableSources{}
+func ParseTableSources(textproto string) (*TableSources, error) {
+	sources := &TableSources{}
 	if err := prototext.Unmarshal([]byte(textproto), sources); err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
 	}

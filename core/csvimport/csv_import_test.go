@@ -92,20 +92,20 @@ Bob,25,Los Angeles`
 	}
 }
 
-func TestImportWithColumnSource(t *testing.T) {
+func TestImportWithCsvColumnSource(t *testing.T) {
 	csvData := `id,region,amount
 1,North,100
 2,South,200`
 
 	reader := strings.NewReader(csvData)
 	options := DefaultOptions()
-	options.ColumnSources = map[string]ColumnSource{
+	options.ColumnSources = map[string]CsvColumnSource{
 		"region": {
 			EntityType: "region",
 		},
 		"id": {
 			DisplayName: "Order ID",
-			Type:        ColumnTypeString, // Force string even though it looks numeric
+			Type:        CsvColumnTypeString, // Force string even though it looks numeric
 		},
 	}
 

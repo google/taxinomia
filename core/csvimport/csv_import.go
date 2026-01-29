@@ -30,20 +30,20 @@ import (
 	"github.com/google/taxinomia/core/tables"
 )
 
-// ColumnType specifies the data type for a column
-type ColumnType int
+// CsvColumnType specifies the data type for a column
+type CsvColumnType int
 
 const (
-	// ColumnTypeAuto auto-detects type from data (default)
-	ColumnTypeAuto ColumnType = iota
-	// ColumnTypeString forces string type
-	ColumnTypeString
-	// ColumnTypeUint32 forces uint32 type
-	ColumnTypeUint32
+	// CsvColumnTypeAuto auto-detects type from data (default)
+	CsvColumnTypeAuto CsvColumnType = iota
+	// CsvColumnTypeString forces string type
+	CsvColumnTypeString
+	// CsvColumnTypeUint32 forces uint32 type
+	CsvColumnTypeUint32
 )
 
-// ColumnSource defines source metadata for how a column is imported
-type ColumnSource struct {
+// CsvColumnSource defines source metadata for how a column is imported
+type CsvColumnSource struct {
 	// Name is the column name (defaults to header name if not specified)
 	Name string
 	// DisplayName is the display name for the column
@@ -51,7 +51,7 @@ type ColumnSource struct {
 	// EntityType is the entity type for join support (e.g., "region", "category")
 	EntityType string
 	// Type specifies the data type for this column (default: auto-detect)
-	Type ColumnType
+	Type CsvColumnType
 }
 
 // ImportOptions configures CSV import behavior
@@ -61,7 +61,7 @@ type ImportOptions struct {
 	// Delimiter is the field delimiter (defaults to comma)
 	Delimiter rune
 	// ColumnSources provides configuration for specific columns by header name
-	ColumnSources map[string]ColumnSource
+	ColumnSources map[string]CsvColumnSource
 	// SampleSize is the number of rows to sample for type detection (default: 100)
 	SampleSize int
 }
@@ -71,7 +71,7 @@ func DefaultOptions() ImportOptions {
 	return ImportOptions{
 		HasHeader:     true,
 		Delimiter:     ',',
-		ColumnSources: make(map[string]ColumnSource),
+		ColumnSources: make(map[string]CsvColumnSource),
 		SampleSize:    100,
 	}
 }
@@ -157,7 +157,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 
 		colDef := columns.NewColumnDef(name, displayName, entityType)
 
-		if columnTypes[i] == "uint32" && config.Type != ColumnTypeString {
+		if columnTypes[i] == "uint32" && config.Type != CsvColumnTypeString {
 			col := columns.NewUint32Column(colDef)
 			uint32Cols[i] = col
 			table.AddColumn(col)
@@ -207,7 +207,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 }
 
 // detectColumnTypes samples data to determine if columns are numeric or string
-func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, configs map[string]ColumnSource) []string {
+func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, configs map[string]CsvColumnSource) []string {
 	types := make([]string, len(headers))
 
 	// Sample rows for type detection
@@ -220,10 +220,10 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 		// Check if type is explicitly set
 		if config, ok := configs[header]; ok {
 			switch config.Type {
-			case ColumnTypeString:
+			case CsvColumnTypeString:
 				types[i] = "string"
 				continue
-			case ColumnTypeUint32:
+			case CsvColumnTypeUint32:
 				types[i] = "uint32"
 				continue
 			}
@@ -264,12 +264,12 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 }
 
 // getColumnSource returns the config for a column, or an empty config if not specified
-func getColumnSource(header string, configs map[string]ColumnSource) ColumnSource {
+func getColumnSource(header string, configs map[string]CsvColumnSource) CsvColumnSource {
 	if configs == nil {
-		return ColumnSource{}
+		return CsvColumnSource{}
 	}
 	if config, ok := configs[header]; ok {
 		return config
 	}
-	return ColumnSource{}
+	return CsvColumnSource{}
 }

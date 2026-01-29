@@ -18,10 +18,10 @@ syntax = "proto3";
 
 package taxinomia.demo;
 
-option go_package = "github.com/google/taxinomia/demo/proto";
+option go_package = "github.com/google/taxinomia/demo";
 
-// DefaultColumns maps a table name to its default visible columns.
-message DefaultColumns {
+// DefaultColumnsConfig maps a table name to its default visible columns.
+message DefaultColumnsConfig {
   // Name of the table.
   string table_name = 1;
 
@@ -29,9 +29,9 @@ message DefaultColumns {
   repeated string columns = 2;
 }
 
-// Product defines a product configuration.
+// ProductConfig defines a product configuration (proto representation).
 // Products filter tables by domain - only tables matching the product's domains are shown.
-message Product {
+message ProductConfig {
   // URL path identifier for this product (e.g., "default", "analytics").
   string name = 1;
 
@@ -45,5 +45,5 @@ message Product {
   repeated string domains = 4;
 
   // Default columns for each table (overrides table defaults).
-  repeated DefaultColumns default_columns = 5;
+  repeated DefaultColumnsConfig default_columns = 5;
 }

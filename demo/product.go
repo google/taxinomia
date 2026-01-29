@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 
 	"github.com/google/taxinomia/core/views"
-	pb "github.com/google/taxinomia/demo/proto"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -195,7 +194,7 @@ func LoadProduct(filePath string) (*Product, error) {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	pbProduct := &pb.Product{}
+	pbProduct := &ProductConfig{}
 	if err := prototext.Unmarshal(data, pbProduct); err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
 	}
@@ -203,8 +202,8 @@ func LoadProduct(filePath string) (*Product, error) {
 	return convertProtoProduct(pbProduct), nil
 }
 
-// convertProtoProduct converts a proto Product to the demo Product struct.
-func convertProtoProduct(pbProduct *pb.Product) *Product {
+// convertProtoProduct converts a proto ProductConfig to the demo Product struct.
+func convertProtoProduct(pbProduct *ProductConfig) *Product {
 	product := &Product{
 		Name:           pbProduct.GetName(),
 		Title:          pbProduct.GetTitle(),

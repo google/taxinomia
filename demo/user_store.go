@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	pb "github.com/google/taxinomia/core/users/proto"
+	"github.com/google/taxinomia/core/users"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -32,13 +32,13 @@ const ProfileFileName = "profile.textproto"
 
 // UserStore manages user profiles loaded from files.
 type UserStore struct {
-	users map[string]*pb.UserProfile
+	users map[string]*users.UserProfile
 }
 
 // NewUserStore creates a new empty UserStore.
 func NewUserStore() *UserStore {
 	return &UserStore{
-		users: make(map[string]*pb.UserProfile),
+		users: make(map[string]*users.UserProfile),
 	}
 }
 
@@ -74,13 +74,13 @@ func (s *UserStore) LoadFromDirectory(dir string) error {
 }
 
 // GetUser returns a user profile by name, or nil if not found.
-func (s *UserStore) GetUser(name string) *pb.UserProfile {
+func (s *UserStore) GetUser(name string) *users.UserProfile {
 	return s.users[name]
 }
 
 // GetAllUsers returns all loaded user profiles.
-func (s *UserStore) GetAllUsers() []*pb.UserProfile {
-	result := make([]*pb.UserProfile, 0, len(s.users))
+func (s *UserStore) GetAllUsers() []*users.UserProfile {
+	result := make([]*users.UserProfile, 0, len(s.users))
 	for _, user := range s.users {
 		result = append(result, user)
 	}
@@ -88,13 +88,13 @@ func (s *UserStore) GetAllUsers() []*pb.UserProfile {
 }
 
 // LoadUserProfile loads a single user profile from a textproto file.
-func LoadUserProfile(filePath string) (*pb.UserProfile, error) {
+func LoadUserProfile(filePath string) (*users.UserProfile, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	profile := &pb.UserProfile{}
+	profile := &users.UserProfile{}
 	if err := prototext.Unmarshal(data, profile); err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
 	}

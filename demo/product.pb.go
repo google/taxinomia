@@ -18,9 +18,9 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: demo/proto/product.proto
+// source: demo/product.proto
 
-package proto
+package demo
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -37,8 +37,8 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// DefaultColumns maps a table name to its default visible columns.
-type DefaultColumns struct {
+// DefaultColumnsConfig maps a table name to its default visible columns.
+type DefaultColumnsConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Name of the table.
 	TableName string `protobuf:"bytes,1,opt,name=table_name,json=tableName,proto3" json:"table_name,omitempty"`
@@ -48,21 +48,21 @@ type DefaultColumns struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DefaultColumns) Reset() {
-	*x = DefaultColumns{}
-	mi := &file_demo_proto_product_proto_msgTypes[0]
+func (x *DefaultColumnsConfig) Reset() {
+	*x = DefaultColumnsConfig{}
+	mi := &file_demo_product_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DefaultColumns) String() string {
+func (x *DefaultColumnsConfig) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DefaultColumns) ProtoMessage() {}
+func (*DefaultColumnsConfig) ProtoMessage() {}
 
-func (x *DefaultColumns) ProtoReflect() protoreflect.Message {
-	mi := &file_demo_proto_product_proto_msgTypes[0]
+func (x *DefaultColumnsConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_demo_product_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -73,28 +73,28 @@ func (x *DefaultColumns) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DefaultColumns.ProtoReflect.Descriptor instead.
-func (*DefaultColumns) Descriptor() ([]byte, []int) {
-	return file_demo_proto_product_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use DefaultColumnsConfig.ProtoReflect.Descriptor instead.
+func (*DefaultColumnsConfig) Descriptor() ([]byte, []int) {
+	return file_demo_product_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *DefaultColumns) GetTableName() string {
+func (x *DefaultColumnsConfig) GetTableName() string {
 	if x != nil {
 		return x.TableName
 	}
 	return ""
 }
 
-func (x *DefaultColumns) GetColumns() []string {
+func (x *DefaultColumnsConfig) GetColumns() []string {
 	if x != nil {
 		return x.Columns
 	}
 	return nil
 }
 
-// Product defines a product configuration.
+// ProductConfig defines a product configuration (proto representation).
 // Products filter tables by domain - only tables matching the product's domains are shown.
-type Product struct {
+type ProductConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// URL path identifier for this product (e.g., "default", "analytics").
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -105,26 +105,26 @@ type Product struct {
 	// Domains this product includes. Tables matching any of these domains are shown.
 	Domains []string `protobuf:"bytes,4,rep,name=domains,proto3" json:"domains,omitempty"`
 	// Default columns for each table (overrides table defaults).
-	DefaultColumns []*DefaultColumns `protobuf:"bytes,5,rep,name=default_columns,json=defaultColumns,proto3" json:"default_columns,omitempty"`
+	DefaultColumns []*DefaultColumnsConfig `protobuf:"bytes,5,rep,name=default_columns,json=defaultColumns,proto3" json:"default_columns,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *Product) Reset() {
-	*x = Product{}
-	mi := &file_demo_proto_product_proto_msgTypes[1]
+func (x *ProductConfig) Reset() {
+	*x = ProductConfig{}
+	mi := &file_demo_product_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Product) String() string {
+func (x *ProductConfig) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Product) ProtoMessage() {}
+func (*ProductConfig) ProtoMessage() {}
 
-func (x *Product) ProtoReflect() protoreflect.Message {
-	mi := &file_demo_proto_product_proto_msgTypes[1]
+func (x *ProductConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_demo_product_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -135,81 +135,81 @@ func (x *Product) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Product.ProtoReflect.Descriptor instead.
-func (*Product) Descriptor() ([]byte, []int) {
-	return file_demo_proto_product_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use ProductConfig.ProtoReflect.Descriptor instead.
+func (*ProductConfig) Descriptor() ([]byte, []int) {
+	return file_demo_product_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *Product) GetName() string {
+func (x *ProductConfig) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *Product) GetTitle() string {
+func (x *ProductConfig) GetTitle() string {
 	if x != nil {
 		return x.Title
 	}
 	return ""
 }
 
-func (x *Product) GetSubtitle() string {
+func (x *ProductConfig) GetSubtitle() string {
 	if x != nil {
 		return x.Subtitle
 	}
 	return ""
 }
 
-func (x *Product) GetDomains() []string {
+func (x *ProductConfig) GetDomains() []string {
 	if x != nil {
 		return x.Domains
 	}
 	return nil
 }
 
-func (x *Product) GetDefaultColumns() []*DefaultColumns {
+func (x *ProductConfig) GetDefaultColumns() []*DefaultColumnsConfig {
 	if x != nil {
 		return x.DefaultColumns
 	}
 	return nil
 }
 
-var File_demo_proto_product_proto protoreflect.FileDescriptor
+var File_demo_product_proto protoreflect.FileDescriptor
 
-const file_demo_proto_product_proto_rawDesc = "" +
+const file_demo_product_proto_rawDesc = "" +
 	"\n" +
-	"\x18demo/proto/product.proto\x12\x0etaxinomia.demo\"I\n" +
-	"\x0eDefaultColumns\x12\x1d\n" +
+	"\x12demo/product.proto\x12\x0etaxinomia.demo\"O\n" +
+	"\x14DefaultColumnsConfig\x12\x1d\n" +
 	"\n" +
 	"table_name\x18\x01 \x01(\tR\ttableName\x12\x18\n" +
-	"\acolumns\x18\x02 \x03(\tR\acolumns\"\xb2\x01\n" +
-	"\aProduct\x12\x12\n" +
+	"\acolumns\x18\x02 \x03(\tR\acolumns\"\xbe\x01\n" +
+	"\rProductConfig\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1a\n" +
 	"\bsubtitle\x18\x03 \x01(\tR\bsubtitle\x12\x18\n" +
-	"\adomains\x18\x04 \x03(\tR\adomains\x12G\n" +
-	"\x0fdefault_columns\x18\x05 \x03(\v2\x1e.taxinomia.demo.DefaultColumnsR\x0edefaultColumnsB(Z&github.com/google/taxinomia/demo/protob\x06proto3"
+	"\adomains\x18\x04 \x03(\tR\adomains\x12M\n" +
+	"\x0fdefault_columns\x18\x05 \x03(\v2$.taxinomia.demo.DefaultColumnsConfigR\x0edefaultColumnsB\"Z github.com/google/taxinomia/demob\x06proto3"
 
 var (
-	file_demo_proto_product_proto_rawDescOnce sync.Once
-	file_demo_proto_product_proto_rawDescData []byte
+	file_demo_product_proto_rawDescOnce sync.Once
+	file_demo_product_proto_rawDescData []byte
 )
 
-func file_demo_proto_product_proto_rawDescGZIP() []byte {
-	file_demo_proto_product_proto_rawDescOnce.Do(func() {
-		file_demo_proto_product_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_demo_proto_product_proto_rawDesc), len(file_demo_proto_product_proto_rawDesc)))
+func file_demo_product_proto_rawDescGZIP() []byte {
+	file_demo_product_proto_rawDescOnce.Do(func() {
+		file_demo_product_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_demo_product_proto_rawDesc), len(file_demo_product_proto_rawDesc)))
 	})
-	return file_demo_proto_product_proto_rawDescData
+	return file_demo_product_proto_rawDescData
 }
 
-var file_demo_proto_product_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_demo_proto_product_proto_goTypes = []any{
-	(*DefaultColumns)(nil), // 0: taxinomia.demo.DefaultColumns
-	(*Product)(nil),        // 1: taxinomia.demo.Product
+var file_demo_product_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_demo_product_proto_goTypes = []any{
+	(*DefaultColumnsConfig)(nil), // 0: taxinomia.demo.DefaultColumnsConfig
+	(*ProductConfig)(nil),        // 1: taxinomia.demo.ProductConfig
 }
-var file_demo_proto_product_proto_depIdxs = []int32{
-	0, // 0: taxinomia.demo.Product.default_columns:type_name -> taxinomia.demo.DefaultColumns
+var file_demo_product_proto_depIdxs = []int32{
+	0, // 0: taxinomia.demo.ProductConfig.default_columns:type_name -> taxinomia.demo.DefaultColumnsConfig
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -217,26 +217,26 @@ var file_demo_proto_product_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_demo_proto_product_proto_init() }
-func file_demo_proto_product_proto_init() {
-	if File_demo_proto_product_proto != nil {
+func init() { file_demo_product_proto_init() }
+func file_demo_product_proto_init() {
+	if File_demo_product_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_demo_proto_product_proto_rawDesc), len(file_demo_proto_product_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_demo_product_proto_rawDesc), len(file_demo_product_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_demo_proto_product_proto_goTypes,
-		DependencyIndexes: file_demo_proto_product_proto_depIdxs,
-		MessageInfos:      file_demo_proto_product_proto_msgTypes,
+		GoTypes:           file_demo_product_proto_goTypes,
+		DependencyIndexes: file_demo_product_proto_depIdxs,
+		MessageInfos:      file_demo_product_proto_msgTypes,
 	}.Build()
-	File_demo_proto_product_proto = out.File
-	file_demo_proto_product_proto_goTypes = nil
-	file_demo_proto_product_proto_depIdxs = nil
+	File_demo_product_proto = out.File
+	file_demo_product_proto_goTypes = nil
+	file_demo_product_proto_depIdxs = nil
 }

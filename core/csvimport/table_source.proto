@@ -18,7 +18,7 @@ syntax = "proto3";
 
 package taxinomia.csvimport;
 
-option go_package = "github.com/google/taxinomia/core/csvimport/proto";
+option go_package = "github.com/google/taxinomia/core/csvimport";
 
 // ColumnType specifies the data type for a column.
 enum ColumnType {

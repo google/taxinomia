@@ -86,18 +86,18 @@ columns {
 	}
 
 	idSource := options.ColumnSources["id"]
-	if idSource.Type != ColumnTypeString {
-		t.Errorf("expected ColumnTypeString, got %v", idSource.Type)
+	if idSource.Type != CsvColumnTypeString {
+		t.Errorf("expected CsvColumnTypeString, got %v", idSource.Type)
 	}
 
 	countSource := options.ColumnSources["count"]
-	if countSource.Type != ColumnTypeUint32 {
-		t.Errorf("expected ColumnTypeUint32, got %v", countSource.Type)
+	if countSource.Type != CsvColumnTypeUint32 {
+		t.Errorf("expected CsvColumnTypeUint32, got %v", countSource.Type)
 	}
 
 	nameSource := options.ColumnSources["name"]
-	if nameSource.Type != ColumnTypeAuto {
-		t.Errorf("expected ColumnTypeAuto, got %v", nameSource.Type)
+	if nameSource.Type != CsvColumnTypeAuto {
+		t.Errorf("expected CsvColumnTypeAuto, got %v", nameSource.Type)
 	}
 }
 

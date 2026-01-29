@@ -23,7 +23,7 @@ func TestProtoTableLoaderIntegration(t *testing.T) {
 	loader := NewProtoTableLoader()
 
 	// Load the descriptor set
-	descriptorPath := filepath.Join(demoDir, "proto", "customer_orders.pb")
+	descriptorPath := filepath.Join(demoDir, "customer_orders.pb")
 	if err := loader.LoadDescriptorSet(descriptorPath); err != nil {
 		t.Fatalf("failed to load descriptor set: %v", err)
 	}
