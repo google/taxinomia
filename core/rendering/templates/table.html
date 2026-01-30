@@ -44,6 +44,61 @@
         </div>
     {{end}}
     <style>
+        /* Inline error styles for column cells */
+        .formula-cell.has-error,
+        .filter-cell.has-error {
+            background-color: #ffebee;
+        }
+
+        .cell-error {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 2px;
+        }
+
+        .cell-error-inline {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 4px;
+            margin-bottom: 2px;
+        }
+
+        .cell-error-icon {
+            color: #d32f2f;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .cell-error-message {
+            font-size: 10px;
+            color: #d32f2f;
+            line-height: 1.2;
+            word-break: break-word;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cell-error-expr {
+            font-family: monospace;
+            font-size: 10px;
+            color: #666;
+            background-color: #fff;
+            padding: 2px 4px;
+            border-radius: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .formula-input.has-error,
+        .filter-input.has-error {
+            border-color: #d32f2f;
+            background-color: #fff;
+        }
+
         /* Reset and base styles */
         * {
             margin: 0;
@@ -1328,14 +1383,20 @@
                 {{range $idx, $colName := $.Columns}}
                 {{$isComputed := index $.IsComputedColumn $colName}}
                 {{$formula := index $.ColumnFormulas $colName}}
-                <td class="formula-cell{{if $formula}} has-formula{{end}}">
+                {{$colError := index $.ComputedColumnErrors $colName}}
+                <td class="formula-cell{{if $formula}} has-formula{{end}}{{if $colError.Message}} has-error{{end}}">
                     {{if $isComputed}}
+                    {{if $colError.Message}}
+                    <div class="cell-error-inline" title="{{$colError.Message}}">
+                        <span class="cell-error-message">{{$colError.Message}}</span>
+                    </div>
+                    {{end}}
                     <input type="text"
-                           class="formula-input"
+                           class="formula-input{{if $colError.Message}} has-error{{end}}"
                            data-column="{{$colName}}"
                            value="{{$formula}}"
                            placeholder="op(col1,col2)"
-                           title="Edit formula and press Enter to update">
+                           title="{{if $colError.Message}}Error: {{$colError.Message}} - {{end}}Edit formula and press Enter to update">
                     {{else}}
                     <span class="formula-placeholder">-</span>
                     {{end}}
@@ -1353,14 +1414,21 @@
             </tr>
             <tr class="filter-row">
                 {{range $idx, $colName := $.Columns}}
-                <td class="filter-cell">
+                {{$filterError := index $.FilterErrors $colName}}
+                <td class="filter-cell{{if $filterError.Message}} has-error{{end}}">
+                    {{if $filterError.Message}}
+                    <div class="cell-error-inline" title="{{$filterError.Message}}">
+                        <span class="cell-error-icon">⚠️</span>
+                        <span class="cell-error-message">{{$filterError.Message}}</span>
+                    </div>
+                    {{end}}
                     <div class="filter-container">
                         <input type="text"
-                               class="filter-input"
+                               class="filter-input{{if $filterError.Message}} has-error{{end}}"
                                data-column="{{$colName}}"
                                placeholder="Filter..."
                                value="{{index $.ColumnFilters $colName}}"
-                               title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
+                               title="{{if $filterError.Message}}Error: {{$filterError.Message}} - {{end}}Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
 Use &quot;quotes&quot; for exact match">
                         <button type="button" class="filter-clear" data-column="{{$colName}}" title="Clear filter">×</button>
                         {{range $.AllColumns}}{{if eq .Name $colName}}{{if .IsGrouped}}<button type="button" class="multiselect-toggle" data-column="{{$colName}}" title="Multi-select filter mode">☑</button>{{end}}{{end}}{{end}}

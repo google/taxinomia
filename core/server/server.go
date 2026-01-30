@@ -55,8 +55,9 @@ type Server struct {
 	userStore      users.UserStore
 
 	// Caches for computed columns
-	exprCache        map[string]*expr.Expression       // expression string -> compiled expression
-	computedColState map[string]map[string]string      // tableName -> columnName -> expression
+	exprCache        map[string]*expr.Expression          // expression string -> compiled expression
+	computedColState map[string]map[string]string         // cacheKey -> columnName -> expression
+	computedColErrors map[string]map[string]string        // cacheKey -> columnName -> error message (empty if no error)
 }
 
 // NewServer creates a new server with the given data model
@@ -67,11 +68,12 @@ func NewServer(dataModel *models.DataModel) (*Server, error) {
 	}
 
 	return &Server{
-		dataModel:        dataModel,
-		renderer:         renderer,
-		tableViewCache:   make(map[string]*tables.TableView),
-		exprCache:        make(map[string]*expr.Expression),
-		computedColState: make(map[string]map[string]string),
+		dataModel:         dataModel,
+		renderer:          renderer,
+		tableViewCache:    make(map[string]*tables.TableView),
+		exprCache:         make(map[string]*expr.Expression),
+		computedColState:  make(map[string]map[string]string),
+		computedColErrors: make(map[string]map[string]string),
 	}, nil
 }
 
@@ -94,6 +96,36 @@ type TableHandlerResult struct {
 	Error      error
 	StatusCode int
 	Message    string
+}
+
+// ValidationResult holds validation errors for filters and computed columns
+type ValidationResult struct {
+	ComputedColumnErrors map[string]string // columnName -> error message
+	FilterErrors         map[string]string // columnName -> error message
+}
+
+// NewValidationResult creates a new ValidationResult
+func NewValidationResult() *ValidationResult {
+	return &ValidationResult{
+		ComputedColumnErrors: make(map[string]string),
+		FilterErrors:         make(map[string]string),
+	}
+}
+
+// HasErrors returns true if there are any validation errors
+func (v *ValidationResult) HasErrors() bool {
+	return len(v.ComputedColumnErrors) > 0 || len(v.FilterErrors) > 0
+}
+
+// validateFilters checks if filter columns exist in the table view
+func (s *Server) validateFilters(tableView *tables.TableView, filters map[string]string) map[string]string {
+	errors := make(map[string]string)
+	for colName := range filters {
+		if tableView.GetColumn(colName) == nil {
+			errors[colName] = fmt.Sprintf("column '%s' does not exist", colName)
+		}
+	}
+	return errors
 }
 
 // HandleTableRequest processes a table request and writes the response
@@ -153,10 +185,16 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	// Update joined columns to match the current request
 	views.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
 
-	// Create computed columns from the query (with caching)
-	s.updateComputedColumns(tableView, q, cacheKey)
+	// Create validation result to collect errors
+	validation := NewValidationResult()
 
-	// Apply filters to the table view
+	// Create computed columns from the query (with caching)
+	validation.ComputedColumnErrors = s.updateComputedColumns(tableView, q, cacheKey)
+
+	// Validate filter columns exist before applying
+	validation.FilterErrors = s.validateFilters(tableView, q.Filters)
+
+	// Apply filters to the table view (even with errors, apply valid filters)
 	tableView.ApplyFilters(q.Filters)
 
 	// Apply grouping if grouped columns are specified
@@ -176,7 +214,7 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 
 	// Build the view model from the table view
 	title := fmt.Sprintf("%s Table - Taxinomia Demo", strings.Title(q.Table))
-	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q)
+	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors)
 
 	// Set content type and render
 	setHeader("Content-Type", "text/html; charset=utf-8")
@@ -232,12 +270,22 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product 
 // updateComputedColumns manages computed columns with caching.
 // Only recompiles expressions and recreates columns when something has changed.
 // The cacheKey is user+table specific to ensure users have isolated computed columns.
-func (s *Server) updateComputedColumns(tableView *tables.TableView, q *query.Query, cacheKey string) {
+// Returns a map of column names to error messages for any columns that failed to compile.
+func (s *Server) updateComputedColumns(tableView *tables.TableView, q *query.Query, cacheKey string) map[string]string {
+	errors := make(map[string]string)
+
 	// Get current state for this user+table combination
 	currentState, exists := s.computedColState[cacheKey]
 	if !exists {
 		currentState = make(map[string]string)
 		s.computedColState[cacheKey] = currentState
+	}
+
+	// Get cached errors for this user+table combination
+	cachedErrors, errCacheExists := s.computedColErrors[cacheKey]
+	if !errCacheExists {
+		cachedErrors = make(map[string]string)
+		s.computedColErrors[cacheKey] = cachedErrors
 	}
 
 	// Build map of requested columns
@@ -251,6 +299,7 @@ func (s *Server) updateComputedColumns(tableView *tables.TableView, q *query.Que
 		if _, ok := requested[name]; !ok {
 			tableView.RemoveComputedColumn(name)
 			delete(currentState, name)
+			delete(cachedErrors, name)
 		}
 	}
 
@@ -258,22 +307,35 @@ func (s *Server) updateComputedColumns(tableView *tables.TableView, q *query.Que
 	for _, comp := range q.ComputedColumns {
 		existingExpr, exists := currentState[comp.Name]
 
-		// Skip if column exists with same expression
+		// Skip if column exists with same expression - but still report cached errors
 		if exists && existingExpr == comp.Expression {
+			if cachedErr, hasErr := cachedErrors[comp.Name]; hasErr && cachedErr != "" {
+				errors[comp.Name] = cachedErr
+			}
 			continue
 		}
 
-		// Create the column
-		s.createComputedColumn(tableView, comp.Name, comp.Expression)
+		// Create the column and capture any errors
+		if err := s.createComputedColumn(tableView, comp.Name, comp.Expression); err != nil {
+			errMsg := err.Error()
+			errors[comp.Name] = errMsg
+			cachedErrors[comp.Name] = errMsg
+		} else {
+			// Clear any previous error for this column
+			delete(cachedErrors, comp.Name)
+		}
 		currentState[comp.Name] = comp.Expression
 	}
+
+	return errors
 }
 
 // createComputedColumn creates a single computed column, using cached compiled expressions.
-func (s *Server) createComputedColumn(tableView *tables.TableView, name, expression string) {
+// Returns an error if the expression fails to compile or evaluate.
+func (s *Server) createComputedColumn(tableView *tables.TableView, name, expression string) error {
 	if expression == "" {
 		tableView.AddComputedColumn(name, nil)
-		return
+		return nil
 	}
 
 	// Check expression cache first
@@ -282,9 +344,8 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 		var err error
 		compiled, err = expr.Compile(expression)
 		if err != nil {
-			fmt.Printf("Warning: Failed to compile expression for column %s: %v\n", name, err)
 			tableView.AddComputedColumn(name, nil)
-			return
+			return fmt.Errorf("syntax error: %v", err)
 		}
 		s.exprCache[expression] = compiled
 	}
@@ -299,7 +360,7 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 	}
 	if length == 0 {
 		tableView.AddComputedColumn(name, nil)
-		return
+		return nil
 	}
 
 	// Create a column getter function that retrieves values from the table view
@@ -372,16 +433,9 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 	// Evaluate once on row 0 to detect the return type
 	sampleVal, err := bound.Eval(0)
 	if err != nil {
-		// Can't determine type, fall back to string
-		computedCol := columns.NewComputedStringColumn(colDef, length, func(i uint32) (string, error) {
-			val, err := bound.Eval(i)
-			if err != nil {
-				return "", err
-			}
-			return val.AsString(), nil
-		})
-		tableView.AddComputedColumn(name, computedCol)
-		return
+		// Can't determine type - report the error
+		tableView.AddComputedColumn(name, nil)
+		return fmt.Errorf("evaluation error: %v", err)
 	}
 
 	// Create the appropriate column type based on the expression result
@@ -446,4 +500,5 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 		})
 		tableView.AddComputedColumn(name, computedCol)
 	}
+	return nil
 }

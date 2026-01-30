@@ -54,6 +54,16 @@ type TableViewModel struct {
 	DisplayedRows int  // Number of rows actually displayed
 	HasMoreRows   bool // True if there are more rows than displayed
 	CurrentLimit  int  // Current row limit
+
+	// Validation errors
+	ComputedColumnErrors map[string]ValidationError // Errors for computed columns (columnName -> error)
+	FilterErrors         map[string]ValidationError // Errors for filters (columnName -> error)
+}
+
+// ValidationError contains details about a validation error for display to the user
+type ValidationError struct {
+	Message    string // User-friendly error message
+	Expression string // The problematic expression or filter value
 }
 
 // ComputedColumnInfo contains information about a computed column for UI display
@@ -316,21 +326,46 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 }
 
 // BuildViewModel creates a ViewModel from a TableView using the specified View
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query) TableViewModel {
+// computedColErrors and filterErrors are maps of column/filter names to error messages
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
 	vm := TableViewModel{
-		Title:            title,
-		Headers:          []string{},
-		Columns:          []string{},
-		ColumnWidths:     make(map[string]int),
-		Rows:             []map[string]string{},
-		AllColumns:       []ColumnInfo{},
-		CurrentURL:       currentURL,
-		ColumnFilters:    make(map[string]string),
-		ColumnFormulas:   make(map[string]string),
-		IsComputedColumn: make(map[string]bool),
+		Title:                title,
+		Headers:              []string{},
+		Columns:              []string{},
+		ColumnWidths:         make(map[string]int),
+		Rows:                 []map[string]string{},
+		AllColumns:           []ColumnInfo{},
+		CurrentURL:           currentURL,
+		ColumnFilters:        make(map[string]string),
+		ColumnFormulas:       make(map[string]string),
+		IsComputedColumn:     make(map[string]bool),
+		ComputedColumnErrors: make(map[string]ValidationError),
+		FilterErrors:         make(map[string]ValidationError),
+	}
+
+	// Convert error strings to ValidationError structs
+	for colName, errMsg := range computedColErrors {
+		// Find the expression for this column
+		expr := ""
+		for _, comp := range q.ComputedColumns {
+			if comp.Name == colName {
+				expr = comp.Expression
+				break
+			}
+		}
+		vm.ComputedColumnErrors[colName] = ValidationError{
+			Message:    errMsg,
+			Expression: expr,
+		}
+	}
+	for colName, errMsg := range filterErrors {
+		vm.FilterErrors[colName] = ValidationError{
+			Message:    errMsg,
+			Expression: q.Filters[colName],
+		}
 	}
 
 	// Copy filter parameters from Query
