@@ -424,8 +424,18 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 			})
 			tableView.AddComputedColumn(name, computedCol)
 		}
+	} else if sampleVal.IsBool() {
+		// Boolean value - create a bool column
+		computedCol := columns.NewComputedBoolColumn(colDef, length, func(i uint32) (bool, error) {
+			val, err := bound.Eval(i)
+			if err != nil {
+				return false, err
+			}
+			return val.AsBool(), nil
+		})
+		tableView.AddComputedColumn(name, computedCol)
 	} else {
-		// String or bool - use string column
+		// String - use string column
 		computedCol := columns.NewComputedStringColumn(colDef, length, func(i uint32) (string, error) {
 			val, err := bound.Eval(i)
 			if err != nil {

@@ -28,6 +28,8 @@ enum ColumnType {
   COLUMN_TYPE_STRING = 1;
   // Unsigned 32-bit integer column.
   COLUMN_TYPE_UINT32 = 2;
+  // Boolean column (true/false).
+  COLUMN_TYPE_BOOL = 3;
 }
 
 // ColumnSource defines source metadata for a single CSV column.

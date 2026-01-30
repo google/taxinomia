@@ -40,6 +40,8 @@ func protoTypeToCsvColumnType(t ColumnType) CsvColumnType {
 		return CsvColumnTypeString
 	case ColumnType_COLUMN_TYPE_UINT32:
 		return CsvColumnTypeUint32
+	case ColumnType_COLUMN_TYPE_BOOL:
+		return CsvColumnTypeBool
 	default:
 		return CsvColumnTypeAuto
 	}

@@ -40,6 +40,8 @@ const (
 	CsvColumnTypeString
 	// CsvColumnTypeUint32 forces uint32 type
 	CsvColumnTypeUint32
+	// CsvColumnTypeBool forces bool type
+	CsvColumnTypeBool
 )
 
 // CsvColumnSource defines source metadata for how a column is imported
@@ -138,6 +140,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	// Create columns based on detected types
 	stringCols := make(map[int]*columns.StringColumn)
 	uint32Cols := make(map[int]*columns.Uint32Column)
+	boolCols := make(map[int]*columns.BoolColumn)
 
 	for i, header := range headers {
 		config := getColumnSource(header, options.ColumnSources)
@@ -157,7 +160,11 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 
 		colDef := columns.NewColumnDef(name, displayName, entityType)
 
-		if columnTypes[i] == "uint32" && config.Type != CsvColumnTypeString {
+		if columnTypes[i] == "bool" || config.Type == CsvColumnTypeBool {
+			col := columns.NewBoolColumn(colDef)
+			boolCols[i] = col
+			table.AddColumn(col)
+		} else if columnTypes[i] == "uint32" && config.Type != CsvColumnTypeString {
 			col := columns.NewUint32Column(colDef)
 			uint32Cols[i] = col
 			table.AddColumn(col)
@@ -191,6 +198,15 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 						col.Append(uint32(n))
 					}
 				}
+			} else if col, ok := boolCols[i]; ok {
+				// Parse as bool
+				b, err := columns.ParseBool(value)
+				if err != nil {
+					// Fallback: treat as false if parsing fails
+					col.Append(false)
+				} else {
+					col.Append(b)
+				}
 			}
 		}
 	}
@@ -200,6 +216,9 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 		col.FinalizeColumn()
 	}
 	for _, col := range uint32Cols {
+		col.FinalizeColumn()
+	}
+	for _, col := range boolCols {
 		col.FinalizeColumn()
 	}
 
@@ -225,6 +244,9 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 				continue
 			case CsvColumnTypeUint32:
 				types[i] = "uint32"
+				continue
+			case CsvColumnTypeBool:
+				types[i] = "bool"
 				continue
 			}
 		}

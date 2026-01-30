@@ -356,3 +356,80 @@ func (c *JoinedDurationColumn) GroupIndices(indices []uint32, columnView *Column
 	}
 	return groupedIndices, unmapped
 }
+
+// JoinedBoolColumn represents a column that gets its data by joining to a bool column in another table
+type JoinedBoolColumn struct {
+	columnDef    *ColumnDef
+	sourceColumn *BoolColumn
+	joiner       IJoiner
+}
+
+// NewJoinedBoolColumn creates a new joined column for bool data
+func NewJoinedBoolColumn(columnDef *ColumnDef, joiner IJoiner, sourceColumn *BoolColumn) *JoinedBoolColumn {
+	return &JoinedBoolColumn{
+		columnDef:    columnDef,
+		joiner:       joiner,
+		sourceColumn: sourceColumn,
+	}
+}
+
+func (c *JoinedBoolColumn) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *JoinedBoolColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *JoinedBoolColumn) Length() int {
+	return c.sourceColumn.Length()
+}
+
+func (c *JoinedBoolColumn) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", ErrUnmatched
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedBoolColumn) GetValue(i uint32) (bool, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return false, ErrUnmatched
+	}
+	return c.sourceColumn.GetValue(targetIndex)
+}
+
+func (c *JoinedBoolColumn) IsKey() bool {
+	return false
+}
+
+func (c *JoinedBoolColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		// Use fixed group keys: 0 for false, 1 for true
+		var groupKey uint32
+		if value {
+			groupKey = 1
+		} else {
+			groupKey = 0
+		}
+		groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+	}
+	return groupedIndices, unmapped
+}

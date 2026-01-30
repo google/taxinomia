@@ -656,3 +656,86 @@ func formatDurationVerboseComputed(d time.Duration) string {
 	}
 	return result
 }
+
+// ComputeBoolFn is a function that computes a bool value for a given row index.
+// The function should capture any source columns it needs in a closure.
+type ComputeBoolFn func(i uint32) (bool, error)
+
+// ComputedBoolColumn represents a column whose bool values are computed from other columns.
+type ComputedBoolColumn struct {
+	columnDef *ColumnDef
+	computeFn ComputeBoolFn
+	length    int
+}
+
+// NewComputedBoolColumn creates a new computed bool column.
+// The length parameter specifies the number of rows (should match source columns).
+// The computeFn should be a closure that captures source columns and computes the value for each row.
+func NewComputedBoolColumn(columnDef *ColumnDef, length int, computeFn ComputeBoolFn) *ComputedBoolColumn {
+	return &ComputedBoolColumn{
+		columnDef: columnDef,
+		computeFn: computeFn,
+		length:    length,
+	}
+}
+
+func (c *ComputedBoolColumn) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *ComputedBoolColumn) Length() int {
+	return c.length
+}
+
+func (c *ComputedBoolColumn) GetValue(i uint32) (bool, error) {
+	if i >= uint32(c.length) {
+		return false, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
+	}
+	return c.computeFn(i)
+}
+
+func (c *ComputedBoolColumn) GetString(i uint32) (string, error) {
+	value, err := c.GetValue(i)
+	if err != nil {
+		return "", err
+	}
+	if value {
+		return "True", nil
+	}
+	return "False", nil
+}
+
+func (c *ComputedBoolColumn) GetIndex(value bool) (uint32, error) {
+	return 0, fmt.Errorf("column %q is a computed column and doesn't support reverse lookups", c.columnDef.Name())
+}
+
+func (c *ComputedBoolColumn) IsKey() bool {
+	return false
+}
+
+func (c *ComputedBoolColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *ComputedBoolColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		value, err := c.GetValue(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		// Use fixed group keys: 0 for false, 1 for true
+		var groupKey uint32
+		if value {
+			groupKey = 1
+		} else {
+			groupKey = 0
+		}
+		groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+	}
+	return groupedIndices, unmapped
+}
