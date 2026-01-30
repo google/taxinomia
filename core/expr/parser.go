@@ -9,6 +9,7 @@ package expr
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // Parser parses tokens into an AST
@@ -292,12 +293,21 @@ func (p *Parser) parseArgs() ([]Node, error) {
 func (p *Parser) parsePrimary() (Node, error) {
 	switch p.cur.Type {
 	case TOKEN_NUMBER:
-		val, err := strconv.ParseFloat(p.cur.Value, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid number: %s", p.cur.Value)
-		}
+		numStr := p.cur.Value
 		if err := p.advance(); err != nil {
 			return nil, err
+		}
+		// Check if it's an integer (no decimal point or exponent)
+		if !strings.Contains(numStr, ".") && !strings.ContainsAny(numStr, "eE") {
+			intVal, err := strconv.ParseInt(numStr, 10, 64)
+			if err == nil {
+				return &IntLit{Value: intVal}, nil
+			}
+			// Fall through to float parsing if int parsing fails (e.g., overflow)
+		}
+		val, err := strconv.ParseFloat(numStr, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid number: %s", numStr)
 		}
 		return &NumberLit{Value: val}, nil
 

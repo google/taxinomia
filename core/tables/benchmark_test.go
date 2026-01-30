@@ -282,7 +282,7 @@ func BenchmarkComputedColumn10M(b *testing.B) {
 			}
 			strVal, _ := col.GetString(rowIndex)
 			if numVal, err := strconv.ParseFloat(strVal, 64); err == nil {
-				return expr.NewNumber(numVal), nil
+				return expr.NewFloat(numVal), nil
 			}
 			return expr.NewString(strVal), nil
 		}
@@ -297,7 +297,7 @@ func BenchmarkComputedColumn10M(b *testing.B) {
 			if err != nil {
 				return 0, err
 			}
-			return val.AsNumber(), nil
+			return val.AsFloat(), nil
 		})
 
 		tableView.AddComputedColumn("computed", computedCol)
@@ -342,7 +342,7 @@ func BenchmarkFullPipeline10M(b *testing.B) {
 			}
 			strVal, _ := col.GetString(rowIndex)
 			if numVal, err := strconv.ParseFloat(strVal, 64); err == nil {
-				return expr.NewNumber(numVal), nil
+				return expr.NewFloat(numVal), nil
 			}
 			return expr.NewString(strVal), nil
 		}
@@ -351,7 +351,7 @@ func BenchmarkFullPipeline10M(b *testing.B) {
 		length := table.Length()
 		computedCol := columns.NewComputedFloat64Column(colDef, length, func(idx uint32) (float64, error) {
 			val, _ := bound.Eval(idx)
-			return val.AsNumber(), nil
+			return val.AsFloat(), nil
 		})
 		tableView.AddComputedColumn("computed", computedCol)
 
@@ -464,7 +464,7 @@ func BenchmarkFullPipelineWorstCase10M(b *testing.B) {
 			}
 			strVal, _ := col.GetString(rowIndex)
 			if numVal, err := strconv.ParseFloat(strVal, 64); err == nil {
-				return expr.NewNumber(numVal), nil
+				return expr.NewFloat(numVal), nil
 			}
 			return expr.NewString(strVal), nil
 		}
@@ -473,7 +473,7 @@ func BenchmarkFullPipelineWorstCase10M(b *testing.B) {
 		length := table.Length()
 		computedCol := columns.NewComputedFloat64Column(colDef, length, func(idx uint32) (float64, error) {
 			val, _ := bound.Eval(idx)
-			return val.AsNumber(), nil
+			return val.AsFloat(), nil
 		})
 		tableView.AddComputedColumn("computed", computedCol)
 
@@ -526,7 +526,7 @@ func TestFullPipelineTiming(t *testing.T) {
 		}
 		strVal, _ := col.GetString(rowIndex)
 		if numVal, err := strconv.ParseFloat(strVal, 64); err == nil {
-			return expr.NewNumber(numVal), nil
+			return expr.NewFloat(numVal), nil
 		}
 		return expr.NewString(strVal), nil
 	}
@@ -534,7 +534,7 @@ func TestFullPipelineTiming(t *testing.T) {
 	colDef := columns.NewColumnDef("computed", "Computed", "")
 	computedCol := columns.NewComputedFloat64Column(colDef, table.Length(), func(idx uint32) (float64, error) {
 		val, _ := bound.Eval(idx)
-		return val.AsNumber(), nil
+		return val.AsFloat(), nil
 	})
 	tableView.AddComputedColumn("computed", computedCol)
 	t.Log("Computed column added")

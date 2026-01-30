@@ -16,26 +16,33 @@ import (
 
 // Value represents a runtime value
 type Value struct {
-	typ    valueType
-	numVal float64
-	strVal string
+	typ     valueType
+	intVal  int64
+	numVal  float64
+	strVal  string
 	boolVal bool
 }
 
 type valueType int
 
 const (
-	typeNumber valueType = iota
-	typeString
-	typeBool
-	typeNil
-	typeDuration // Duration in nanoseconds
-	typeDatetime // Datetime as Unix nanoseconds
+	typeInt      valueType = iota // Integer value
+	typeFloat                     // Floating-point value
+	typeString                    // String value
+	typeBool                      // Boolean value
+	typeNil                       // Nil/null value
+	typeDuration                  // Duration in nanoseconds
+	typeDatetime                  // Datetime as Unix nanoseconds
 )
 
-// NewNumber creates a number value
-func NewNumber(n float64) Value {
-	return Value{typ: typeNumber, numVal: n}
+// NewInt creates an integer value
+func NewInt(n int64) Value {
+	return Value{typ: typeInt, intVal: n}
+}
+
+// NewFloat creates a floating-point value
+func NewFloat(n float64) Value {
+	return Value{typ: typeFloat, numVal: n}
 }
 
 // NewString creates a string value
@@ -55,16 +62,22 @@ func NilValue() Value {
 
 // NewDuration creates a duration value (nanoseconds)
 func NewDuration(nanos int64) Value {
-	return Value{typ: typeDuration, numVal: float64(nanos)}
+	return Value{typ: typeDuration, intVal: nanos}
 }
 
 // NewDatetime creates a datetime value (Unix nanoseconds)
 func NewDatetime(unixNanos int64) Value {
-	return Value{typ: typeDatetime, numVal: float64(unixNanos)}
+	return Value{typ: typeDatetime, intVal: unixNanos}
 }
 
-// IsNumber checks if value is a number
-func (v Value) IsNumber() bool { return v.typ == typeNumber }
+// IsInt checks if value is an integer
+func (v Value) IsInt() bool { return v.typ == typeInt }
+
+// IsFloat checks if value is a floating-point number
+func (v Value) IsFloat() bool { return v.typ == typeFloat }
+
+// IsNumeric checks if value is any numeric type (int or float)
+func (v Value) IsNumeric() bool { return v.typ == typeInt || v.typ == typeFloat }
 
 // IsString checks if value is a string
 func (v Value) IsString() bool { return v.typ == typeString }
@@ -81,20 +94,47 @@ func (v Value) IsDuration() bool { return v.typ == typeDuration }
 // IsDatetime checks if value is a datetime
 func (v Value) IsDatetime() bool { return v.typ == typeDatetime }
 
-// AsNumber returns the number value (also works for durations - returns nanoseconds)
-func (v Value) AsNumber() float64 { return v.numVal }
+// AsInt returns the integer value
+func (v Value) AsInt() int64 {
+	switch v.typ {
+	case typeInt:
+		return v.intVal
+	case typeFloat:
+		return int64(v.numVal)
+	case typeDuration, typeDatetime:
+		return v.intVal
+	default:
+		return 0
+	}
+}
+
+// AsFloat returns the floating-point value
+func (v Value) AsFloat() float64 {
+	switch v.typ {
+	case typeFloat:
+		return v.numVal
+	case typeInt:
+		return float64(v.intVal)
+	case typeDuration, typeDatetime:
+		return float64(v.intVal)
+	default:
+		return 0
+	}
+}
 
 // AsDuration returns the duration value in nanoseconds
-func (v Value) AsDuration() time.Duration { return time.Duration(int64(v.numVal)) }
+func (v Value) AsDuration() time.Duration { return time.Duration(v.intVal) }
 
 // AsDatetime returns the datetime value as time.Time
-func (v Value) AsDatetime() time.Time { return time.Unix(0, int64(v.numVal)) }
+func (v Value) AsDatetime() time.Time { return time.Unix(0, v.intVal) }
 
 // TypeName returns a human-readable name for the value's type
 func (v Value) TypeName() string {
 	switch v.typ {
-	case typeNumber:
-		return "number"
+	case typeInt:
+		return "int"
+	case typeFloat:
+		return "float"
 	case typeString:
 		return "string"
 	case typeBool:
@@ -115,7 +155,9 @@ func (v Value) AsString() string {
 	switch v.typ {
 	case typeString:
 		return v.strVal
-	case typeNumber:
+	case typeInt:
+		return strconv.FormatInt(v.intVal, 10)
+	case typeFloat:
 		if v.numVal == float64(int64(v.numVal)) {
 			return strconv.FormatInt(int64(v.numVal), 10)
 		}
@@ -126,9 +168,9 @@ func (v Value) AsString() string {
 		}
 		return "False"
 	case typeDuration:
-		return formatDurationCompact(time.Duration(int64(v.numVal)))
+		return formatDurationCompact(time.Duration(v.intVal))
 	case typeDatetime:
-		return time.Unix(0, int64(v.numVal)).Format(time.RFC3339)
+		return time.Unix(0, v.intVal).Format(time.RFC3339)
 	default:
 		return "None"
 	}
@@ -139,8 +181,12 @@ func (v Value) AsBool() bool {
 	switch v.typ {
 	case typeBool:
 		return v.boolVal
-	case typeNumber, typeDuration, typeDatetime:
+	case typeInt:
+		return v.intVal != 0
+	case typeFloat:
 		return v.numVal != 0
+	case typeDuration, typeDatetime:
+		return v.intVal != 0
 	case typeString:
 		return v.strVal != ""
 	default:
@@ -169,8 +215,11 @@ func (e *Evaluator) Eval(rowIndex uint32) (Value, error) {
 
 func (e *Evaluator) eval(node Node, row uint32) (Value, error) {
 	switch n := node.(type) {
+	case *IntLit:
+		return NewInt(n.Value), nil
+
 	case *NumberLit:
-		return NewNumber(n.Value), nil
+		return NewFloat(n.Value), nil
 
 	case *StringLit:
 		return NewString(n.Value), nil
@@ -185,10 +234,13 @@ func (e *Evaluator) eval(node Node, row uint32) (Value, error) {
 		}
 		switch n.Op {
 		case TOKEN_MINUS:
-			if !val.IsNumber() {
-				return NilValue(), fmt.Errorf("cannot negate non-number")
+			if val.IsInt() {
+				return NewInt(-val.AsInt()), nil
 			}
-			return NewNumber(-val.AsNumber()), nil
+			if val.IsFloat() {
+				return NewFloat(-val.AsFloat()), nil
+			}
+			return NilValue(), fmt.Errorf("cannot negate non-number")
 		case TOKEN_NOT:
 			return NewBool(!val.AsBool()), nil
 		}
@@ -251,11 +303,12 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 	// Comparison operators work on both numbers and strings
 	switch op {
 	case TOKEN_EQ:
+		// Allow int == float comparisons
+		if left.IsNumeric() && right.IsNumeric() {
+			return NewBool(left.AsFloat() == right.AsFloat()), nil
+		}
 		if left.typ != right.typ {
 			return NewBool(false), nil
-		}
-		if left.IsNumber() {
-			return NewBool(left.AsNumber() == right.AsNumber()), nil
 		}
 		if left.IsString() {
 			return NewBool(left.AsString() == right.AsString()), nil
@@ -263,11 +316,12 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 		return NewBool(left.AsBool() == right.AsBool()), nil
 
 	case TOKEN_NE:
+		// Allow int != float comparisons
+		if left.IsNumeric() && right.IsNumeric() {
+			return NewBool(left.AsFloat() != right.AsFloat()), nil
+		}
 		if left.typ != right.typ {
 			return NewBool(true), nil
-		}
-		if left.IsNumber() {
-			return NewBool(left.AsNumber() != right.AsNumber()), nil
 		}
 		if left.IsString() {
 			return NewBool(left.AsString() != right.AsString()), nil
@@ -275,9 +329,9 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 		return NewBool(left.AsBool() != right.AsBool()), nil
 
 	case TOKEN_LT, TOKEN_GT, TOKEN_LE, TOKEN_GE:
-		// Compare numbers
-		if left.IsNumber() && right.IsNumber() {
-			l, r := left.AsNumber(), right.AsNumber()
+		// Compare numbers (int or float)
+		if left.IsNumeric() && right.IsNumeric() {
+			l, r := left.AsFloat(), right.AsFloat()
 			switch op {
 			case TOKEN_LT:
 				return NewBool(l < r), nil
@@ -305,7 +359,7 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 		}
 		// Compare datetimes
 		if left.IsDatetime() && right.IsDatetime() {
-			l, r := left.AsNumber(), right.AsNumber()
+			l, r := left.AsInt(), right.AsInt()
 			switch op {
 			case TOKEN_LT:
 				return NewBool(l < r), nil
@@ -319,7 +373,7 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 		}
 		// Compare durations
 		if left.IsDuration() && right.IsDuration() {
-			l, r := left.AsNumber(), right.AsNumber()
+			l, r := left.AsInt(), right.AsInt()
 			switch op {
 			case TOKEN_LT:
 				return NewBool(l < r), nil
@@ -337,28 +391,28 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 	// Handle datetime arithmetic
 	if op == TOKEN_MINUS && left.IsDatetime() && right.IsDatetime() {
 		// datetime - datetime = duration
-		diff := int64(left.AsNumber()) - int64(right.AsNumber())
+		diff := left.AsInt() - right.AsInt()
 		return NewDuration(diff), nil
 	}
 	if op == TOKEN_PLUS && left.IsDatetime() && right.IsDuration() {
 		// datetime + duration = datetime
-		result := int64(left.AsNumber()) + int64(right.AsNumber())
+		result := left.AsInt() + right.AsInt()
 		return NewDatetime(result), nil
 	}
 	if op == TOKEN_PLUS && left.IsDuration() && right.IsDatetime() {
 		// duration + datetime = datetime
-		result := int64(left.AsNumber()) + int64(right.AsNumber())
+		result := left.AsInt() + right.AsInt()
 		return NewDatetime(result), nil
 	}
 	if op == TOKEN_MINUS && left.IsDatetime() && right.IsDuration() {
 		// datetime - duration = datetime
-		result := int64(left.AsNumber()) - int64(right.AsNumber())
+		result := left.AsInt() - right.AsInt()
 		return NewDatetime(result), nil
 	}
 
 	// Handle duration arithmetic
 	if left.IsDuration() && right.IsDuration() {
-		l, r := int64(left.AsNumber()), int64(right.AsNumber())
+		l, r := left.AsInt(), right.AsInt()
 		switch op {
 		case TOKEN_PLUS:
 			return NewDuration(l + r), nil
@@ -368,35 +422,59 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 	}
 
 	// Arithmetic operators require numbers
-	if !left.IsNumber() || !right.IsNumber() {
+	if !left.IsNumeric() || !right.IsNumeric() {
 		return NilValue(), fmt.Errorf("arithmetic operations require numbers, got %v and %v", left.typ, right.typ)
 	}
 
-	l, r := left.AsNumber(), right.AsNumber()
+	// If both are ints, preserve int type for most operations
+	bothInt := left.IsInt() && right.IsInt()
+
 	switch op {
 	case TOKEN_PLUS:
-		return NewNumber(l + r), nil
+		if bothInt {
+			return NewInt(left.AsInt() + right.AsInt()), nil
+		}
+		return NewFloat(left.AsFloat() + right.AsFloat()), nil
 	case TOKEN_MINUS:
-		return NewNumber(l - r), nil
+		if bothInt {
+			return NewInt(left.AsInt() - right.AsInt()), nil
+		}
+		return NewFloat(left.AsFloat() - right.AsFloat()), nil
 	case TOKEN_STAR:
-		return NewNumber(l * r), nil
+		if bothInt {
+			return NewInt(left.AsInt() * right.AsInt()), nil
+		}
+		return NewFloat(left.AsFloat() * right.AsFloat()), nil
 	case TOKEN_SLASH:
+		// Division always returns float
+		r := right.AsFloat()
 		if r == 0 {
 			return NilValue(), fmt.Errorf("division by zero")
 		}
-		return NewNumber(l / r), nil
+		return NewFloat(left.AsFloat() / r), nil
 	case TOKEN_FLOOR_DIV:
+		// Floor division returns int
+		r := right.AsFloat()
 		if r == 0 {
 			return NilValue(), fmt.Errorf("division by zero")
 		}
-		return NewNumber(math.Floor(l / r)), nil
+		return NewInt(int64(math.Floor(left.AsFloat() / r))), nil
 	case TOKEN_PERCENT:
+		if bothInt {
+			r := right.AsInt()
+			if r == 0 {
+				return NilValue(), fmt.Errorf("modulo by zero")
+			}
+			return NewInt(left.AsInt() % r), nil
+		}
+		r := right.AsFloat()
 		if r == 0 {
 			return NilValue(), fmt.Errorf("modulo by zero")
 		}
-		return NewNumber(math.Mod(l, r)), nil
+		return NewFloat(math.Mod(left.AsFloat(), r)), nil
 	case TOKEN_POWER:
-		return NewNumber(math.Pow(l, r)), nil
+		// Power always returns float
+		return NewFloat(math.Pow(left.AsFloat(), right.AsFloat())), nil
 	}
 
 	return NilValue(), fmt.Errorf("unknown operator")
@@ -441,7 +519,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 			return NilValue(), fmt.Errorf("len() takes 1 argument")
 		}
 		if args[0].IsString() {
-			return NewNumber(float64(len(args[0].AsString()))), nil
+			return NewInt(int64(len(args[0].AsString()))), nil
 		}
 		return NilValue(), fmt.Errorf("len() argument must be string")
 
@@ -455,15 +533,23 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if len(args) != 1 {
 			return NilValue(), fmt.Errorf("int() takes 1 argument")
 		}
-		if args[0].IsNumber() {
-			return NewNumber(math.Trunc(args[0].AsNumber())), nil
+		if args[0].IsInt() {
+			return args[0], nil
+		}
+		if args[0].IsFloat() {
+			return NewInt(int64(args[0].AsFloat())), nil
 		}
 		if args[0].IsString() {
+			// Try parsing as int first
+			if n, err := strconv.ParseInt(args[0].AsString(), 10, 64); err == nil {
+				return NewInt(n), nil
+			}
+			// Fall back to float parsing and truncating
 			n, err := strconv.ParseFloat(args[0].AsString(), 64)
 			if err != nil {
 				return NilValue(), fmt.Errorf("cannot convert '%s' to int", args[0].AsString())
 			}
-			return NewNumber(math.Trunc(n)), nil
+			return NewInt(int64(n)), nil
 		}
 		return NilValue(), fmt.Errorf("int() argument must be number or string")
 
@@ -471,15 +557,18 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if len(args) != 1 {
 			return NilValue(), fmt.Errorf("float() takes 1 argument")
 		}
-		if args[0].IsNumber() {
+		if args[0].IsFloat() {
 			return args[0], nil
+		}
+		if args[0].IsInt() {
+			return NewFloat(float64(args[0].AsInt())), nil
 		}
 		if args[0].IsString() {
 			n, err := strconv.ParseFloat(args[0].AsString(), 64)
 			if err != nil {
 				return NilValue(), fmt.Errorf("cannot convert '%s' to float", args[0].AsString())
 			}
-			return NewNumber(n), nil
+			return NewFloat(n), nil
 		}
 		return NilValue(), fmt.Errorf("float() argument must be number or string")
 
@@ -487,27 +576,34 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if len(args) != 1 {
 			return NilValue(), fmt.Errorf("abs() takes 1 argument")
 		}
-		if !args[0].IsNumber() {
-			return NilValue(), fmt.Errorf("abs() argument must be number")
+		if args[0].IsInt() {
+			n := args[0].AsInt()
+			if n < 0 {
+				n = -n
+			}
+			return NewInt(n), nil
 		}
-		return NewNumber(math.Abs(args[0].AsNumber())), nil
+		if args[0].IsFloat() {
+			return NewFloat(math.Abs(args[0].AsFloat())), nil
+		}
+		return NilValue(), fmt.Errorf("abs() argument must be number")
 
 	case "round":
 		if len(args) < 1 || len(args) > 2 {
 			return NilValue(), fmt.Errorf("round() takes 1 or 2 arguments")
 		}
-		if !args[0].IsNumber() {
+		if !args[0].IsNumeric() {
 			return NilValue(), fmt.Errorf("round() first argument must be number")
 		}
 		digits := 0.0
 		if len(args) == 2 {
-			if !args[1].IsNumber() {
+			if !args[1].IsNumeric() {
 				return NilValue(), fmt.Errorf("round() second argument must be number")
 			}
-			digits = args[1].AsNumber()
+			digits = args[1].AsFloat()
 		}
 		mult := math.Pow(10, digits)
-		return NewNumber(math.Round(args[0].AsNumber()*mult) / mult), nil
+		return NewFloat(math.Round(args[0].AsFloat()*mult) / mult), nil
 
 	case "min":
 		if len(args) < 1 {
@@ -515,8 +611,8 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		}
 		minVal := args[0]
 		for _, arg := range args[1:] {
-			if arg.IsNumber() && minVal.IsNumber() {
-				if arg.AsNumber() < minVal.AsNumber() {
+			if arg.IsNumeric() && minVal.IsNumeric() {
+				if arg.AsFloat() < minVal.AsFloat() {
 					minVal = arg
 				}
 			} else if arg.IsString() && minVal.IsString() {
@@ -533,8 +629,8 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		}
 		maxVal := args[0]
 		for _, arg := range args[1:] {
-			if arg.IsNumber() && maxVal.IsNumber() {
-				if arg.AsNumber() > maxVal.AsNumber() {
+			if arg.IsNumeric() && maxVal.IsNumeric() {
+				if arg.AsFloat() > maxVal.AsFloat() {
 					maxVal = arg
 				}
 			} else if arg.IsString() && maxVal.IsString() {
@@ -592,7 +688,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 			return NilValue(), fmt.Errorf("substr() takes 2 or 3 arguments")
 		}
 		s := args[0].AsString()
-		start := int(args[1].AsNumber())
+		start := int(args[1].AsInt())
 		if start < 0 {
 			start = len(s) + start
 		}
@@ -603,7 +699,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 			return NewString(""), nil
 		}
 		if len(args) == 3 {
-			end := int(args[2].AsNumber())
+			end := int(args[2].AsInt())
 			if end < 0 {
 				end = len(s) + end
 			}
@@ -623,7 +719,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		}
 		return NewBool(args[0].AsBool()), nil
 
-	// Datetime epoch functions
+	// Datetime epoch functions - return int
 	case "seconds":
 		if len(args) != 1 {
 			return NilValue(), fmt.Errorf("seconds() takes 1 argument")
@@ -632,7 +728,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("seconds(): %w", err)
 		}
-		return NewNumber(float64(t.Unix())), nil
+		return NewInt(t.Unix()), nil
 
 	case "minutes":
 		if len(args) != 1 {
@@ -642,7 +738,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("minutes(): %w", err)
 		}
-		return NewNumber(float64(t.Unix() / 60)), nil
+		return NewInt(t.Unix() / 60), nil
 
 	case "hours":
 		if len(args) != 1 {
@@ -652,7 +748,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("hours(): %w", err)
 		}
-		return NewNumber(float64(t.Unix() / 3600)), nil
+		return NewInt(t.Unix() / 3600), nil
 
 	case "days":
 		if len(args) != 1 {
@@ -662,7 +758,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("days(): %w", err)
 		}
-		return NewNumber(float64(t.Unix() / 86400)), nil
+		return NewInt(t.Unix() / 86400), nil
 
 	case "weeks":
 		if len(args) != 1 {
@@ -672,7 +768,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("weeks(): %w", err)
 		}
-		return NewNumber(float64(t.Unix() / (86400 * 7))), nil
+		return NewInt(t.Unix() / (86400 * 7)), nil
 
 	case "months":
 		// Exact months since epoch: (year - 1970) * 12 + (month - 1)
@@ -684,7 +780,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 			return NilValue(), fmt.Errorf("months(): %w", err)
 		}
 		months := int64(t.Year()-1970)*12 + int64(t.Month()-1)
-		return NewNumber(float64(months)), nil
+		return NewInt(months), nil
 
 	case "quarters":
 		// Exact quarters since epoch: (year - 1970) * 4 + ((month - 1) / 3)
@@ -696,7 +792,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 			return NilValue(), fmt.Errorf("quarters(): %w", err)
 		}
 		quarters := int64(t.Year()-1970)*4 + int64(t.Month()-1)/3
-		return NewNumber(float64(quarters)), nil
+		return NewInt(quarters), nil
 
 	case "years":
 		// Years since epoch (1970)
@@ -707,7 +803,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("years(): %w", err)
 		}
-		return NewNumber(float64(t.Year() - 1970)), nil
+		return NewInt(int64(t.Year() - 1970)), nil
 
 	// Duration functions
 	// Type validation is done at compile time by the TypeChecker.
@@ -721,7 +817,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 			}
 			return NewDuration(int64(d)), nil
 		} else if len(args) == 2 {
-			value := args[0].AsNumber()
+			value := args[0].AsFloat()
 			unit := args[1].AsString()
 			d, err := durationFromUnit(value, unit)
 			if err != nil {
@@ -751,21 +847,21 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 			unit := strings.ToLower(args[2].AsString())
 			switch unit {
 			case "nanoseconds", "ns":
-				return NewNumber(float64(diff.Nanoseconds())), nil
+				return NewFloat(float64(diff.Nanoseconds())), nil
 			case "microseconds", "us":
-				return NewNumber(float64(diff.Microseconds())), nil
+				return NewFloat(float64(diff.Microseconds())), nil
 			case "milliseconds", "ms":
-				return NewNumber(float64(diff.Milliseconds())), nil
+				return NewFloat(float64(diff.Milliseconds())), nil
 			case "seconds", "s":
-				return NewNumber(diff.Seconds()), nil
+				return NewFloat(diff.Seconds()), nil
 			case "minutes", "m":
-				return NewNumber(diff.Minutes()), nil
+				return NewFloat(diff.Minutes()), nil
 			case "hours", "h":
-				return NewNumber(diff.Hours()), nil
+				return NewFloat(diff.Hours()), nil
 			case "days", "d":
-				return NewNumber(diff.Hours() / 24), nil
+				return NewFloat(diff.Hours() / 24), nil
 			case "weeks", "w":
-				return NewNumber(diff.Hours() / (24 * 7)), nil
+				return NewFloat(diff.Hours() / (24 * 7)), nil
 			default:
 				return NilValue(), fmt.Errorf("date_diff(): unknown unit: %s", unit)
 			}
@@ -812,7 +908,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("as_nanoseconds(): %w", err)
 		}
-		return NewNumber(float64(d.Nanoseconds())), nil
+		return NewFloat(float64(d.Nanoseconds())), nil
 
 	case "as_microseconds":
 		if len(args) != 1 {
@@ -822,7 +918,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("as_microseconds(): %w", err)
 		}
-		return NewNumber(float64(d.Microseconds())), nil
+		return NewFloat(float64(d.Microseconds())), nil
 
 	case "as_milliseconds":
 		if len(args) != 1 {
@@ -832,7 +928,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("as_milliseconds(): %w", err)
 		}
-		return NewNumber(float64(d.Milliseconds())), nil
+		return NewFloat(float64(d.Milliseconds())), nil
 
 	case "as_seconds":
 		if len(args) != 1 {
@@ -842,7 +938,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("as_seconds(): %w", err)
 		}
-		return NewNumber(d.Seconds()), nil
+		return NewFloat(d.Seconds()), nil
 
 	case "as_minutes":
 		if len(args) != 1 {
@@ -852,7 +948,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("as_minutes(): %w", err)
 		}
-		return NewNumber(d.Minutes()), nil
+		return NewFloat(d.Minutes()), nil
 
 	case "as_hours":
 		if len(args) != 1 {
@@ -862,7 +958,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("as_hours(): %w", err)
 		}
-		return NewNumber(d.Hours()), nil
+		return NewFloat(d.Hours()), nil
 
 	case "as_days":
 		if len(args) != 1 {
@@ -872,7 +968,7 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		if err != nil {
 			return NilValue(), fmt.Errorf("as_days(): %w", err)
 		}
-		return NewNumber(d.Hours() / 24), nil
+		return NewFloat(d.Hours() / 24), nil
 
 	case "format_duration":
 		// format_duration(duration_nanos) - returns human-readable duration string
@@ -944,17 +1040,17 @@ func (e *Evaluator) evalMethod(obj Value, method string, args []Value) (Value, e
 			if len(args) != 1 {
 				return NilValue(), fmt.Errorf("count() takes 1 argument")
 			}
-			return NewNumber(float64(strings.Count(s, args[0].AsString()))), nil
+			return NewInt(int64(strings.Count(s, args[0].AsString()))), nil
 		case "find", "index":
 			if len(args) != 1 {
 				return NilValue(), fmt.Errorf("%s() takes 1 argument", method)
 			}
-			return NewNumber(float64(strings.Index(s, args[0].AsString()))), nil
+			return NewInt(int64(strings.Index(s, args[0].AsString()))), nil
 		case "rfind", "rindex":
 			if len(args) != 1 {
 				return NilValue(), fmt.Errorf("%s() takes 1 argument", method)
 			}
-			return NewNumber(float64(strings.LastIndex(s, args[0].AsString()))), nil
+			return NewInt(int64(strings.LastIndex(s, args[0].AsString()))), nil
 		case "isdigit":
 			for _, r := range s {
 				if r < '0' || r > '9' {
@@ -1039,8 +1135,8 @@ func parseDatetimeValue(v Value) (time.Time, error) {
 	}
 
 	// Try parsing as Unix timestamp if it's a number
-	if v.IsNumber() {
-		n := int64(v.AsNumber())
+	if v.IsNumeric() {
+		n := v.AsInt()
 		absN := n
 		if absN < 0 {
 			absN = -absN
@@ -1078,8 +1174,8 @@ func parseDurationValue(v Value) (time.Duration, error) {
 	}
 
 	// If it's a number, treat as nanoseconds
-	if v.IsNumber() {
-		return time.Duration(int64(v.AsNumber())), nil
+	if v.IsNumeric() {
+		return time.Duration(v.AsInt()), nil
 	}
 
 	// Try to parse as duration string

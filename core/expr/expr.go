@@ -118,10 +118,10 @@ func (b *BoundExpression) EvalNumber(rowIndex uint32) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if !val.IsNumber() {
+	if !val.IsNumeric() {
 		return 0, fmt.Errorf("expression result is not a number")
 	}
-	return val.AsNumber(), nil
+	return val.AsFloat(), nil
 }
 
 // EvalBool evaluates the expression and returns the result as a boolean

@@ -29,7 +29,7 @@ func makeColumnGetter(row int) ColumnGetter {
 		idx := int(rowIndex) % len(col)
 		switch v := col[idx].(type) {
 		case float64:
-			return NewNumber(v), nil
+			return NewFloat(v), nil
 		case string:
 			return NewString(v), nil
 		default:
@@ -68,8 +68,8 @@ func TestArithmetic(t *testing.T) {
 			if err != nil {
 				t.Fatalf("eval error: %v", err)
 			}
-			if !val.IsNumber() || val.AsNumber() != tt.expected {
-				t.Errorf("expected %v, got %v", tt.expected, val.AsNumber())
+			if !val.IsNumeric() || val.AsFloat() != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, val.AsFloat())
 			}
 		})
 	}
@@ -188,8 +188,8 @@ func TestColumnAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("eval error: %v", err)
 	}
-	if val.AsNumber() != 52.5 {
-		t.Errorf("expected 52.5, got %v", val.AsNumber())
+	if val.AsFloat() != 52.5 {
+		t.Errorf("expected 52.5, got %v", val.AsFloat())
 	}
 }
 

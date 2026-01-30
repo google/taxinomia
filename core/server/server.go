@@ -353,9 +353,12 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 		if err != nil {
 			return expr.NilValue(), err
 		}
-		// Try to parse as number first
+		// Try to parse as int first, then float
+		if intVal, err := strconv.ParseInt(strVal, 10, 64); err == nil {
+			return expr.NewInt(intVal), nil
+		}
 		if numVal, err := strconv.ParseFloat(strVal, 64); err == nil {
-			return expr.NewNumber(numVal), nil
+			return expr.NewFloat(numVal), nil
 		}
 		return expr.NewString(strVal), nil
 	}
@@ -399,31 +402,29 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 			if err != nil {
 				return 0, err
 			}
-			return int64(val.AsNumber()), nil
+			return val.AsInt(), nil
 		})
 		tableView.AddComputedColumn(name, computedCol)
-	} else if sampleVal.IsNumber() {
-		num := sampleVal.AsNumber()
-		// Check if it's an integer (no fractional part)
-		if num == float64(int64(num)) {
-			computedCol := columns.NewComputedInt64Column(colDef, length, func(i uint32) (int64, error) {
-				val, err := bound.Eval(i)
-				if err != nil {
-					return 0, err
-				}
-				return int64(val.AsNumber()), nil
-			})
-			tableView.AddComputedColumn(name, computedCol)
-		} else {
-			computedCol := columns.NewComputedFloat64Column(colDef, length, func(i uint32) (float64, error) {
-				val, err := bound.Eval(i)
-				if err != nil {
-					return 0, err
-				}
-				return val.AsNumber(), nil
-			})
-			tableView.AddComputedColumn(name, computedCol)
-		}
+	} else if sampleVal.IsInt() {
+		// Integer value - create an int64 column
+		computedCol := columns.NewComputedInt64Column(colDef, length, func(i uint32) (int64, error) {
+			val, err := bound.Eval(i)
+			if err != nil {
+				return 0, err
+			}
+			return val.AsInt(), nil
+		})
+		tableView.AddComputedColumn(name, computedCol)
+	} else if sampleVal.IsFloat() {
+		// Float value - create a float64 column
+		computedCol := columns.NewComputedFloat64Column(colDef, length, func(i uint32) (float64, error) {
+			val, err := bound.Eval(i)
+			if err != nil {
+				return 0, err
+			}
+			return val.AsFloat(), nil
+		})
+		tableView.AddComputedColumn(name, computedCol)
 	} else if sampleVal.IsBool() {
 		// Boolean value - create a bool column
 		computedCol := columns.NewComputedBoolColumn(colDef, length, func(i uint32) (bool, error) {

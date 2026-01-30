@@ -13,7 +13,8 @@ type ExprType int
 
 const (
 	TypeUnknown  ExprType = iota // Unknown type (unresolved column)
-	TypeNumber                   // Numeric value
+	TypeInt                      // Integer value
+	TypeFloat                    // Floating-point value
 	TypeString                   // String value
 	TypeBool                     // Boolean value
 	TypeDatetime                 // Datetime value (Unix nanoseconds)
@@ -21,11 +22,18 @@ const (
 	TypeAny                      // Any type (for polymorphic functions)
 )
 
+// IsNumeric returns true if the type is numeric (int or float)
+func (t ExprType) IsNumeric() bool {
+	return t == TypeInt || t == TypeFloat
+}
+
 // String returns a human-readable name for the type
 func (t ExprType) String() string {
 	switch t {
-	case TypeNumber:
-		return "number"
+	case TypeInt:
+		return "int"
+	case TypeFloat:
+		return "float"
 	case TypeString:
 		return "string"
 	case TypeBool:
@@ -61,8 +69,11 @@ func (tc *TypeChecker) Check(node Node) (ExprType, error) {
 
 func (tc *TypeChecker) check(node Node) (ExprType, error) {
 	switch n := node.(type) {
+	case *IntLit:
+		return TypeInt, nil
+
 	case *NumberLit:
-		return TypeNumber, nil
+		return TypeFloat, nil
 
 	case *StringLit:
 		return TypeString, nil
@@ -108,8 +119,11 @@ func (tc *TypeChecker) check(node Node) (ExprType, error) {
 func (tc *TypeChecker) checkUnaryOp(op TokenType, exprType ExprType) (ExprType, error) {
 	switch op {
 	case TOKEN_MINUS:
-		if exprType == TypeNumber || exprType == TypeUnknown {
-			return TypeNumber, nil
+		if exprType == TypeInt {
+			return TypeInt, nil
+		}
+		if exprType == TypeFloat || exprType == TypeUnknown {
+			return TypeFloat, nil
 		}
 		if exprType == TypeDuration {
 			return TypeDuration, nil
@@ -130,15 +144,21 @@ func (tc *TypeChecker) checkBinaryOp(op TokenType, left, right ExprType) (ExprTy
 	switch op {
 	// Comparison operators return bool
 	case TOKEN_EQ, TOKEN_NE:
-		// Can compare any two values of same type
+		// Can compare any two values of same type, or int with float
 		if left == right {
+			return TypeBool, nil
+		}
+		if left.IsNumeric() && right.IsNumeric() {
 			return TypeBool, nil
 		}
 		return TypeUnknown, fmt.Errorf("cannot compare %s with %s", left, right)
 
 	case TOKEN_LT, TOKEN_GT, TOKEN_LE, TOKEN_GE:
 		// Can compare numbers, strings, datetimes, or durations
-		if left == right && (left == TypeNumber || left == TypeString || left == TypeDatetime || left == TypeDuration) {
+		if left == right && (left.IsNumeric() || left == TypeString || left == TypeDatetime || left == TypeDuration) {
+			return TypeBool, nil
+		}
+		if left.IsNumeric() && right.IsNumeric() {
 			return TypeBool, nil
 		}
 		return TypeUnknown, fmt.Errorf("cannot compare %s with %s", left, right)
@@ -164,9 +184,13 @@ func (tc *TypeChecker) checkBinaryOp(op TokenType, left, right ExprType) (ExprTy
 		if left == TypeDuration && right == TypeDuration {
 			return TypeDuration, nil
 		}
-		// number + number = number
-		if left == TypeNumber && right == TypeNumber {
-			return TypeNumber, nil
+		// int + int = int
+		if left == TypeInt && right == TypeInt {
+			return TypeInt, nil
+		}
+		// numeric + numeric = float (if any is float)
+		if left.IsNumeric() && right.IsNumeric() {
+			return TypeFloat, nil
 		}
 		return TypeUnknown, fmt.Errorf("cannot add %s and %s", left, right)
 
@@ -183,15 +207,54 @@ func (tc *TypeChecker) checkBinaryOp(op TokenType, left, right ExprType) (ExprTy
 		if left == TypeDuration && right == TypeDuration {
 			return TypeDuration, nil
 		}
-		// number - number = number
-		if left == TypeNumber && right == TypeNumber {
-			return TypeNumber, nil
+		// int - int = int
+		if left == TypeInt && right == TypeInt {
+			return TypeInt, nil
+		}
+		// numeric - numeric = float (if any is float)
+		if left.IsNumeric() && right.IsNumeric() {
+			return TypeFloat, nil
 		}
 		return TypeUnknown, fmt.Errorf("cannot subtract %s from %s", right, left)
 
-	case TOKEN_STAR, TOKEN_SLASH, TOKEN_FLOOR_DIV, TOKEN_PERCENT, TOKEN_POWER:
-		if left == TypeNumber && right == TypeNumber {
-			return TypeNumber, nil
+	case TOKEN_STAR:
+		// int * int = int
+		if left == TypeInt && right == TypeInt {
+			return TypeInt, nil
+		}
+		if left.IsNumeric() && right.IsNumeric() {
+			return TypeFloat, nil
+		}
+		return TypeUnknown, fmt.Errorf("arithmetic operation requires numbers, got %s and %s", left, right)
+
+	case TOKEN_SLASH:
+		// Division always returns float
+		if left.IsNumeric() && right.IsNumeric() {
+			return TypeFloat, nil
+		}
+		return TypeUnknown, fmt.Errorf("arithmetic operation requires numbers, got %s and %s", left, right)
+
+	case TOKEN_FLOOR_DIV:
+		// Floor division returns int
+		if left.IsNumeric() && right.IsNumeric() {
+			return TypeInt, nil
+		}
+		return TypeUnknown, fmt.Errorf("arithmetic operation requires numbers, got %s and %s", left, right)
+
+	case TOKEN_PERCENT:
+		// int % int = int
+		if left == TypeInt && right == TypeInt {
+			return TypeInt, nil
+		}
+		if left.IsNumeric() && right.IsNumeric() {
+			return TypeFloat, nil
+		}
+		return TypeUnknown, fmt.Errorf("arithmetic operation requires numbers, got %s and %s", left, right)
+
+	case TOKEN_POWER:
+		// Power always returns float
+		if left.IsNumeric() && right.IsNumeric() {
+			return TypeFloat, nil
 		}
 		return TypeUnknown, fmt.Errorf("arithmetic operation requires numbers, got %s and %s", left, right)
 	}
@@ -214,7 +277,10 @@ func (tc *TypeChecker) inferBinaryResult(op TokenType, left, right ExprType) Exp
 		if left == TypeDuration && right == TypeDuration {
 			return TypeDuration
 		}
-		return TypeNumber
+		if left == TypeInt && right == TypeInt {
+			return TypeInt
+		}
+		return TypeFloat
 	case TOKEN_MINUS:
 		if left == TypeDatetime && right == TypeDatetime {
 			return TypeDuration
@@ -225,9 +291,17 @@ func (tc *TypeChecker) inferBinaryResult(op TokenType, left, right ExprType) Exp
 		if left == TypeDuration && right == TypeDuration {
 			return TypeDuration
 		}
-		return TypeNumber
+		if left == TypeInt && right == TypeInt {
+			return TypeInt
+		}
+		return TypeFloat
+	case TOKEN_FLOOR_DIV:
+		return TypeInt
 	default:
-		return TypeNumber
+		if left == TypeInt && right == TypeInt {
+			return TypeInt
+		}
+		return TypeFloat
 	}
 }
 
@@ -255,7 +329,7 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 		if argTypes[0] != TypeString && argTypes[0] != TypeUnknown {
 			return TypeUnknown, fmt.Errorf("len() argument must be string, got %s", argTypes[0])
 		}
-		return TypeNumber, nil
+		return TypeInt, nil
 
 	case "str":
 		if len(argTypes) != 1 {
@@ -263,35 +337,48 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 		}
 		return TypeString, nil
 
-	case "int", "float":
+	case "int":
 		if len(argTypes) != 1 {
-			return TypeUnknown, fmt.Errorf("%s() takes 1 argument, got %d", name, len(argTypes))
+			return TypeUnknown, fmt.Errorf("int() takes 1 argument, got %d", len(argTypes))
 		}
-		if argTypes[0] != TypeNumber && argTypes[0] != TypeString && argTypes[0] != TypeUnknown {
-			return TypeUnknown, fmt.Errorf("%s() argument must be number or string, got %s", name, argTypes[0])
+		if !argTypes[0].IsNumeric() && argTypes[0] != TypeString && argTypes[0] != TypeUnknown {
+			return TypeUnknown, fmt.Errorf("int() argument must be number or string, got %s", argTypes[0])
 		}
-		return TypeNumber, nil
+		return TypeInt, nil
+
+	case "float":
+		if len(argTypes) != 1 {
+			return TypeUnknown, fmt.Errorf("float() takes 1 argument, got %d", len(argTypes))
+		}
+		if !argTypes[0].IsNumeric() && argTypes[0] != TypeString && argTypes[0] != TypeUnknown {
+			return TypeUnknown, fmt.Errorf("float() argument must be number or string, got %s", argTypes[0])
+		}
+		return TypeFloat, nil
 
 	case "abs":
 		if len(argTypes) != 1 {
 			return TypeUnknown, fmt.Errorf("abs() takes 1 argument, got %d", len(argTypes))
 		}
-		if argTypes[0] != TypeNumber && argTypes[0] != TypeUnknown {
+		if !argTypes[0].IsNumeric() && argTypes[0] != TypeUnknown {
 			return TypeUnknown, fmt.Errorf("abs() argument must be number, got %s", argTypes[0])
 		}
-		return TypeNumber, nil
+		// Preserve int type
+		if argTypes[0] == TypeInt {
+			return TypeInt, nil
+		}
+		return TypeFloat, nil
 
 	case "round":
 		if len(argTypes) < 1 || len(argTypes) > 2 {
 			return TypeUnknown, fmt.Errorf("round() takes 1 or 2 arguments, got %d", len(argTypes))
 		}
-		if argTypes[0] != TypeNumber && argTypes[0] != TypeUnknown {
+		if !argTypes[0].IsNumeric() && argTypes[0] != TypeUnknown {
 			return TypeUnknown, fmt.Errorf("round() first argument must be number, got %s", argTypes[0])
 		}
-		if len(argTypes) == 2 && argTypes[1] != TypeNumber && argTypes[1] != TypeUnknown {
+		if len(argTypes) == 2 && !argTypes[1].IsNumeric() && argTypes[1] != TypeUnknown {
 			return TypeUnknown, fmt.Errorf("round() second argument must be number, got %s", argTypes[1])
 		}
-		return TypeNumber, nil
+		return TypeFloat, nil
 
 	case "min", "max":
 		if len(argTypes) < 1 {
@@ -309,15 +396,15 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 		}
 		return TypeBool, nil
 
-	// Datetime epoch functions - return number
+	// Datetime epoch functions - return int
 	case "seconds", "minutes", "hours", "days", "weeks", "months", "quarters", "years":
 		if len(argTypes) != 1 {
 			return TypeUnknown, fmt.Errorf("%s() takes 1 argument, got %d", name, len(argTypes))
 		}
-		if argTypes[0] != TypeDatetime && argTypes[0] != TypeNumber && argTypes[0] != TypeString && argTypes[0] != TypeUnknown {
+		if argTypes[0] != TypeDatetime && !argTypes[0].IsNumeric() && argTypes[0] != TypeString && argTypes[0] != TypeUnknown {
 			return TypeUnknown, fmt.Errorf("%s() argument must be datetime, got %s", name, argTypes[0])
 		}
-		return TypeNumber, nil
+		return TypeInt, nil
 
 	// Duration functions
 	case "duration":
@@ -326,7 +413,7 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 			return TypeDuration, nil
 		} else if len(argTypes) == 2 {
 			// duration(value, unit)
-			if argTypes[0] != TypeNumber && argTypes[0] != TypeUnknown {
+			if !argTypes[0].IsNumeric() && argTypes[0] != TypeUnknown {
 				return TypeUnknown, fmt.Errorf("duration() first argument must be number, got %s", argTypes[0])
 			}
 			if argTypes[1] != TypeString && argTypes[1] != TypeUnknown {
@@ -351,7 +438,7 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 			if argTypes[2] != TypeString && argTypes[2] != TypeUnknown {
 				return TypeUnknown, fmt.Errorf("date_diff() third argument must be string, got %s", argTypes[2])
 			}
-			return TypeNumber, nil // Returns number when unit specified
+			return TypeFloat, nil // Returns float when unit specified
 		}
 		return TypeDuration, nil // Returns duration when no unit
 
@@ -368,7 +455,7 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 		}
 		return TypeDatetime, nil
 
-	// Duration extraction functions - return number
+	// Duration extraction functions - return float
 	case "as_nanoseconds", "as_microseconds", "as_milliseconds", "as_seconds", "as_minutes", "as_hours", "as_days":
 		if len(argTypes) != 1 {
 			return TypeUnknown, fmt.Errorf("%s() takes 1 argument, got %d", name, len(argTypes))
@@ -376,7 +463,7 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 		if argTypes[0] == TypeDatetime {
 			return TypeUnknown, fmt.Errorf("%s() argument must be duration, got datetime", name)
 		}
-		return TypeNumber, nil
+		return TypeFloat, nil
 
 	case "format_duration":
 		if len(argTypes) != 1 {
@@ -406,7 +493,7 @@ func (tc *TypeChecker) checkAttrAccess(objType ExprType, attr string) (ExprType,
 		case "startswith", "endswith", "contains", "isdigit", "isalpha", "isalnum", "isupper", "islower":
 			return TypeBool, nil
 		case "count", "find", "index", "rfind", "rindex":
-			return TypeNumber, nil
+			return TypeInt, nil
 		}
 	}
 	return TypeUnknown, fmt.Errorf("unknown attribute: %s", attr)

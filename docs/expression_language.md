@@ -8,26 +8,43 @@ The expression language supports the following value types:
 
 | Type | Description | Example |
 |------|-------------|---------|
-| `number` | Floating-point numbers | `42`, `3.14`, `-1.5` |
+| `int` | 64-bit signed integer | `42`, `-100`, `1000000` |
+| `float` | 64-bit floating-point number | `3.14`, `-1.5`, `1e10` |
 | `string` | Text values | `"hello"`, `'world'` |
 | `bool` | Boolean values | `True`, `False` |
 | `datetime` | Date and time (Unix nanoseconds) | `date_add(...)` result |
 | `duration` | Time duration (nanoseconds) | `duration("2h30m")` |
 | `nil` | Null/missing value | `None` |
 
+### Numeric Type Rules
+
+Integer and float literals are distinguished by the presence of a decimal point or exponent:
+- `42`, `-100` → integers (int64)
+- `3.14`, `1e10`, `42.0` → floats (float64)
+
+Arithmetic operations preserve integer types when both operands are integers:
+- `5 + 3` → `8` (int)
+- `5 + 3.0` → `8.0` (float)
+- `5.0 + 3` → `8.0` (float)
+
+Special cases:
+- Division `/` always returns float: `10 / 4` → `2.5`
+- Floor division `//` always returns int: `10 // 4` → `2`
+- Power `**` returns int if both operands are integers: `2 ** 3` → `8` (int)
+
 ## Operators
 
 ### Arithmetic Operators
 
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `+` | Addition (numbers) or concatenation (strings) | `5 + 3`, `"a" + "b"` |
-| `-` | Subtraction | `10 - 4` |
-| `*` | Multiplication | `6 * 7` |
-| `/` | Division | `15 / 3` |
-| `//` | Floor division | `17 // 5` (result: 3) |
-| `%` | Modulo | `17 % 5` (result: 2) |
-| `**` | Power | `2 ** 3` (result: 8) |
+| Operator | Description | Result Type | Example |
+|----------|-------------|-------------|---------|
+| `+` | Addition (numbers) or concatenation (strings) | Preserves int | `5 + 3` → `8`, `"a" + "b"` → `"ab"` |
+| `-` | Subtraction | Preserves int | `10 - 4` → `6` |
+| `*` | Multiplication | Preserves int | `6 * 7` → `42` |
+| `/` | Division | Always float | `15 / 3` → `5.0`, `17 / 5` → `3.4` |
+| `//` | Floor division | Always int | `17 // 5` → `3` |
+| `%` | Modulo | Preserves int | `17 % 5` → `2` |
+| `**` | Power | Preserves int | `2 ** 3` → `8` |
 
 ### Comparison Operators
 
@@ -73,18 +90,18 @@ duration - duration = duration
 
 ### Type Conversion
 
-| Function | Description | Example |
-|----------|-------------|---------|
-| `str(value)` | Convert to string | `str(42)` → `"42"` |
-| `int(value)` | Convert to integer (truncates) | `int(3.7)` → `3` |
-| `float(value)` | Convert to float | `float("3.14")` → `3.14` |
-| `bool(value)` | Convert to boolean | `bool(1)` → `True` |
+| Function | Description | Return Type | Example |
+|----------|-------------|-------------|---------|
+| `str(value)` | Convert to string | string | `str(42)` → `"42"` |
+| `int(value)` | Convert to integer (truncates) | int | `int(3.7)` → `3`, `int("42")` → `42` |
+| `float(value)` | Convert to float | float | `float("3.14")` → `3.14`, `float(5)` → `5.0` |
+| `bool(value)` | Convert to boolean | bool | `bool(1)` → `True`, `bool(0)` → `False` |
 
 ### String Functions
 
-| Function | Description | Example |
-|----------|-------------|---------|
-| `len(s)` | Length of string | `len("hello")` → `5` |
+| Function | Description | Return Type | Example |
+|----------|-------------|-------------|---------|
+| `len(s)` | Length of string | int | `len("hello")` → `5` |
 | `concat(args...)` | Concatenate strings | `concat("a", "b", "c")` → `"abc"` |
 | `upper(s)` | Convert to uppercase | `upper("hello")` → `"HELLO"` |
 | `lower(s)` | Convert to lowercase | `lower("HELLO")` → `"hello"` |
@@ -106,20 +123,20 @@ duration - duration = duration
 
 ### Datetime Functions
 
-#### Epoch Extraction (datetime to number)
+#### Epoch Extraction (datetime to int)
 
-These functions convert a datetime to a number representing the count since Unix epoch (1970-01-01).
+These functions convert a datetime to an integer representing the count since Unix epoch (1970-01-01).
 
-| Function | Description | Example |
-|----------|-------------|---------|
-| `seconds(dt)` | Unix seconds | `seconds(order_date)` |
-| `minutes(dt)` | Minutes since epoch | `minutes(order_date)` |
-| `hours(dt)` | Hours since epoch | `hours(order_date)` |
-| `days(dt)` | Days since epoch | `days(order_date)` |
-| `weeks(dt)` | Weeks since epoch | `weeks(order_date)` |
-| `months(dt)` | Months since epoch | `months(order_date)` |
-| `quarters(dt)` | Quarters since epoch | `quarters(order_date)` |
-| `years(dt)` | Years since epoch (year - 1970) | `years(order_date)` |
+| Function | Description | Return Type | Example |
+|----------|-------------|-------------|---------|
+| `seconds(dt)` | Unix seconds | int | `seconds(order_date)` |
+| `minutes(dt)` | Minutes since epoch | int | `minutes(order_date)` |
+| `hours(dt)` | Hours since epoch | int | `hours(order_date)` |
+| `days(dt)` | Days since epoch | int | `days(order_date)` |
+| `weeks(dt)` | Weeks since epoch | int | `weeks(order_date)` |
+| `months(dt)` | Months since epoch | int | `months(order_date)` |
+| `quarters(dt)` | Quarters since epoch | int | `quarters(order_date)` |
+| `years(dt)` | Years since epoch (year - 1970) | int | `years(order_date)` |
 
 #### Date Arithmetic
 

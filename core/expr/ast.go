@@ -11,12 +11,19 @@ type Node interface {
 	node()
 }
 
-// NumberLit represents a numeric literal
+// NumberLit represents a numeric literal (float)
 type NumberLit struct {
 	Value float64
 }
 
 func (n *NumberLit) node() {}
+
+// IntLit represents an integer literal
+type IntLit struct {
+	Value int64
+}
+
+func (n *IntLit) node() {}
 
 // StringLit represents a string literal
 type StringLit struct {
