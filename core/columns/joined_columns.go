@@ -18,7 +18,10 @@ limitations under the License.
 
 package columns
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // JoinedStringColumn represents a column that gets its data by joining to a string column in another table
 type JoinedStringColumn struct {
@@ -234,6 +237,14 @@ func (c *JoinedDatetimeColumn) GetString(i uint32) (string, error) {
 	return c.sourceColumn.GetString(targetIndex)
 }
 
+func (c *JoinedDatetimeColumn) GetValue(i uint32) (time.Time, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return time.Time{}, ErrUnmatched
+	}
+	return c.sourceColumn.GetValue(targetIndex)
+}
+
 func (c *JoinedDatetimeColumn) IsKey() bool {
 	return false
 }
@@ -257,6 +268,84 @@ func (c *JoinedDatetimeColumn) GroupIndices(indices []uint32, columnView *Column
 		}
 
 		nanos := value.UnixNano()
+		if groupKey, ok := valueToGroupKey[nanos]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[nanos] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}
+
+// JoinedDurationColumn represents a column that gets its data by joining to a duration column in another table
+type JoinedDurationColumn struct {
+	columnDef    *ColumnDef
+	sourceColumn *DurationColumn
+	joiner       IJoiner
+}
+
+// NewJoinedDurationColumn creates a new joined column for duration data
+func NewJoinedDurationColumn(columnDef *ColumnDef, joiner IJoiner, sourceColumn *DurationColumn) *JoinedDurationColumn {
+	return &JoinedDurationColumn{
+		columnDef:    columnDef,
+		joiner:       joiner,
+		sourceColumn: sourceColumn,
+	}
+}
+
+func (c *JoinedDurationColumn) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *JoinedDurationColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *JoinedDurationColumn) Length() int {
+	return c.sourceColumn.Length()
+}
+
+func (c *JoinedDurationColumn) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", ErrUnmatched
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedDurationColumn) Nanoseconds(i uint32) (int64, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return 0, ErrUnmatched
+	}
+	return c.sourceColumn.Nanoseconds(targetIndex)
+}
+
+func (c *JoinedDurationColumn) IsKey() bool {
+	return false
+}
+
+func (c *JoinedDurationColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[int64]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		nanos := int64(value)
 		if groupKey, ok := valueToGroupKey[nanos]; ok {
 			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
 		} else {

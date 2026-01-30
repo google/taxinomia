@@ -29,6 +29,8 @@ const (
 	typeString
 	typeBool
 	typeNil
+	typeDuration // Duration in nanoseconds
+	typeDatetime // Datetime as Unix nanoseconds
 )
 
 // NewNumber creates a number value
@@ -51,6 +53,16 @@ func NilValue() Value {
 	return Value{typ: typeNil}
 }
 
+// NewDuration creates a duration value (nanoseconds)
+func NewDuration(nanos int64) Value {
+	return Value{typ: typeDuration, numVal: float64(nanos)}
+}
+
+// NewDatetime creates a datetime value (Unix nanoseconds)
+func NewDatetime(unixNanos int64) Value {
+	return Value{typ: typeDatetime, numVal: float64(unixNanos)}
+}
+
 // IsNumber checks if value is a number
 func (v Value) IsNumber() bool { return v.typ == typeNumber }
 
@@ -63,8 +75,40 @@ func (v Value) IsBool() bool { return v.typ == typeBool }
 // IsNil checks if value is nil
 func (v Value) IsNil() bool { return v.typ == typeNil }
 
-// AsNumber returns the number value
+// IsDuration checks if value is a duration
+func (v Value) IsDuration() bool { return v.typ == typeDuration }
+
+// IsDatetime checks if value is a datetime
+func (v Value) IsDatetime() bool { return v.typ == typeDatetime }
+
+// AsNumber returns the number value (also works for durations - returns nanoseconds)
 func (v Value) AsNumber() float64 { return v.numVal }
+
+// AsDuration returns the duration value in nanoseconds
+func (v Value) AsDuration() time.Duration { return time.Duration(int64(v.numVal)) }
+
+// AsDatetime returns the datetime value as time.Time
+func (v Value) AsDatetime() time.Time { return time.Unix(0, int64(v.numVal)) }
+
+// TypeName returns a human-readable name for the value's type
+func (v Value) TypeName() string {
+	switch v.typ {
+	case typeNumber:
+		return "number"
+	case typeString:
+		return "string"
+	case typeBool:
+		return "bool"
+	case typeNil:
+		return "nil"
+	case typeDuration:
+		return "duration"
+	case typeDatetime:
+		return "datetime"
+	default:
+		return "unknown"
+	}
+}
 
 // AsString returns the string value
 func (v Value) AsString() string {
@@ -81,6 +125,10 @@ func (v Value) AsString() string {
 			return "True"
 		}
 		return "False"
+	case typeDuration:
+		return formatDurationCompact(time.Duration(int64(v.numVal)))
+	case typeDatetime:
+		return time.Unix(0, int64(v.numVal)).Format(time.RFC3339)
 	default:
 		return "None"
 	}
@@ -91,7 +139,7 @@ func (v Value) AsBool() bool {
 	switch v.typ {
 	case typeBool:
 		return v.boolVal
-	case typeNumber:
+	case typeNumber, typeDuration, typeDatetime:
 		return v.numVal != 0
 	case typeString:
 		return v.strVal != ""
@@ -227,6 +275,7 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 		return NewBool(left.AsBool() != right.AsBool()), nil
 
 	case TOKEN_LT, TOKEN_GT, TOKEN_LE, TOKEN_GE:
+		// Compare numbers
 		if left.IsNumber() && right.IsNumber() {
 			l, r := left.AsNumber(), right.AsNumber()
 			switch op {
@@ -240,8 +289,37 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 				return NewBool(l >= r), nil
 			}
 		}
+		// Compare strings
 		if left.IsString() && right.IsString() {
 			l, r := left.AsString(), right.AsString()
+			switch op {
+			case TOKEN_LT:
+				return NewBool(l < r), nil
+			case TOKEN_GT:
+				return NewBool(l > r), nil
+			case TOKEN_LE:
+				return NewBool(l <= r), nil
+			case TOKEN_GE:
+				return NewBool(l >= r), nil
+			}
+		}
+		// Compare datetimes
+		if left.IsDatetime() && right.IsDatetime() {
+			l, r := left.AsNumber(), right.AsNumber()
+			switch op {
+			case TOKEN_LT:
+				return NewBool(l < r), nil
+			case TOKEN_GT:
+				return NewBool(l > r), nil
+			case TOKEN_LE:
+				return NewBool(l <= r), nil
+			case TOKEN_GE:
+				return NewBool(l >= r), nil
+			}
+		}
+		// Compare durations
+		if left.IsDuration() && right.IsDuration() {
+			l, r := left.AsNumber(), right.AsNumber()
 			switch op {
 			case TOKEN_LT:
 				return NewBool(l < r), nil
@@ -256,9 +334,42 @@ func (e *Evaluator) evalBinaryOp(op TokenType, left, right Value) (Value, error)
 		return NilValue(), fmt.Errorf("cannot compare %v and %v", left.typ, right.typ)
 	}
 
+	// Handle datetime arithmetic
+	if op == TOKEN_MINUS && left.IsDatetime() && right.IsDatetime() {
+		// datetime - datetime = duration
+		diff := int64(left.AsNumber()) - int64(right.AsNumber())
+		return NewDuration(diff), nil
+	}
+	if op == TOKEN_PLUS && left.IsDatetime() && right.IsDuration() {
+		// datetime + duration = datetime
+		result := int64(left.AsNumber()) + int64(right.AsNumber())
+		return NewDatetime(result), nil
+	}
+	if op == TOKEN_PLUS && left.IsDuration() && right.IsDatetime() {
+		// duration + datetime = datetime
+		result := int64(left.AsNumber()) + int64(right.AsNumber())
+		return NewDatetime(result), nil
+	}
+	if op == TOKEN_MINUS && left.IsDatetime() && right.IsDuration() {
+		// datetime - duration = datetime
+		result := int64(left.AsNumber()) - int64(right.AsNumber())
+		return NewDatetime(result), nil
+	}
+
+	// Handle duration arithmetic
+	if left.IsDuration() && right.IsDuration() {
+		l, r := int64(left.AsNumber()), int64(right.AsNumber())
+		switch op {
+		case TOKEN_PLUS:
+			return NewDuration(l + r), nil
+		case TOKEN_MINUS:
+			return NewDuration(l - r), nil
+		}
+	}
+
 	// Arithmetic operators require numbers
 	if !left.IsNumber() || !right.IsNumber() {
-		return NilValue(), fmt.Errorf("arithmetic operations require numbers")
+		return NilValue(), fmt.Errorf("arithmetic operations require numbers, got %v and %v", left.typ, right.typ)
 	}
 
 	l, r := left.AsNumber(), right.AsNumber()
@@ -598,6 +709,182 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		}
 		return NewNumber(float64(t.Year() - 1970)), nil
 
+	// Duration functions
+	// Type validation is done at compile time by the TypeChecker.
+	case "duration":
+		// duration(value, unit) - create duration from value and unit
+		// duration(string) - parse Go duration string (e.g., "2h30m", "3d4h")
+		if len(args) == 1 {
+			d, err := parseDurationValue(args[0])
+			if err != nil {
+				return NilValue(), fmt.Errorf("duration(): %w", err)
+			}
+			return NewDuration(int64(d)), nil
+		} else if len(args) == 2 {
+			value := args[0].AsNumber()
+			unit := args[1].AsString()
+			d, err := durationFromUnit(value, unit)
+			if err != nil {
+				return NilValue(), fmt.Errorf("duration(): %w", err)
+			}
+			return NewDuration(int64(d)), nil
+		}
+		return NilValue(), fmt.Errorf("duration() takes 1 or 2 arguments")
+
+	case "date_diff":
+		// date_diff(end, start) - returns duration (displays as "2h30m" etc.)
+		// date_diff(end, start, unit) - returns numeric value in specified unit
+		if len(args) < 2 || len(args) > 3 {
+			return NilValue(), fmt.Errorf("date_diff() takes 2 or 3 arguments")
+		}
+		end, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("date_diff(): first argument: %w", err)
+		}
+		start, err := parseDatetimeValue(args[1])
+		if err != nil {
+			return NilValue(), fmt.Errorf("date_diff(): second argument: %w", err)
+		}
+		diff := end.Sub(start)
+		if len(args) == 3 {
+			// Return in specified unit as a number
+			unit := strings.ToLower(args[2].AsString())
+			switch unit {
+			case "nanoseconds", "ns":
+				return NewNumber(float64(diff.Nanoseconds())), nil
+			case "microseconds", "us":
+				return NewNumber(float64(diff.Microseconds())), nil
+			case "milliseconds", "ms":
+				return NewNumber(float64(diff.Milliseconds())), nil
+			case "seconds", "s":
+				return NewNumber(diff.Seconds()), nil
+			case "minutes", "m":
+				return NewNumber(diff.Minutes()), nil
+			case "hours", "h":
+				return NewNumber(diff.Hours()), nil
+			case "days", "d":
+				return NewNumber(diff.Hours() / 24), nil
+			case "weeks", "w":
+				return NewNumber(diff.Hours() / (24 * 7)), nil
+			default:
+				return NilValue(), fmt.Errorf("date_diff(): unknown unit: %s", unit)
+			}
+		}
+		// Return as duration type (will display formatted)
+		return NewDuration(int64(diff)), nil
+
+	case "date_add":
+		// date_add(datetime, duration) - returns datetime
+		if len(args) != 2 {
+			return NilValue(), fmt.Errorf("date_add() takes 2 arguments")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("date_add(): %w", err)
+		}
+		d, err := parseDurationValue(args[1])
+		if err != nil {
+			return NilValue(), fmt.Errorf("date_add(): %w", err)
+		}
+		return NewDatetime(t.Add(d).UnixNano()), nil
+
+	case "date_sub":
+		// date_sub(datetime, duration) - returns datetime
+		if len(args) != 2 {
+			return NilValue(), fmt.Errorf("date_sub() takes 2 arguments")
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("date_sub(): %w", err)
+		}
+		d, err := parseDurationValue(args[1])
+		if err != nil {
+			return NilValue(), fmt.Errorf("date_sub(): %w", err)
+		}
+		return NewDatetime(t.Add(-d).UnixNano()), nil
+
+	// Duration extraction functions
+	case "as_nanoseconds":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("as_nanoseconds() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("as_nanoseconds(): %w", err)
+		}
+		return NewNumber(float64(d.Nanoseconds())), nil
+
+	case "as_microseconds":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("as_microseconds() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("as_microseconds(): %w", err)
+		}
+		return NewNumber(float64(d.Microseconds())), nil
+
+	case "as_milliseconds":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("as_milliseconds() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("as_milliseconds(): %w", err)
+		}
+		return NewNumber(float64(d.Milliseconds())), nil
+
+	case "as_seconds":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("as_seconds() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("as_seconds(): %w", err)
+		}
+		return NewNumber(d.Seconds()), nil
+
+	case "as_minutes":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("as_minutes() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("as_minutes(): %w", err)
+		}
+		return NewNumber(d.Minutes()), nil
+
+	case "as_hours":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("as_hours() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("as_hours(): %w", err)
+		}
+		return NewNumber(d.Hours()), nil
+
+	case "as_days":
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("as_days() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("as_days(): %w", err)
+		}
+		return NewNumber(d.Hours() / 24), nil
+
+	case "format_duration":
+		// format_duration(duration_nanos) - returns human-readable duration string
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("format_duration() takes 1 argument")
+		}
+		d, err := parseDurationValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("format_duration(): %w", err)
+		}
+		return NewString(formatDurationCompact(d)), nil
+
 	default:
 		return NilValue(), fmt.Errorf("unknown function: %s", name)
 	}
@@ -738,8 +1025,14 @@ var dateParseFormats = []string{
 	"2006-01-02 15:04:05.000",
 }
 
-// parseDatetimeValue converts a Value to time.Time
+// parseDatetimeValue converts a Value to time.Time.
+// Type validation is done at compile time by the TypeChecker.
 func parseDatetimeValue(v Value) (time.Time, error) {
+	// If already a datetime type, return directly
+	if v.IsDatetime() {
+		return v.AsDatetime(), nil
+	}
+
 	s := v.AsString()
 	if s == "" {
 		return time.Time{}, nil
@@ -774,4 +1067,141 @@ func parseDatetimeValue(v Value) (time.Time, error) {
 	}
 
 	return time.Time{}, fmt.Errorf("unable to parse datetime: %q", s)
+}
+
+// parseDurationValue converts a Value to time.Duration.
+// Type validation is done at compile time by the TypeChecker.
+func parseDurationValue(v Value) (time.Duration, error) {
+	// If already a duration type, return directly
+	if v.IsDuration() {
+		return v.AsDuration(), nil
+	}
+
+	// If it's a number, treat as nanoseconds
+	if v.IsNumber() {
+		return time.Duration(int64(v.AsNumber())), nil
+	}
+
+	// Try to parse as duration string
+	s := strings.TrimSpace(v.AsString())
+	if s == "" {
+		return 0, nil
+	}
+
+	return parseDuration(s)
+}
+
+// parseDuration parses a duration string, supporting Go format plus days.
+func parseDuration(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, nil
+	}
+
+	// Check for days component (e.g., "3d2h30m")
+	negative := false
+	if strings.HasPrefix(s, "-") {
+		negative = true
+		s = s[1:]
+	}
+
+	var total time.Duration
+
+	// Look for 'd' for days
+	if idx := strings.Index(s, "d"); idx != -1 {
+		daysStr := s[:idx]
+		days, err := strconv.ParseInt(daysStr, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid days in duration: %s", daysStr)
+		}
+		total = time.Duration(days) * 24 * time.Hour
+		s = s[idx+1:]
+	}
+
+	// Parse remaining with Go's time.ParseDuration
+	if s != "" {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration: %w", err)
+		}
+		total += d
+	}
+
+	if negative {
+		total = -total
+	}
+
+	return total, nil
+}
+
+// durationFromUnit creates a duration from a value and unit string.
+func durationFromUnit(value float64, unit string) (time.Duration, error) {
+	unit = strings.ToLower(strings.TrimSpace(unit))
+
+	var multiplier time.Duration
+	switch unit {
+	case "nanosecond", "nanoseconds", "ns":
+		multiplier = time.Nanosecond
+	case "microsecond", "microseconds", "us", "µs":
+		multiplier = time.Microsecond
+	case "millisecond", "milliseconds", "ms":
+		multiplier = time.Millisecond
+	case "second", "seconds", "s":
+		multiplier = time.Second
+	case "minute", "minutes", "m":
+		multiplier = time.Minute
+	case "hour", "hours", "h":
+		multiplier = time.Hour
+	case "day", "days", "d":
+		multiplier = 24 * time.Hour
+	case "week", "weeks", "w":
+		multiplier = 7 * 24 * time.Hour
+	default:
+		return 0, fmt.Errorf("unknown duration unit: %s", unit)
+	}
+
+	// Handle fractional values
+	nanos := value * float64(multiplier)
+	if math.IsInf(nanos, 0) || math.IsNaN(nanos) {
+		return 0, fmt.Errorf("duration overflow or invalid value")
+	}
+
+	return time.Duration(nanos), nil
+}
+
+// formatDurationCompact returns a compact representation like "2h30m" or "3d4h".
+func formatDurationCompact(d time.Duration) string {
+	if d == 0 {
+		return "0s"
+	}
+
+	negative := d < 0
+	if negative {
+		d = -d
+	}
+
+	var result strings.Builder
+	if negative {
+		result.WriteString("-")
+	}
+
+	// Handle days specially (not in standard Go duration)
+	days := d / (24 * time.Hour)
+	d = d % (24 * time.Hour)
+
+	if days > 0 {
+		result.WriteString(strconv.FormatInt(int64(days), 10))
+		result.WriteString("d")
+	}
+
+	// Use Go's standard formatting for the rest
+	if d > 0 || days == 0 {
+		remaining := d.String()
+		// If we have days and the remaining is just "0s", skip it
+		if days > 0 && remaining == "0s" {
+			return result.String()
+		}
+		result.WriteString(remaining)
+	}
+
+	return result.String()
 }

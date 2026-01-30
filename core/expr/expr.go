@@ -23,9 +23,11 @@ import "fmt"
 
 // Expression represents a compiled expression ready for evaluation
 type Expression struct {
-	source    string
-	ast       Node
-	evaluator *Evaluator
+	source      string
+	ast         Node
+	evaluator   *Evaluator
+	resultType  ExprType // Result type after type checking (TypeUnknown if not checked)
+	typeChecked bool     // Whether type checking has been performed
 }
 
 // Compile parses and compiles an expression string
@@ -54,9 +56,40 @@ func (e *Expression) Bind(getColumn ColumnGetter) *BoundExpression {
 	}
 }
 
+// BindWithTypes creates an evaluator with type checking performed at bind time.
+// The getColumnType function returns the type of each column.
+// Returns an error if type checking fails.
+func (e *Expression) BindWithTypes(getColumn ColumnGetter, getColumnType ColumnTypeGetter) (*BoundExpression, error) {
+	// Perform type checking
+	tc := NewTypeChecker(getColumnType)
+	resultType, err := tc.Check(e.ast)
+	if err != nil {
+		return nil, fmt.Errorf("type error: %w", err)
+	}
+
+	e.resultType = resultType
+	e.typeChecked = true
+
+	return &BoundExpression{
+		expr:      e,
+		evaluator: NewEvaluator(e.ast, getColumn),
+	}, nil
+}
+
 // Source returns the original expression source
 func (e *Expression) Source() string {
 	return e.source
+}
+
+// ResultType returns the result type after type checking.
+// Returns TypeUnknown if type checking has not been performed.
+func (e *Expression) ResultType() ExprType {
+	return e.resultType
+}
+
+// IsTypeChecked returns true if type checking has been performed.
+func (e *Expression) IsTypeChecked() bool {
+	return e.typeChecked
 }
 
 // BoundExpression is an expression bound to a column getter, ready for row evaluation

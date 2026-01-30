@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/expr"
@@ -307,6 +308,47 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 		if col == nil {
 			return expr.NilValue(), fmt.Errorf("column '%s' not found", colName)
 		}
+
+		// Handle datetime columns - return datetime type for type-aware operations
+		switch dtCol := col.(type) {
+		case *columns.DatetimeColumn:
+			t, err := dtCol.GetValue(rowIndex)
+			if err != nil {
+				return expr.NilValue(), err
+			}
+			return expr.NewDatetime(t.UnixNano()), nil
+		case *columns.JoinedDatetimeColumn:
+			t, err := dtCol.GetValue(rowIndex)
+			if err != nil {
+				return expr.NilValue(), err
+			}
+			return expr.NewDatetime(t.UnixNano()), nil
+		case *columns.ComputedDatetimeColumn:
+			nanos, err := dtCol.GetValue(rowIndex)
+			if err != nil {
+				return expr.NilValue(), err
+			}
+			return expr.NewDatetime(nanos), nil
+		case *columns.DurationColumn:
+			nanos, err := dtCol.Nanoseconds(rowIndex)
+			if err != nil {
+				return expr.NilValue(), err
+			}
+			return expr.NewDuration(nanos), nil
+		case *columns.JoinedDurationColumn:
+			nanos, err := dtCol.Nanoseconds(rowIndex)
+			if err != nil {
+				return expr.NilValue(), err
+			}
+			return expr.NewDuration(nanos), nil
+		case *columns.ComputedDurationColumn:
+			nanos, err := dtCol.Nanoseconds(rowIndex)
+			if err != nil {
+				return expr.NilValue(), err
+			}
+			return expr.NewDuration(nanos), nil
+		}
+
 		strVal, err := col.GetString(rowIndex)
 		if err != nil {
 			return expr.NilValue(), err
@@ -340,7 +382,27 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 	}
 
 	// Create the appropriate column type based on the expression result
-	if sampleVal.IsNumber() {
+	if sampleVal.IsDuration() {
+		// Duration value - create a duration column
+		computedCol := columns.NewComputedDurationColumn(colDef, length, func(i uint32) (time.Duration, error) {
+			val, err := bound.Eval(i)
+			if err != nil {
+				return 0, err
+			}
+			return val.AsDuration(), nil
+		})
+		tableView.AddComputedColumn(name, computedCol)
+	} else if sampleVal.IsDatetime() {
+		// Datetime value - create a datetime column
+		computedCol := columns.NewComputedDatetimeColumn(colDef, length, func(i uint32) (int64, error) {
+			val, err := bound.Eval(i)
+			if err != nil {
+				return 0, err
+			}
+			return int64(val.AsNumber()), nil
+		})
+		tableView.AddComputedColumn(name, computedCol)
+	} else if sampleVal.IsNumber() {
 		num := sampleVal.AsNumber()
 		// Check if it's an integer (no fractional part)
 		if num == float64(int64(num)) {

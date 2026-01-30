@@ -442,3 +442,217 @@ func (c *ComputedDatetimeColumn) SetDisplayFormat(format string) {
 func nanoToTime(nanos int64) time.Time {
 	return time.Unix(0, nanos)
 }
+
+// ComputeDurationFn is a function that computes a time.Duration value for a given row index.
+// The function should capture any source columns it needs in a closure.
+type ComputeDurationFn func(i uint32) (time.Duration, error)
+
+// ComputedDurationColumn represents a column whose duration values are computed from other columns.
+type ComputedDurationColumn struct {
+	columnDef     *ColumnDef
+	computeFn     ComputeDurationFn
+	length        int
+	displayFormat DurationFormat
+}
+
+// NewComputedDurationColumn creates a new computed duration column.
+// The length parameter specifies the number of rows (should match source columns).
+func NewComputedDurationColumn(columnDef *ColumnDef, length int, computeFn ComputeDurationFn) *ComputedDurationColumn {
+	return &ComputedDurationColumn{
+		columnDef:     columnDef,
+		computeFn:     computeFn,
+		length:        length,
+		displayFormat: DurationFormatCompact,
+	}
+}
+
+// NewComputedDurationColumnWithFormat creates a new computed duration column with a custom display format.
+func NewComputedDurationColumnWithFormat(columnDef *ColumnDef, length int, computeFn ComputeDurationFn, format DurationFormat) *ComputedDurationColumn {
+	return &ComputedDurationColumn{
+		columnDef:     columnDef,
+		computeFn:     computeFn,
+		length:        length,
+		displayFormat: format,
+	}
+}
+
+func (c *ComputedDurationColumn) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *ComputedDurationColumn) Length() int {
+	return c.length
+}
+
+func (c *ComputedDurationColumn) GetValue(i uint32) (time.Duration, error) {
+	if i >= uint32(c.length) {
+		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
+	}
+	return c.computeFn(i)
+}
+
+func (c *ComputedDurationColumn) GetString(i uint32) (string, error) {
+	d, err := c.GetValue(i)
+	if err != nil {
+		return "", err
+	}
+	return formatDurationForDisplay(d, c.displayFormat), nil
+}
+
+func (c *ComputedDurationColumn) Nanoseconds(i uint32) (int64, error) {
+	d, err := c.GetValue(i)
+	if err != nil {
+		return 0, err
+	}
+	return int64(d), nil
+}
+
+func (c *ComputedDurationColumn) IsKey() bool {
+	return false
+}
+
+func (c *ComputedDurationColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *ComputedDurationColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[int64]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		value, err := c.GetValue(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		nanos := int64(value)
+		if groupKey, ok := valueToGroupKey[nanos]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[nanos] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}
+
+// SetDisplayFormat changes the display format for GetString().
+func (c *ComputedDurationColumn) SetDisplayFormat(format DurationFormat) {
+	c.displayFormat = format
+}
+
+// formatDurationForDisplay formats a duration according to the specified format.
+func formatDurationForDisplay(d time.Duration, format DurationFormat) string {
+	switch format {
+	case DurationFormatVerbose:
+		return formatDurationVerboseComputed(d)
+	default:
+		return formatDurationCompactComputed(d)
+	}
+}
+
+// formatDurationCompactComputed returns a compact representation like "2h30m" or "3d4h".
+func formatDurationCompactComputed(d time.Duration) string {
+	if d == 0 {
+		return "0s"
+	}
+
+	negative := d < 0
+	if negative {
+		d = -d
+	}
+
+	var result string
+	if negative {
+		result = "-"
+	}
+
+	// Handle days specially (not in standard Go duration)
+	days := d / (24 * time.Hour)
+	d = d % (24 * time.Hour)
+
+	if days > 0 {
+		result += fmt.Sprintf("%dd", days)
+	}
+
+	// Use Go's standard formatting for the rest
+	if d > 0 || days == 0 {
+		remaining := d.String()
+		// If we have days and the remaining is just "0s", skip it
+		if days > 0 && remaining == "0s" {
+			return result
+		}
+		result += remaining
+	}
+
+	return result
+}
+
+// formatDurationVerboseComputed returns a human-readable representation like "2 hours 30 minutes".
+func formatDurationVerboseComputed(d time.Duration) string {
+	if d == 0 {
+		return "0 seconds"
+	}
+
+	negative := d < 0
+	if negative {
+		d = -d
+	}
+
+	var parts []string
+
+	days := d / (24 * time.Hour)
+	d = d % (24 * time.Hour)
+	if days > 0 {
+		if days == 1 {
+			parts = append(parts, "1 day")
+		} else {
+			parts = append(parts, fmt.Sprintf("%d days", days))
+		}
+	}
+
+	hours := d / time.Hour
+	d = d % time.Hour
+	if hours > 0 {
+		if hours == 1 {
+			parts = append(parts, "1 hour")
+		} else {
+			parts = append(parts, fmt.Sprintf("%d hours", hours))
+		}
+	}
+
+	minutes := d / time.Minute
+	d = d % time.Minute
+	if minutes > 0 {
+		if minutes == 1 {
+			parts = append(parts, "1 minute")
+		} else {
+			parts = append(parts, fmt.Sprintf("%d minutes", minutes))
+		}
+	}
+
+	seconds := d / time.Second
+	if seconds > 0 || len(parts) == 0 {
+		if seconds == 1 {
+			parts = append(parts, "1 second")
+		} else {
+			parts = append(parts, fmt.Sprintf("%d seconds", seconds))
+		}
+	}
+
+	result := ""
+	for i, part := range parts {
+		if i > 0 {
+			result += " "
+		}
+		result += part
+	}
+
+	if negative {
+		return "-" + result
+	}
+	return result
+}
