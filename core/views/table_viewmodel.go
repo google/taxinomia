@@ -106,6 +106,9 @@ type ColumnInfo struct {
 	ToggleURL         safehtml.URL // URL to toggle expansion
 	ToggleColumnURL   safehtml.URL // URL to toggle column visibility (preserves all query params)
 	ToggleGroupingURL safehtml.URL // URL to toggle grouping for this column
+	SortIndex         int          // 1-based sort priority (0 = not in sort order)
+	IsSortDescending  bool         // True if sorted descending
+	ToggleSortURL     safehtml.URL // URL to toggle sort for this column
 }
 
 // JoinTarget represents a column that can be joined to
@@ -432,6 +435,9 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				ToggleURL:         BuildToggleExpansionURL(q, colName),
 				ToggleColumnURL:   BuildToggleColumnURL(q, colName),
 				ToggleGroupingURL: BuildToggleGroupingURL(q, colName),
+				SortIndex:         q.GetSortIndex(colName),
+				IsSortDescending:  q.IsSortedDescending(colName),
+				ToggleSortURL:     q.WithSortToggled(colName),
 			})
 		}
 	}
@@ -474,6 +480,9 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 						ToggleURL:         BuildToggleExpansionURL(q, colName),
 						ToggleColumnURL:   BuildToggleColumnURL(q, colName),
 						ToggleGroupingURL: BuildToggleGroupingURL(q, colName),
+						SortIndex:         q.GetSortIndex(colName),
+						IsSortDescending:  q.IsSortedDescending(colName),
+						ToggleSortURL:     q.WithSortToggled(colName),
 					})
 				}
 			}
@@ -499,6 +508,9 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			ToggleURL:         BuildToggleExpansionURL(q, comp.Name),
 			ToggleColumnURL:   BuildToggleColumnURL(q, comp.Name),
 			ToggleGroupingURL: BuildToggleGroupingURL(q, comp.Name),
+			SortIndex:         q.GetSortIndex(comp.Name),
+			IsSortDescending:  q.IsSortedDescending(comp.Name),
+			ToggleSortURL:     q.WithSortToggled(comp.Name),
 		})
 	}
 
@@ -550,8 +562,14 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	totalRows := tableView.GetFilteredRowCount()
 	vm.TotalRows = totalRows
 
-	// Get filtered rows with limit applied
-	vm.Rows = tableView.GetFilteredRows(view.Columns, q.Limit)
+	// Get filtered rows with limit and sorting applied
+	if len(q.SortOrder) > 0 {
+		// Use sorted version with heap-based top-K selection
+		vm.Rows = tableView.GetFilteredRowsSorted(view.Columns, q.SortOrder, q.Limit)
+	} else {
+		// No sorting - use basic filtered rows
+		vm.Rows = tableView.GetFilteredRows(view.Columns, q.Limit)
+	}
 	vm.DisplayedRows = len(vm.Rows)
 	vm.CurrentLimit = q.Limit
 	vm.HasMoreRows = q.Limit > 0 && totalRows > q.Limit

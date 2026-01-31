@@ -19,17 +19,39 @@
 Taxinomia is a table oriented analytics system. 
 
 Next features
- * more data types
  * sorting
  * aggregation
  * display limit for grouped tables
- * grouping function
- * filtering function
- * column optimisations
+ * grouping function (can be done with computed columns)
+ * filtering function (can be done with computed columns)
+ * column optimisations 
  * sub columns, e.g. a column consists of a proto message, expand it on demand
  * when by definition the value of two columns always match, display the value of the other columns when the first one is grouped
  * support extremely large tables - user will have to filter on specific columns to reduce the table before being able to load it, though the column might be grouped
+ * break up a column in multiple columns in one go, date => year/quarter/month/week/day/hour, basically a split like function that generates multiple computed columns automatically
  * graphs, etc
+
+
+CLAUDE.md
+
+Scalability goals are to support up to 1'000'000'000 rows
+Latency must be near impercetible for up to 1'000'000 rows, maybe 100 ms
+Latency must be small for up to 10'000'000 rows, maybe 1 s
+
+The UI must be simple and clean, no fancy features, must be intuitive. Avoid following heavy handed approaches that are far too common.
+
+Minimize client-side code, everything is encoded in the URL, updates must always go through the back end, with some very limited exceptions only, These should be clearly documented, justsified and validated.
+
+There is no point in displaying more than at the very most a few hundreds of rows, typically it should not be more than 20 - 100.
+
+Everything in the displayed data must be fully deterministic, page refreshes should change the content of the page
+
+The code should be as simple as possible and cleanly implemented with proper abstractions. Avoid over complicating the code, in case of doubts ask.
+
+
+
+
+
 
 
 
@@ -58,7 +80,7 @@ Some implementation gaps
 
 Future features
  * filtering on aggregated values
- * grouping on aggregated values
+ * grouping on aggregated values ???
  * pivoting
  * materialization 
 

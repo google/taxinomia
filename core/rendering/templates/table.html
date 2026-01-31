@@ -653,6 +653,47 @@
             pointer-events: none;
         }
 
+        .sort-toggle-btn {
+            display: inline-block;
+            padding: 2px 6px;
+            text-decoration: none;
+            color: #999;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background-color: white;
+            transition: all 0.2s;
+            margin-left: 4px;
+        }
+
+        .sort-toggle-btn:hover {
+            background-color: #e8e8e8;
+            border-color: #999;
+            color: #333;
+        }
+
+        .sort-toggle-btn.active {
+            color: #5a9fd4;
+            border-color: #b8d4e8;
+            background-color: #e8f4fc;
+        }
+
+        .sort-toggle-btn.active.primary {
+            background-color: #5dade2;
+            border-color: #4a9ed4;
+            color: white;
+        }
+
+        .sort-toggle-btn.active.primary:hover {
+            background-color: #4a9ed4;
+            border-color: #3b8fc5;
+        }
+
+        .sort-toggle-btn .sort-priority {
+            font-size: 9px;
+            margin-left: 2px;
+        }
+
         .filter-link {
             font-size: 11px;
             font-weight: bold;
@@ -1367,6 +1408,9 @@
                 <td class="grouping-cell">
                     <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
                         {{if .IsGrouped}}⊟{{else}}⊞{{end}}
+                    </a>
+                    <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if gt .SortIndex 0}} active{{end}}{{if eq .SortIndex 1}} primary{{end}}" title="Click to change sort order ({{if .IsSortDescending}}descending{{else}}ascending{{end}})">
+                        {{if gt .SortIndex 0}}{{if .IsSortDescending}}▼{{else}}▲{{end}}<span class="sort-priority">{{.SortIndex}}</span>{{else}}⇅{{end}}
                     </a>
                 </td>
                         {{end}}

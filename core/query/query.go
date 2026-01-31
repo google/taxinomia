@@ -32,6 +32,12 @@ type ComputedColumnDef struct {
 	Expression string // Expression as entered by user (e.g., "add(price,qty)")
 }
 
+// SortColumn represents a column in the sort order with its direction
+type SortColumn struct {
+	Name       string // Column name
+	Descending bool   // true = descending (-), false = ascending (+)
+}
+
 // Query represents the parsed state of a table view URL
 type Query struct {
 	// Base path (e.g., "/table")
@@ -46,6 +52,7 @@ type Query struct {
 	Filters         map[string]string   // Column filters (columnName -> filterValue)
 	Limit           int                 // Number of rows to display (0 = show all)
 	ComputedColumns []ComputedColumnDef // Computed column definitions
+	SortOrder       []SortColumn        // Ordered list of sort columns (all visible columns with +/- direction)
 }
 
 // NewQuery creates a Query from a URL
@@ -129,6 +136,12 @@ func NewQuery(u *url.URL) *Query {
 		state.ComputedColumns = parseComputedColumns(computedStr)
 	}
 
+	// Extract sort parameter (format: +col1,-col2,+col3)
+	sortStr := q.Get("sort")
+	if sortStr != "" {
+		state.SortOrder = parseSortOrder(sortStr)
+	}
+
 	// Reorder columns: filtered columns first, then grouped columns, then others
 	state.reorderColumns()
 
@@ -160,6 +173,33 @@ func parseComputedColumns(computedStr string) []ComputedColumnDef {
 	return result
 }
 
+// parseSortOrder parses the sort parameter string into SortColumn slice
+// Format: +col1,-col2,+col3 (+ = ascending, - = descending)
+func parseSortOrder(sortStr string) []SortColumn {
+	var result []SortColumn
+	parts := strings.Split(sortStr, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		// First character must be + or -
+		if len(part) < 2 {
+			continue
+		}
+		switch part[0] {
+		case '+':
+			result = append(result, SortColumn{Name: part[1:], Descending: false})
+		case '-':
+			result = append(result, SortColumn{Name: part[1:], Descending: true})
+		default:
+			// Invalid format, skip
+			continue
+		}
+	}
+	return result
+}
+
 // Clone creates a deep copy of the Query
 func (s *Query) Clone() *Query {
 	clone := &Query{
@@ -172,6 +212,7 @@ func (s *Query) Clone() *Query {
 		Filters:         make(map[string]string),
 		Limit:           s.Limit,
 		ComputedColumns: make([]ComputedColumnDef, len(s.ComputedColumns)),
+		SortOrder:       make([]SortColumn, len(s.SortOrder)),
 	}
 
 	// Deep copy columns
@@ -195,6 +236,9 @@ func (s *Query) Clone() *Query {
 
 	// Deep copy computed columns
 	copy(clone.ComputedColumns, s.ComputedColumns)
+
+	// Deep copy sort order
+	copy(clone.SortOrder, s.SortOrder)
 
 	return clone
 }
@@ -414,6 +458,19 @@ func (s *Query) ToURL() string {
 		q.Set("computed", strings.Join(computedStrs, ";"))
 	}
 
+	// Add sort parameter (format: +col1,-col2,+col3)
+	if len(s.SortOrder) > 0 {
+		var sortStrs []string
+		for _, sc := range s.SortOrder {
+			if sc.Descending {
+				sortStrs = append(sortStrs, "-"+sc.Name)
+			} else {
+				sortStrs = append(sortStrs, "+"+sc.Name)
+			}
+		}
+		q.Set("sort", strings.Join(sortStrs, ","))
+	}
+
 	u.RawQuery = q.Encode()
 	return u.String()
 }
@@ -513,4 +570,62 @@ func (s *Query) WithFilterAndUngrouped(column, value string) safehtml.URL {
 	newState.reorderColumns()
 
 	return newState.ToSafeURL()
+}
+
+// WithSortToggled returns a URL with the sort direction toggled for a column.
+// Clicking cycles: ascending (move to front) -> descending -> ascending
+// The column is moved to the front of the sort order (highest priority).
+func (s *Query) WithSortToggled(column string) safehtml.URL {
+	newState := s.Clone()
+
+	// Find if column is already in sort order
+	var existingIdx = -1
+	var wasDescending bool
+	for i, sc := range newState.SortOrder {
+		if sc.Name == column {
+			existingIdx = i
+			wasDescending = sc.Descending
+			break
+		}
+	}
+
+	if existingIdx >= 0 {
+		// Column exists - toggle direction and move to front
+		newSortOrder := make([]SortColumn, 0, len(newState.SortOrder))
+		newSortOrder = append(newSortOrder, SortColumn{Name: column, Descending: !wasDescending})
+		for i, sc := range newState.SortOrder {
+			if i != existingIdx {
+				newSortOrder = append(newSortOrder, sc)
+			}
+		}
+		newState.SortOrder = newSortOrder
+	} else {
+		// Column not in sort order - add to front as ascending
+		newSortOrder := make([]SortColumn, 0, len(newState.SortOrder)+1)
+		newSortOrder = append(newSortOrder, SortColumn{Name: column, Descending: false})
+		newSortOrder = append(newSortOrder, newState.SortOrder...)
+		newState.SortOrder = newSortOrder
+	}
+
+	return newState.ToSafeURL()
+}
+
+// GetSortIndex returns the 1-based sort priority index for a column, or 0 if not sorted.
+func (s *Query) GetSortIndex(column string) int {
+	for i, sc := range s.SortOrder {
+		if sc.Name == column {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// IsSortedDescending returns true if the column is sorted in descending order.
+func (s *Query) IsSortedDescending(column string) bool {
+	for _, sc := range s.SortOrder {
+		if sc.Name == column {
+			return sc.Descending
+		}
+	}
+	return false
 }
