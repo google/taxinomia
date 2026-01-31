@@ -38,6 +38,14 @@ type SortColumn struct {
 	Descending bool   // true = descending (-), false = ascending (+)
 }
 
+// GroupAggSort specifies how a grouped column should be sorted by an aggregate value
+type GroupAggSort struct {
+	GroupedColumn string        // The grouped column to sort
+	LeafColumn    string        // The leaf column whose aggregate to sort by
+	AggType       AggregateType // The aggregate type to sort by
+	Descending    bool          // Sort direction
+}
+
 // AggregateType represents a type of aggregate function
 type AggregateType string
 
@@ -170,6 +178,7 @@ type Query struct {
 	ComputedColumns    []ComputedColumnDef          // Computed column definitions
 	SortOrder          []SortColumn                 // Ordered list of sort columns (all visible columns with +/- direction)
 	AggregateSettings  map[string][]AggregateType   // Enabled aggregates per column (columnName -> list of enabled aggregates)
+	GroupAggregateSorts map[string]*GroupAggSort    // Aggregate sort for grouped columns (groupedColumn -> sort spec)
 }
 
 // NewQuery creates a Query from a URL
@@ -178,11 +187,12 @@ func NewQuery(u *url.URL) *Query {
 	// No additional sanitization needed here as we're just extracting query parameters
 
 	state := &Query{
-		Path:              u.Path,
-		Filters:           make(map[string]string),
-		ColumnWidths:      make(map[string]int),
-		AggregateSettings: make(map[string][]AggregateType),
-		Limit:             25, // Default limit
+		Path:                u.Path,
+		Filters:             make(map[string]string),
+		ColumnWidths:        make(map[string]int),
+		AggregateSettings:   make(map[string][]AggregateType),
+		GroupAggregateSorts: make(map[string]*GroupAggSort),
+		Limit:               25, // Default limit
 	}
 
 	// Parse query parameters
@@ -268,6 +278,16 @@ func NewQuery(u *url.URL) *Query {
 		state.SortOrder = parseSortOrder(sortStr)
 	}
 
+	// Extract group aggregate sort parameters (format: groupsort:groupedCol=+leafCol:aggType or -leafCol:aggType)
+	for key, values := range q {
+		if strings.HasPrefix(key, "groupsort:") && len(values) > 0 {
+			groupedCol := strings.TrimPrefix(key, "groupsort:")
+			if aggSort := parseGroupAggSort(groupedCol, values[0]); aggSort != nil {
+				state.GroupAggregateSorts[groupedCol] = aggSort
+			}
+		}
+	}
+
 	// Reorder columns: filtered columns first, then grouped columns, then others
 	state.reorderColumns()
 
@@ -347,20 +367,67 @@ func parseAggregates(aggStr string) []AggregateType {
 	return result
 }
 
+// parseGroupAggSort parses a group aggregate sort specification
+// Format: +leafCol:aggType or -leafCol:aggType (e.g., +amount:sum or -amount:count)
+func parseGroupAggSort(groupedCol, value string) *GroupAggSort {
+	if len(value) < 3 {
+		return nil
+	}
+
+	// First character must be + or -
+	descending := false
+	switch value[0] {
+	case '+':
+		descending = false
+	case '-':
+		descending = true
+	default:
+		return nil
+	}
+
+	// Rest is leafCol:aggType
+	rest := value[1:]
+	colonIdx := strings.LastIndex(rest, ":")
+	if colonIdx == -1 || colonIdx == 0 || colonIdx == len(rest)-1 {
+		return nil
+	}
+
+	leafCol := rest[:colonIdx]
+	aggTypeStr := rest[colonIdx+1:]
+
+	// Validate aggregate type
+	aggType := AggregateType(aggTypeStr)
+	switch aggType {
+	case AggSum, AggAvg, AggStdDev, AggMin, AggMax, AggCount,
+		AggUnique, AggTrue, AggFalse, AggRatio, AggSpan:
+		// Valid
+	default:
+		return nil
+	}
+
+	return &GroupAggSort{
+		GroupedColumn: groupedCol,
+		LeafColumn:    leafCol,
+		AggType:       aggType,
+		Descending:    descending,
+	}
+}
+
 // Clone creates a deep copy of the Query
 func (s *Query) Clone() *Query {
 	clone := &Query{
-		Path:              s.Path,
-		Table:             s.Table,
-		Columns:           make([]string, len(s.Columns)),
-		ColumnWidths:      make(map[string]int),
-		Expanded:          make([]string, len(s.Expanded)),
-		GroupedColumns:    make([]string, len(s.GroupedColumns)),
-		Filters:           make(map[string]string),
-		Limit:             s.Limit,
-		ComputedColumns:   make([]ComputedColumnDef, len(s.ComputedColumns)),
-		SortOrder:         make([]SortColumn, len(s.SortOrder)),
-		AggregateSettings: make(map[string][]AggregateType),
+		Path:                s.Path,
+		Table:               s.Table,
+		Columns:             make([]string, len(s.Columns)),
+		ColumnWidths:        make(map[string]int),
+		Expanded:            make([]string, len(s.Expanded)),
+		GroupedColumns:      make([]string, len(s.GroupedColumns)),
+		Filters:             make(map[string]string),
+		Limit:               s.Limit,
+		ComputedColumns:     make([]ComputedColumnDef, len(s.ComputedColumns)),
+		SortOrder:           make([]SortColumn, len(s.SortOrder)),
+		AggregateSettings:   make(map[string][]AggregateType),
+		GroupAggregateSorts: make(map[string]*GroupAggSort),
 	}
 
 	// Deep copy columns
@@ -393,6 +460,16 @@ func (s *Query) Clone() *Query {
 		aggsCopy := make([]AggregateType, len(aggs))
 		copy(aggsCopy, aggs)
 		clone.AggregateSettings[colName] = aggsCopy
+	}
+
+	// Deep copy group aggregate sorts
+	for groupedCol, aggSort := range s.GroupAggregateSorts {
+		clone.GroupAggregateSorts[groupedCol] = &GroupAggSort{
+			GroupedColumn: aggSort.GroupedColumn,
+			LeafColumn:    aggSort.LeafColumn,
+			AggType:       aggSort.AggType,
+			Descending:    aggSort.Descending,
+		}
 	}
 
 	return clone
@@ -637,6 +714,15 @@ func (s *Query) ToURL() string {
 		}
 	}
 
+	// Add group aggregate sort parameters (format: groupsort:groupedCol=+leafCol:aggType)
+	for groupedCol, aggSort := range s.GroupAggregateSorts {
+		sign := "+"
+		if aggSort.Descending {
+			sign = "-"
+		}
+		q.Set("groupsort:"+groupedCol, sign+aggSort.LeafColumn+":"+string(aggSort.AggType))
+	}
+
 	u.RawQuery = q.Encode()
 	return u.String()
 }
@@ -822,6 +908,13 @@ func (s *Query) WithAggregateToggled(column string, aggType AggregateType) safeh
 			// Was enabled by default (count), explicitly set to empty to disable
 			newState.AggregateSettings[column] = []AggregateType{}
 		}
+
+		// Remove any GroupAggSort that uses this aggregate on this column
+		for groupedCol, aggSort := range newState.GroupAggregateSorts {
+			if aggSort != nil && aggSort.LeafColumn == column && aggSort.AggType == aggType {
+				delete(newState.GroupAggregateSorts, groupedCol)
+			}
+		}
 	} else {
 		// Currently disabled, need to enable
 		newState.AggregateSettings[column] = append(currentAggs, aggType)
@@ -878,4 +971,76 @@ func (s *Query) GetEnabledAggregates(column string, colType ColumnType) []Aggreg
 		}
 	}
 	return result
+}
+
+// WithNextGroupAggSort cycles through aggregate sort options for a grouped column.
+// Options cycle through: no aggregate sort -> each enabled aggregate of each leaf column -> back to no aggregate sort
+// leafColumns is an ordered list of leaf column names; enabledAggs maps leaf column name to enabled aggregates.
+// Note: Count aggregates are skipped since they are not displayed in the UI.
+func (s *Query) WithNextGroupAggSort(groupedColumn string, leafColumns []string, enabledAggs map[string][]AggregateType) safehtml.URL {
+	newState := s.Clone()
+
+	// Build the list of all possible aggregate sort options
+	// Each option is (leafColumn, aggType)
+	// Skip count aggregates since they are not displayed in the UI
+	type sortOption struct {
+		leafCol string
+		aggType AggregateType
+	}
+	var options []sortOption
+	for _, leafCol := range leafColumns {
+		for _, agg := range enabledAggs[leafCol] {
+			if agg == AggCount {
+				continue // Skip count - not displayed in UI
+			}
+			options = append(options, sortOption{leafCol, agg})
+		}
+	}
+
+	// Find current position in cycle
+	currentSort := s.GroupAggregateSorts[groupedColumn]
+	currentIdx := -1 // -1 means "no aggregate sort" (sort by column value)
+	if currentSort != nil {
+		for i, opt := range options {
+			if opt.leafCol == currentSort.LeafColumn && opt.aggType == currentSort.AggType {
+				currentIdx = i
+				break
+			}
+		}
+	}
+
+	// Move to next option
+	nextIdx := currentIdx + 1
+	if nextIdx >= len(options) {
+		// Cycle back to no aggregate sort
+		delete(newState.GroupAggregateSorts, groupedColumn)
+	} else {
+		// Set next aggregate sort (ascending by default)
+		opt := options[nextIdx]
+		newState.GroupAggregateSorts[groupedColumn] = &GroupAggSort{
+			GroupedColumn: groupedColumn,
+			LeafColumn:    opt.leafCol,
+			AggType:       opt.aggType,
+			Descending:    false,
+		}
+	}
+
+	return newState.ToSafeURL()
+}
+
+// GetGroupAggSort returns the aggregate sort for a grouped column, or nil if none.
+func (s *Query) GetGroupAggSort(groupedColumn string) *GroupAggSort {
+	return s.GroupAggregateSorts[groupedColumn]
+}
+
+// WithGroupAggSortDirectionToggled toggles the direction (asc/desc) of an existing aggregate sort.
+// If no aggregate sort exists for the column, this has no effect.
+func (s *Query) WithGroupAggSortDirectionToggled(groupedColumn string) safehtml.URL {
+	newState := s.Clone()
+
+	if aggSort, exists := newState.GroupAggregateSorts[groupedColumn]; exists {
+		aggSort.Descending = !aggSort.Descending
+	}
+
+	return newState.ToSafeURL()
 }

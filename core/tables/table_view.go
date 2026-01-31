@@ -986,3 +986,140 @@ func (tv *TableView) GetColumnType(colName string) query.ColumnType {
 
 	return query.ColumnTypeString
 }
+
+// SortGroupsByAggregate re-sorts groups in a block by their aggregate value.
+// This should be called after ComputeAggregates.
+// groupAggSorts maps grouped column names to their aggregate sort specification.
+func (tv *TableView) SortGroupsByAggregate(groupAggSorts map[string]*query.GroupAggSort) {
+	if tv.firstBlock == nil || len(groupAggSorts) == 0 {
+		return
+	}
+
+	// Walk through grouping hierarchy and sort blocks that have aggregate sort specified
+	tv.sortBlockByAggregate(tv.firstBlock, groupAggSorts)
+}
+
+// sortBlockByAggregate recursively sorts groups in a block and its children by aggregate values.
+func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts map[string]*query.GroupAggSort) {
+	if block == nil {
+		return
+	}
+
+	// Get the grouped column name for this block
+	groupedColName := ""
+	for name, gc := range tv.groupedColumns {
+		if gc == block.GroupedColumn {
+			groupedColName = name
+			break
+		}
+	}
+
+	// Check if this grouped column has an aggregate sort
+	if aggSort, ok := groupAggSorts[groupedColName]; ok && aggSort != nil {
+		// Sort groups by aggregate value
+		sort.Slice(block.Groups, func(i, j int) bool {
+			// Get aggregate states for both groups
+			stateI := block.Groups[i].Aggregates[aggSort.LeafColumn]
+			stateJ := block.Groups[j].Aggregates[aggSort.LeafColumn]
+
+			// Compare aggregate values
+			cmp := tv.compareAggregateValues(stateI, stateJ, aggSort.AggType)
+			if aggSort.Descending {
+				return cmp > 0
+			}
+			return cmp < 0
+		})
+	}
+
+	// Recursively sort child blocks
+	for _, group := range block.Groups {
+		if group.ChildBlock != nil {
+			tv.sortBlockByAggregate(group.ChildBlock, groupAggSorts)
+		}
+	}
+}
+
+// compareAggregateValues compares two aggregate states for a specific aggregate type.
+// Returns -1 if a < b, 0 if equal, 1 if a > b.
+func (tv *TableView) compareAggregateValues(a, b aggregates.AggregateState, aggType query.AggregateType) int {
+	if a == nil && b == nil {
+		return 0
+	}
+	if a == nil {
+		return 1 // nil sorts last
+	}
+	if b == nil {
+		return -1
+	}
+
+	// Extract comparable values based on aggregate type
+	valA := tv.getAggregateNumericValue(a, aggType)
+	valB := tv.getAggregateNumericValue(b, aggType)
+
+	if valA < valB {
+		return -1
+	}
+	if valA > valB {
+		return 1
+	}
+	return 0
+}
+
+// getAggregateNumericValue extracts a numeric value from an aggregate state for comparison.
+func (tv *TableView) getAggregateNumericValue(state aggregates.AggregateState, aggType query.AggregateType) float64 {
+	switch s := state.(type) {
+	case *aggregates.NumericAggState:
+		switch aggType {
+		case query.AggCount:
+			return float64(s.Count)
+		case query.AggSum:
+			return s.Sum
+		case query.AggAvg:
+			return s.Avg()
+		case query.AggStdDev:
+			return s.StdDev()
+		case query.AggMin:
+			return s.Min
+		case query.AggMax:
+			return s.Max
+		}
+	case *aggregates.BoolAggState:
+		switch aggType {
+		case query.AggCount:
+			return float64(s.Count)
+		case query.AggTrue:
+			return float64(s.TrueCount)
+		case query.AggFalse:
+			return float64(s.FalseCount)
+		case query.AggRatio:
+			return s.Ratio()
+		}
+	case *aggregates.StringAggState:
+		switch aggType {
+		case query.AggCount:
+			return float64(s.Count)
+		case query.AggUnique:
+			return float64(s.UniqueCount())
+		}
+	case *aggregates.DatetimeAggState:
+		switch aggType {
+		case query.AggCount:
+			return float64(s.Count)
+		case query.AggMin:
+			return float64(s.Min) // epoch nanoseconds
+		case query.AggMax:
+			return float64(s.Max) // epoch nanoseconds
+		case query.AggAvg:
+			// Average time as epoch nanoseconds
+			if s.Count == 0 {
+				return 0
+			}
+			return s.Sum / float64(s.Count)
+		case query.AggStdDev:
+			return float64(s.StdDev()) // duration in nanoseconds
+		case query.AggSpan:
+			return float64(s.Max - s.Min) // duration in nanoseconds
+		}
+	}
+	return 0
+}

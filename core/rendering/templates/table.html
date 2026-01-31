@@ -702,6 +702,48 @@
             border-color: #e0e0e0;
         }
 
+        .sort-toggle-btn.value-sort {
+            background-color: #d5f5e3;
+            border-color: #82e0aa;
+            color: #1e8449;
+        }
+
+        .sort-toggle-btn.value-sort:hover {
+            background-color: #abebc6;
+            border-color: #58d68d;
+        }
+
+        /* Aggregate sort toggle button (for grouped columns) */
+        .agg-sort-toggle-btn {
+            display: inline-block;
+            padding: 2px 6px;
+            text-decoration: none;
+            color: #999;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background-color: white;
+            transition: all 0.2s;
+            margin-left: 4px;
+        }
+
+        .agg-sort-toggle-btn:hover {
+            background-color: #e8e8e8;
+            border-color: #999;
+            color: #333;
+        }
+
+        .agg-sort-toggle-btn.active {
+            background-color: #e8f4fc;
+            border-color: #b8d4e8;
+            color: #3498db;
+        }
+
+        .agg-sort-toggle-btn.active:hover {
+            background-color: #d0e8f8;
+            border-color: #8bc4e8;
+        }
+
         /* Aggregate toggle buttons */
         .agg-toggle-btn {
             display: inline-block;
@@ -1052,6 +1094,20 @@
             margin-top: 4px;
             font-size: 11px;
             color: #666;
+        }
+
+        /* Sorted aggregate value - bold styling */
+        .agg-sorted {
+            font-weight: bold;
+            color: #3498db;
+            background-color: #e8f4fc;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        /* Value sorted - bold styling for grouped values when sorting by value */
+        .value-sorted {
+            font-weight: bold;
         }
     </style>
     <script>
@@ -1517,10 +1573,19 @@
                     {{/* Sort control - leftmost. Disabled for leaf columns when grouping is active */}}
                     {{if and $.IsGrouped (not .IsGrouped)}}
                     <span class="sort-toggle-btn disabled" title="Sorting disabled for leaf columns when grouped">⇅</span>
+                    {{else if .HasAggSort}}
+                    {{/* When aggregate sort is active, the up/down button toggles aggregate sort direction */}}
+                    <a href="{{.AggSortDirectionURL}}" class="sort-toggle-btn active primary" title="Sorting by {{.AggSortLeafCol}} {{.AggSortAggType}} ({{if .IsAggSortDescending}}descending{{else}}ascending{{end}}) - click to toggle direction">
+                        {{if .IsAggSortDescending}}▼{{else}}▲{{end}}
+                    </a>
                     {{else}}
-                    <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if gt .SortIndex 0}} active{{end}}{{if eq .SortIndex 1}} primary{{end}}" title="Click to change sort order ({{if .IsSortDescending}}descending{{else}}ascending{{end}})">
+                    <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if gt .SortIndex 0}} active{{end}}{{if eq .SortIndex 1}} primary{{end}}{{if and .IsGrouped (gt .SortIndex 0)}} value-sort{{end}}" title="{{if and .IsGrouped (gt .SortIndex 0)}}Sorting by grouped value{{else}}Click to change sort order ({{if .IsSortDescending}}descending{{else}}ascending{{end}}){{end}}">
                         {{if gt .SortIndex 0}}{{if .IsSortDescending}}▼{{else}}▲{{end}}{{if not $.IsGrouped}}<span class="sort-priority">{{.SortIndex}}</span>{{end}}{{else}}⇅{{end}}
                     </a>
+                    {{end}}
+                    {{/* Aggregate sort toggle for grouped columns */}}
+                    {{if and $.IsGrouped .IsGrouped}}
+                    <a href="{{.AggSortToggleURL}}" class="agg-sort-toggle-btn{{if .HasAggSort}} active{{end}}" title="{{if .HasAggSort}}Sorting by {{.AggSortLeafCol}} {{.AggSortAggType}} - click to change{{else}}Sort by grouped value - click to sort by aggregate{{end}}">⟳</a>
                     {{end}}
                     {{/* Group control - middle */}}
                     <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
@@ -1603,20 +1668,20 @@ Use &quot;quotes&quot; for exact match">
                     {{range $cell := $row.Cells}}
                         {{if gt $cell.Rowspan 1}}
                             <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">
-                                {{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}
+                                {{if $cell.IsValueSorted}}<span class="value-sorted">{{$cell.Value}}</span>{{else}}{{$cell.Value}}{{end}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}
                                 {{if $cell.ColumnAggregates}}
                                 <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
-                                <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}</div>
-                                {{end}}{{else}}{{range $colAgg := $cell.ColumnAggregates}}{{range $agg := $colAgg.Aggregates}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}{{end}}</div>
+                                <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{if $agg.IsSorted}}<span class="agg-sorted">{{$agg.Symbol}}{{$agg.Value}}</span>{{else}}{{$agg.Symbol}}{{$agg.Value}}{{end}} {{end}}{{end}}</div>
+                                {{end}}{{else}}{{range $colAgg := $cell.ColumnAggregates}}{{range $agg := $colAgg.Aggregates}}{{if $agg.IsSorted}}<span class="agg-sorted">{{$agg.Symbol}}{{$agg.Value}}</span>{{else}}{{$agg.Symbol}}{{$agg.Value}}{{end}} {{end}}{{end}}{{end}}</div>
                                 {{end}}
                             </td>
                         {{else}}
                             <td title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">
-                                {{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}
+                                {{if $cell.IsValueSorted}}<span class="value-sorted">{{$cell.Value}}</span>{{else}}{{$cell.Value}}{{end}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}
                                 {{if $cell.ColumnAggregates}}
                                 <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
-                                <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}</div>
-                                {{end}}{{else}}{{range $colAgg := $cell.ColumnAggregates}}{{range $agg := $colAgg.Aggregates}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}{{end}}</div>
+                                <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{if $agg.IsSorted}}<span class="agg-sorted">{{$agg.Symbol}}{{$agg.Value}}</span>{{else}}{{$agg.Symbol}}{{$agg.Value}}{{end}} {{end}}{{end}}</div>
+                                {{end}}{{else}}{{range $colAgg := $cell.ColumnAggregates}}{{range $agg := $colAgg.Aggregates}}{{if $agg.IsSorted}}<span class="agg-sorted">{{$agg.Symbol}}{{$agg.Value}}</span>{{else}}{{$agg.Symbol}}{{$agg.Value}}{{end}} {{end}}{{end}}{{end}}</div>
                                 {{end}}
                             </td>
                         {{end}}

@@ -516,9 +516,10 @@ func NewColumnAggregator(colName string, colType query.ColumnType) *ColumnAggreg
 
 // FormattedAggregate represents a single formatted aggregate value.
 type FormattedAggregate struct {
-	Symbol string // e.g., Σ, μ, ↓, ↑
-	Value  string // Formatted value
-	Title  string // Tooltip title
+	Symbol   string // e.g., Σ, μ, ↓, ↑
+	Value    string // Formatted value
+	Title    string // Tooltip title
+	IsSorted bool   // Whether this aggregate is the one being sorted by
 }
 
 // ColumnAggregateDisplay represents the aggregates for a single leaf column.
@@ -529,15 +530,24 @@ type ColumnAggregateDisplay struct {
 
 // FormatAggregates returns formatted aggregates for display, based on enabled aggregate types.
 func FormatAggregates(state AggregateState, enabledAggs []query.AggregateType) []FormattedAggregate {
+	return FormatAggregatesWithSort(state, enabledAggs, "", query.AggCount)
+}
+
+// FormatAggregatesWithSort returns formatted aggregates with an optional sorted indicator.
+// If sortedColName matches the column being formatted and sortedAggType matches one of the aggregates,
+// that aggregate will have IsSorted=true.
+func FormatAggregatesWithSort(state AggregateState, enabledAggs []query.AggregateType, sortedColName string, sortedAggType query.AggregateType) []FormattedAggregate {
 	if state == nil || len(enabledAggs) == 0 {
 		return nil
 	}
 	result := make([]FormattedAggregate, 0, len(enabledAggs))
 	for _, aggType := range enabledAggs {
+		isSorted := sortedColName != "" && aggType == sortedAggType
 		result = append(result, FormattedAggregate{
-			Symbol: query.AggregateSymbol(aggType),
-			Value:  state.Format(aggType),
-			Title:  query.AggregateTitle(aggType),
+			Symbol:   query.AggregateSymbol(aggType),
+			Value:    state.Format(aggType),
+			Title:    query.AggregateTitle(aggType),
+			IsSorted: isSorted,
 		})
 	}
 	return result

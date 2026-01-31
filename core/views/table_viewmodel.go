@@ -90,6 +90,7 @@ type GroupedCell struct {
 	IsGroupedColumn bool         // True if this is a grouped column cell (shows filter link)
 	ColumnName      string       // Column name for identifying cells in multi-select mode
 	RawValue        string       // Raw value for multi-select filtering (without display formatting)
+	IsValueSorted   bool         // True if sorting by grouped value (not aggregate) - value should be bold
 	// ColumnAggregates holds the formatted aggregates for all leaf columns in this group.
 	// Each entry represents one leaf column with its name and enabled aggregates.
 	ColumnAggregates []aggregates.ColumnAggregateDisplay
@@ -124,6 +125,14 @@ type ColumnInfo struct {
 	ToggleSortURL     safehtml.URL       // URL to toggle sort for this column
 	ColumnType        query.ColumnType   // Column data type for determining available aggregates
 	AggregateToggles  []AggregateToggle  // Available aggregate toggles for this column
+	// Aggregate sort for grouped columns
+	AggSortToggleURL     safehtml.URL       // URL to cycle through aggregate sort options
+	AggSortDirectionURL  safehtml.URL       // URL to toggle aggregate sort direction (asc/desc)
+	HasAggSort           bool               // Whether this grouped column has an aggregate sort
+	AggSortLeafCol       string             // Leaf column being sorted by (if HasAggSort)
+	AggSortAggType       string             // Aggregate type being sorted by (if HasAggSort)
+	AggSortSymbol        string             // Symbol for the aggregate being sorted by
+	IsAggSortDescending  bool               // Whether aggregate sort is descending
 }
 
 // JoinTarget represents a column that can be joined to
@@ -430,6 +439,23 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		visibleCols[colName] = true
 	}
 
+	// Build a map of grouped columns for quick lookup
+	groupedColsMap := make(map[string]bool)
+	for _, colName := range q.GroupedColumns {
+		groupedColsMap[colName] = true
+	}
+
+	// Build leaf columns list (visible, non-grouped columns) and enabled aggregates for aggregate sort toggle
+	var leafColumns []string
+	enabledAggs := make(map[string][]query.AggregateType)
+	for _, colName := range view.Columns {
+		if !groupedColsMap[colName] {
+			leafColumns = append(leafColumns, colName)
+			colType := getColumnType(colName, tableView)
+			enabledAggs[colName] = q.GetEnabledAggregates(colName, colType)
+		}
+	}
+
 	// Build all columns info (base table columns only)
 	allColumnNames := tableView.GetColumnNames()
 	for _, colName := range allColumnNames {
@@ -464,25 +490,48 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			colType := getColumnType(colName, tableView)
 			aggToggles := buildAggregateToggles(colName, colType, q)
 
+			// Build aggregate sort fields for grouped columns
+			var aggSortToggleURL, aggSortDirectionURL safehtml.URL
+			var hasAggSort, isAggSortDescending bool
+			var aggSortLeafCol, aggSortAggType, aggSortSymbol string
+			if q.IsColumnGrouped(colName) && len(leafColumns) > 0 {
+				aggSortToggleURL = q.WithNextGroupAggSort(colName, leafColumns, enabledAggs)
+				if aggSort := q.GetGroupAggSort(colName); aggSort != nil {
+					hasAggSort = true
+					aggSortLeafCol = aggSort.LeafColumn
+					aggSortAggType = string(aggSort.AggType)
+					aggSortSymbol = query.AggregateSymbol(aggSort.AggType)
+					isAggSortDescending = aggSort.Descending
+					aggSortDirectionURL = q.WithGroupAggSortDirectionToggled(colName)
+				}
+			}
+
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-				Name:              colName,
-				DisplayName:       col.ColumnDef().DisplayName(),
-				IsVisible:         visibleCols[colName],
-				IsGrouped:         q.IsColumnGrouped(colName),
-				IsFiltered:        isFiltered,
-				HasEntityType:     hasEntityType,
-				IsKey:             isKey && hasEntityType, // Only mark as key if it's also an entity type
-				JoinTargets:       joinTargets,
-				IsExpanded:        isExpanded,
-				Path:              colName,
-				ToggleURL:         BuildToggleExpansionURL(q, colName),
-				ToggleColumnURL:   BuildToggleColumnURL(q, colName),
-				ToggleGroupingURL: BuildToggleGroupingURL(q, colName),
-				SortIndex:         q.GetSortIndex(colName),
-				IsSortDescending:  q.IsSortedDescending(colName),
-				ToggleSortURL:     q.WithSortToggled(colName),
-				ColumnType:        colType,
-				AggregateToggles:  aggToggles,
+				Name:                colName,
+				DisplayName:         col.ColumnDef().DisplayName(),
+				IsVisible:           visibleCols[colName],
+				IsGrouped:           q.IsColumnGrouped(colName),
+				IsFiltered:          isFiltered,
+				HasEntityType:       hasEntityType,
+				IsKey:               isKey && hasEntityType, // Only mark as key if it's also an entity type
+				JoinTargets:         joinTargets,
+				IsExpanded:          isExpanded,
+				Path:                colName,
+				ToggleURL:           BuildToggleExpansionURL(q, colName),
+				ToggleColumnURL:     BuildToggleColumnURL(q, colName),
+				ToggleGroupingURL:   BuildToggleGroupingURL(q, colName),
+				SortIndex:           q.GetSortIndex(colName),
+				IsSortDescending:    q.IsSortedDescending(colName),
+				ToggleSortURL:       q.WithSortToggled(colName),
+				ColumnType:          colType,
+				AggregateToggles:    aggToggles,
+				AggSortToggleURL:    aggSortToggleURL,
+				AggSortDirectionURL: aggSortDirectionURL,
+				HasAggSort:          hasAggSort,
+				AggSortLeafCol:      aggSortLeafCol,
+				AggSortAggType:      aggSortAggType,
+				AggSortSymbol:       aggSortSymbol,
+				IsAggSortDescending: isAggSortDescending,
 			})
 		}
 	}
@@ -516,25 +565,48 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					colType := getColumnType(colName, tableView)
 					aggToggles := buildAggregateToggles(colName, colType, q)
 
+					// Build aggregate sort fields for grouped joined columns
+					var aggSortToggleURL, aggSortDirectionURL safehtml.URL
+					var hasAggSort, isAggSortDescending bool
+					var aggSortLeafCol, aggSortAggType, aggSortSymbol string
+					if q.IsColumnGrouped(colName) && len(leafColumns) > 0 {
+						aggSortToggleURL = q.WithNextGroupAggSort(colName, leafColumns, enabledAggs)
+						if aggSort := q.GetGroupAggSort(colName); aggSort != nil {
+							hasAggSort = true
+							aggSortLeafCol = aggSort.LeafColumn
+							aggSortAggType = string(aggSort.AggType)
+							aggSortSymbol = query.AggregateSymbol(aggSort.AggType)
+							isAggSortDescending = aggSort.Descending
+							aggSortDirectionURL = q.WithGroupAggSortDirectionToggled(colName)
+						}
+					}
+
 					// Add the joined column info
 					vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-						Name:              colName,
-						DisplayName:       displayName,
-						IsVisible:         visibleCols[colName],
-						IsGrouped:         q.IsColumnGrouped(colName),
-						HasEntityType:     false, // Joined columns don't have entity types in this context
-						IsKey:             false,
-						JoinTargets:       nil,
-						IsExpanded:        false,
-						Path:              colName,
-						ToggleURL:         BuildToggleExpansionURL(q, colName),
-						ToggleColumnURL:   BuildToggleColumnURL(q, colName),
-						ToggleGroupingURL: BuildToggleGroupingURL(q, colName),
-						SortIndex:         q.GetSortIndex(colName),
-						IsSortDescending:  q.IsSortedDescending(colName),
-						ToggleSortURL:     q.WithSortToggled(colName),
-						ColumnType:        colType,
-						AggregateToggles:  aggToggles,
+						Name:                colName,
+						DisplayName:         displayName,
+						IsVisible:           visibleCols[colName],
+						IsGrouped:           q.IsColumnGrouped(colName),
+						HasEntityType:       false, // Joined columns don't have entity types in this context
+						IsKey:               false,
+						JoinTargets:         nil,
+						IsExpanded:          false,
+						Path:                colName,
+						ToggleURL:           BuildToggleExpansionURL(q, colName),
+						ToggleColumnURL:     BuildToggleColumnURL(q, colName),
+						ToggleGroupingURL:   BuildToggleGroupingURL(q, colName),
+						SortIndex:           q.GetSortIndex(colName),
+						IsSortDescending:    q.IsSortedDescending(colName),
+						ToggleSortURL:       q.WithSortToggled(colName),
+						ColumnType:          colType,
+						AggregateToggles:    aggToggles,
+						AggSortToggleURL:    aggSortToggleURL,
+						AggSortDirectionURL: aggSortDirectionURL,
+						HasAggSort:          hasAggSort,
+						AggSortLeafCol:      aggSortLeafCol,
+						AggSortAggType:      aggSortAggType,
+						AggSortSymbol:       aggSortSymbol,
+						IsAggSortDescending: isAggSortDescending,
 					})
 				}
 			}
@@ -550,25 +622,48 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		colType := getColumnType(comp.Name, tableView)
 		aggToggles := buildAggregateToggles(comp.Name, colType, q)
 
+		// Build aggregate sort fields for grouped computed columns
+		var aggSortToggleURL, aggSortDirectionURL safehtml.URL
+		var hasAggSort, isAggSortDescending bool
+		var aggSortLeafCol, aggSortAggType, aggSortSymbol string
+		if q.IsColumnGrouped(comp.Name) && len(leafColumns) > 0 {
+			aggSortToggleURL = q.WithNextGroupAggSort(comp.Name, leafColumns, enabledAggs)
+			if aggSort := q.GetGroupAggSort(comp.Name); aggSort != nil {
+				hasAggSort = true
+				aggSortLeafCol = aggSort.LeafColumn
+				aggSortAggType = string(aggSort.AggType)
+				aggSortSymbol = query.AggregateSymbol(aggSort.AggType)
+				isAggSortDescending = aggSort.Descending
+				aggSortDirectionURL = q.WithGroupAggSortDirectionToggled(comp.Name)
+			}
+		}
+
 		vm.AllColumns = append(vm.AllColumns, ColumnInfo{
-			Name:              comp.Name,
-			DisplayName:       comp.Name,
-			IsVisible:         visibleCols[comp.Name],
-			IsGrouped:         q.IsColumnGrouped(comp.Name),
-			IsFiltered:        isFiltered,
-			IsKey:             false,
-			HasEntityType:     false,
-			JoinTargets:       nil,
-			IsExpanded:        false,
-			Path:              comp.Name,
-			ToggleURL:         BuildToggleExpansionURL(q, comp.Name),
-			ToggleColumnURL:   BuildToggleColumnURL(q, comp.Name),
-			ToggleGroupingURL: BuildToggleGroupingURL(q, comp.Name),
-			SortIndex:         q.GetSortIndex(comp.Name),
-			IsSortDescending:  q.IsSortedDescending(comp.Name),
-			ToggleSortURL:     q.WithSortToggled(comp.Name),
-			ColumnType:        colType,
-			AggregateToggles:  aggToggles,
+			Name:                comp.Name,
+			DisplayName:         comp.Name,
+			IsVisible:           visibleCols[comp.Name],
+			IsGrouped:           q.IsColumnGrouped(comp.Name),
+			IsFiltered:          isFiltered,
+			IsKey:               false,
+			HasEntityType:       false,
+			JoinTargets:         nil,
+			IsExpanded:          false,
+			Path:                comp.Name,
+			ToggleURL:           BuildToggleExpansionURL(q, comp.Name),
+			ToggleColumnURL:     BuildToggleColumnURL(q, comp.Name),
+			ToggleGroupingURL:   BuildToggleGroupingURL(q, comp.Name),
+			SortIndex:           q.GetSortIndex(comp.Name),
+			IsSortDescending:    q.IsSortedDescending(comp.Name),
+			ToggleSortURL:       q.WithSortToggled(comp.Name),
+			ColumnType:          colType,
+			AggregateToggles:    aggToggles,
+			AggSortToggleURL:    aggSortToggleURL,
+			AggSortDirectionURL: aggSortDirectionURL,
+			HasAggSort:          hasAggSort,
+			AggSortLeafCol:      aggSortLeafCol,
+			AggSortAggType:      aggSortAggType,
+			AggSortSymbol:       aggSortSymbol,
+			IsAggSortDescending: isAggSortDescending,
 		})
 	}
 
@@ -642,6 +737,10 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			columnTypes[colName] = tableView.GetColumnType(colName)
 		}
 		tableView.ComputeAggregates(leafColumns, columnTypes)
+		// Sort groups by aggregate values if specified
+		if len(q.GroupAggregateSorts) > 0 {
+			tableView.SortGroupsByAggregate(q.GroupAggregateSorts)
+		}
 		vm.GroupedRows = buildGroupedRows(tableView, view.Columns, q)
 	}
 
@@ -948,22 +1047,33 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		// Build column aggregates for this group
 		// Only show aggregates in grouped column cells that are NOT the last grouped column,
 		// because leaf cells already display their own aggregates.
+		// Also check if this grouped column has an aggregate sort to mark the sorted aggregate.
 		var columnAggs []aggregates.ColumnAggregateDisplay
+		aggSort := q.GetGroupAggSort(colName)
 		if group.Aggregates != nil && group.ChildBlock != nil {
 			for _, leafColName := range tableView.GetLeafColumns() {
 				state := group.Aggregates[leafColName]
 				colType := tableView.GetColumnType(leafColName)
 				enabledAggs := q.GetEnabledAggregates(leafColName, colType)
 				if len(enabledAggs) > 0 && state != nil {
+					// Mark the sorted aggregate if this is the sorted leaf column
+					var sortedCol string
+					var sortedAgg query.AggregateType
+					if aggSort != nil && leafColName == aggSort.LeafColumn {
+						sortedCol = leafColName
+						sortedAgg = aggSort.AggType
+					}
 					columnAggs = append(columnAggs, aggregates.ColumnAggregateDisplay{
 						ColumnName: leafColName,
-						Aggregates: aggregates.FormatAggregates(state, enabledAggs),
+						Aggregates: aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg),
 					})
 				}
 			}
 		}
 
 		// Add the grouped column cell for this group
+		// IsValueSorted is true if column is sorted and not using aggregate sort
+		isValueSorted := q.GetSortIndex(colName) > 0 && aggSort == nil
 		groupedCell := GroupedCell{
 			Value:            groupInfo,
 			Rowspan:          group.Height(),
@@ -972,6 +1082,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			IsGroupedColumn:  true,
 			ColumnName:       colName,
 			RawValue:         rawValue,
+			IsValueSorted:    isValueSorted,
 			ColumnAggregates: columnAggs,
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
@@ -986,9 +1097,16 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 					colType := tableView.GetColumnType(leafColName)
 					enabledAggs := q.GetEnabledAggregates(leafColName, colType)
 					if len(enabledAggs) > 0 && state != nil {
+						// Mark the sorted aggregate if this is the sorted leaf column
+						var sortedCol string
+						var sortedAgg query.AggregateType
+						if aggSort != nil && leafColName == aggSort.LeafColumn {
+							sortedCol = leafColName
+							sortedAgg = aggSort.AggType
+						}
 						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
 							ColumnName: leafColName,
-							Aggregates: aggregates.FormatAggregates(state, enabledAggs),
+							Aggregates: aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg),
 						})
 					}
 				}
@@ -1012,9 +1130,16 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 					colType := tableView.GetColumnType(leafColName)
 					enabledAggs := q.GetEnabledAggregates(leafColName, colType)
 					if len(enabledAggs) > 0 && state != nil {
+						// Mark the sorted aggregate if this is the sorted leaf column
+						var sortedCol string
+						var sortedAgg query.AggregateType
+						if aggSort != nil && leafColName == aggSort.LeafColumn {
+							sortedCol = leafColName
+							sortedAgg = aggSort.AggType
+						}
 						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
 							ColumnName: leafColName,
-							Aggregates: aggregates.FormatAggregates(state, enabledAggs),
+							Aggregates: aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg),
 						})
 					}
 				}
