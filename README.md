@@ -39,6 +39,7 @@ Latency must be near impercetible for up to 1'000'000 rows, maybe 100 ms
 Latency must be small for up to 10'000'000 rows, maybe 1 s
 
 The UI must be simple and clean, no fancy features, must be intuitive. Avoid following heavy handed approaches that are far too common.
+Think hard before proposing drop-downs, ask if no obvious alternative is available.
 
 Minimize client-side code, everything is encoded in the URL, updates must always go through the back end, with some very limited exceptions only, These should be clearly documented, justsified and validated.
 

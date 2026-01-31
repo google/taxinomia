@@ -694,6 +694,48 @@
             margin-left: 2px;
         }
 
+        /* Aggregate toggle buttons */
+        .agg-toggle-btn {
+            display: inline-block;
+            padding: 2px 5px;
+            text-decoration: none;
+            color: #999;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background-color: white;
+            transition: all 0.2s;
+            margin-left: 2px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .agg-toggle-btn:hover {
+            background-color: #e8e8e8;
+            border-color: #999;
+            color: #333;
+        }
+
+        .agg-toggle-btn.enabled {
+            background-color: #7dcea0;
+            border-color: #6bc18b;
+            color: #1a5232;
+        }
+
+        .agg-toggle-btn.enabled:hover {
+            background-color: #6bc18b;
+            border-color: #5ab377;
+        }
+
+        .controls-separator {
+            display: inline-block;
+            width: 1px;
+            height: 14px;
+            background-color: #ddd;
+            margin: 0 4px;
+            vertical-align: middle;
+        }
+
         .filter-link {
             font-size: 11px;
             font-weight: bold;
@@ -1406,12 +1448,21 @@
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
                 <td class="grouping-cell">
-                    <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
-                        {{if .IsGrouped}}⊟{{else}}⊞{{end}}
-                    </a>
+                    {{/* Sort control - leftmost */}}
                     <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if gt .SortIndex 0}} active{{end}}{{if eq .SortIndex 1}} primary{{end}}" title="Click to change sort order ({{if .IsSortDescending}}descending{{else}}ascending{{end}})">
                         {{if gt .SortIndex 0}}{{if .IsSortDescending}}▼{{else}}▲{{end}}<span class="sort-priority">{{.SortIndex}}</span>{{else}}⇅{{end}}
                     </a>
+                    {{/* Group control - middle */}}
+                    <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
+                        {{if .IsGrouped}}⊟{{else}}⊞{{end}}
+                    </a>
+                    {{/* Aggregate controls - rightmost, only show when grouped */}}
+                    {{if .IsGrouped}}
+                    <span class="controls-separator"></span>
+                    {{range .AggregateToggles}}
+                    <a href="{{.ToggleURL}}" class="agg-toggle-btn{{if .IsEnabled}} enabled{{end}}" title="{{.Title}}">{{.Symbol}}</a>
+                    {{end}}
+                    {{end}}
                 </td>
                         {{end}}
                     {{end}}

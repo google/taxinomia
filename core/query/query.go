@@ -38,21 +38,138 @@ type SortColumn struct {
 	Descending bool   // true = descending (-), false = ascending (+)
 }
 
+// AggregateType represents a type of aggregate function
+type AggregateType string
+
+// Aggregate types for numeric columns
+const (
+	AggSum    AggregateType = "sum"    // Sum of values
+	AggAvg    AggregateType = "avg"    // Average/mean
+	AggStdDev AggregateType = "stddev" // Standard deviation
+	AggMin    AggregateType = "min"    // Minimum value
+	AggMax    AggregateType = "max"    // Maximum value
+	AggCount  AggregateType = "count"  // Count of non-null values
+)
+
+// Aggregate types for string columns
+const (
+	AggUnique AggregateType = "unique" // Count of unique values
+)
+
+// Aggregate types for boolean columns
+const (
+	AggTrue  AggregateType = "true"  // Count of true values
+	AggFalse AggregateType = "false" // Count of false values
+	AggRatio AggregateType = "ratio" // Ratio of true to total
+)
+
+// Aggregate types for datetime columns (also uses min, max, avg, stddev)
+const (
+	AggSpan AggregateType = "span" // Time span (max - min)
+)
+
+// ColumnType represents the data type of a column for aggregate purposes
+type ColumnType string
+
+const (
+	ColumnTypeNumeric  ColumnType = "numeric"
+	ColumnTypeString   ColumnType = "string"
+	ColumnTypeBool     ColumnType = "bool"
+	ColumnTypeDatetime ColumnType = "datetime"
+)
+
+// GetAvailableAggregates returns the list of available aggregate types for a column type
+func GetAvailableAggregates(colType ColumnType) []AggregateType {
+	switch colType {
+	case ColumnTypeNumeric:
+		return []AggregateType{AggSum, AggAvg, AggStdDev, AggMin, AggMax, AggCount}
+	case ColumnTypeString:
+		return []AggregateType{AggCount, AggUnique}
+	case ColumnTypeBool:
+		return []AggregateType{AggCount, AggTrue, AggFalse, AggRatio}
+	case ColumnTypeDatetime:
+		return []AggregateType{AggCount, AggMin, AggMax, AggAvg, AggStdDev, AggSpan}
+	default:
+		return []AggregateType{AggCount}
+	}
+}
+
+// AggregateSymbol returns the display symbol for an aggregate type
+func AggregateSymbol(agg AggregateType) string {
+	switch agg {
+	case AggSum:
+		return "Σ"
+	case AggAvg:
+		return "μ"
+	case AggStdDev:
+		return "σ"
+	case AggMin:
+		return "↓"
+	case AggMax:
+		return "↑"
+	case AggCount:
+		return "#"
+	case AggUnique:
+		return "◇"
+	case AggTrue:
+		return "✓"
+	case AggFalse:
+		return "✗"
+	case AggRatio:
+		return "%"
+	case AggSpan:
+		return "Δ"
+	default:
+		return string(agg)
+	}
+}
+
+// AggregateTitle returns the tooltip title for an aggregate type
+func AggregateTitle(agg AggregateType) string {
+	switch agg {
+	case AggSum:
+		return "Sum"
+	case AggAvg:
+		return "Average"
+	case AggStdDev:
+		return "Standard Deviation"
+	case AggMin:
+		return "Minimum"
+	case AggMax:
+		return "Maximum"
+	case AggCount:
+		return "Count"
+	case AggUnique:
+		return "Unique Values"
+	case AggTrue:
+		return "True Count"
+	case AggFalse:
+		return "False Count"
+	case AggRatio:
+		return "True Ratio"
+	case AggSpan:
+		return "Time Span"
+	default:
+		return string(agg)
+	}
+}
+
 // Query represents the parsed state of a table view URL
 type Query struct {
 	// Base path (e.g., "/table")
 	Path string
 
 	// Core parameters
-	Table           string              // The table being viewed
-	Columns         []string            // Ordered list of visible columns (reordered: filtered, grouped, then others)
-	ColumnWidths    map[string]int      // Column widths in pixels (columnName -> width)
-	Expanded        []string            // List of expanded paths in the sidebar
-	GroupedColumns  []string            // Ordered list of columns to group by
-	Filters         map[string]string   // Column filters (columnName -> filterValue)
-	Limit           int                 // Number of rows to display (0 = show all)
-	ComputedColumns []ComputedColumnDef // Computed column definitions
-	SortOrder       []SortColumn        // Ordered list of sort columns (all visible columns with +/- direction)
+	Table              string                       // The table being viewed
+	Columns            []string                     // Ordered list of visible columns (reordered: filtered, grouped, then others)
+	ColumnWidths       map[string]int               // Column widths in pixels (columnName -> width)
+	Expanded           []string                     // List of expanded paths in the sidebar
+	GroupedColumns     []string                     // Ordered list of columns to group by
+	Filters            map[string]string            // Column filters (columnName -> filterValue)
+	Limit              int                          // Number of rows to display (0 = show all)
+	ComputedColumns    []ComputedColumnDef          // Computed column definitions
+	SortOrder          []SortColumn                 // Ordered list of sort columns (all visible columns with +/- direction)
+	AggregateSettings  map[string][]AggregateType   // Enabled aggregates per column (columnName -> list of enabled aggregates)
 }
 
 // NewQuery creates a Query from a URL
@@ -61,10 +178,11 @@ func NewQuery(u *url.URL) *Query {
 	// No additional sanitization needed here as we're just extracting query parameters
 
 	state := &Query{
-		Path:         u.Path,
-		Filters:      make(map[string]string),
-		ColumnWidths: make(map[string]int),
-		Limit:        25, // Default limit
+		Path:              u.Path,
+		Filters:           make(map[string]string),
+		ColumnWidths:      make(map[string]int),
+		AggregateSettings: make(map[string][]AggregateType),
+		Limit:             25, // Default limit
 	}
 
 	// Parse query parameters
@@ -127,6 +245,14 @@ func NewQuery(u *url.URL) *Query {
 		if strings.HasPrefix(key, "filter:") && len(values) > 0 {
 			columnName := strings.TrimPrefix(key, "filter:")
 			state.Filters[columnName] = values[0]
+		}
+	}
+
+	// Extract aggregate parameters (format: agg:columnName=sum,avg,min)
+	for key, values := range q {
+		if strings.HasPrefix(key, "agg:") && len(values) > 0 {
+			columnName := strings.TrimPrefix(key, "agg:")
+			state.AggregateSettings[columnName] = parseAggregates(values[0])
 		}
 	}
 
@@ -200,19 +326,41 @@ func parseSortOrder(sortStr string) []SortColumn {
 	return result
 }
 
+// parseAggregates parses the aggregate parameter string into AggregateType slice
+// Format: sum,avg,min,max
+func parseAggregates(aggStr string) []AggregateType {
+	var result []AggregateType
+	parts := strings.Split(aggStr, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		// Validate it's a known aggregate type
+		aggType := AggregateType(part)
+		switch aggType {
+		case AggSum, AggAvg, AggStdDev, AggMin, AggMax, AggCount,
+			AggUnique, AggTrue, AggFalse, AggRatio, AggSpan:
+			result = append(result, aggType)
+		}
+	}
+	return result
+}
+
 // Clone creates a deep copy of the Query
 func (s *Query) Clone() *Query {
 	clone := &Query{
-		Path:            s.Path,
-		Table:           s.Table,
-		Columns:         make([]string, len(s.Columns)),
-		ColumnWidths:    make(map[string]int),
-		Expanded:        make([]string, len(s.Expanded)),
-		GroupedColumns:  make([]string, len(s.GroupedColumns)),
-		Filters:         make(map[string]string),
-		Limit:           s.Limit,
-		ComputedColumns: make([]ComputedColumnDef, len(s.ComputedColumns)),
-		SortOrder:       make([]SortColumn, len(s.SortOrder)),
+		Path:              s.Path,
+		Table:             s.Table,
+		Columns:           make([]string, len(s.Columns)),
+		ColumnWidths:      make(map[string]int),
+		Expanded:          make([]string, len(s.Expanded)),
+		GroupedColumns:    make([]string, len(s.GroupedColumns)),
+		Filters:           make(map[string]string),
+		Limit:             s.Limit,
+		ComputedColumns:   make([]ComputedColumnDef, len(s.ComputedColumns)),
+		SortOrder:         make([]SortColumn, len(s.SortOrder)),
+		AggregateSettings: make(map[string][]AggregateType),
 	}
 
 	// Deep copy columns
@@ -239,6 +387,13 @@ func (s *Query) Clone() *Query {
 
 	// Deep copy sort order
 	copy(clone.SortOrder, s.SortOrder)
+
+	// Deep copy aggregate settings
+	for colName, aggs := range s.AggregateSettings {
+		aggsCopy := make([]AggregateType, len(aggs))
+		copy(aggsCopy, aggs)
+		clone.AggregateSettings[colName] = aggsCopy
+	}
 
 	return clone
 }
@@ -471,6 +626,17 @@ func (s *Query) ToURL() string {
 		q.Set("sort", strings.Join(sortStrs, ","))
 	}
 
+	// Add aggregate parameters (format: agg:columnName=sum,avg,min)
+	for colName, aggs := range s.AggregateSettings {
+		if len(aggs) > 0 {
+			var aggStrs []string
+			for _, agg := range aggs {
+				aggStrs = append(aggStrs, string(agg))
+			}
+			q.Set("agg:"+colName, strings.Join(aggStrs, ","))
+		}
+	}
+
 	u.RawQuery = q.Encode()
 	return u.String()
 }
@@ -628,4 +794,58 @@ func (s *Query) IsSortedDescending(column string) bool {
 		}
 	}
 	return false
+}
+
+// WithAggregateToggled returns a URL with the specified aggregate toggled for a column.
+// If the aggregate is enabled, it's disabled; if disabled, it's enabled.
+func (s *Query) WithAggregateToggled(column string, aggType AggregateType) safehtml.URL {
+	newState := s.Clone()
+
+	// Get current aggregates for this column
+	currentAggs := newState.AggregateSettings[column]
+
+	// Check if the aggregate is already enabled
+	found := false
+	newAggs := make([]AggregateType, 0, len(currentAggs))
+	for _, agg := range currentAggs {
+		if agg == aggType {
+			found = true
+			// Skip this one (remove it)
+		} else {
+			newAggs = append(newAggs, agg)
+		}
+	}
+
+	if found {
+		// Was enabled, now disabled - update or remove from map
+		if len(newAggs) > 0 {
+			newState.AggregateSettings[column] = newAggs
+		} else {
+			delete(newState.AggregateSettings, column)
+		}
+	} else {
+		// Was disabled, now enabled - add it
+		newState.AggregateSettings[column] = append(currentAggs, aggType)
+	}
+
+	return newState.ToSafeURL()
+}
+
+// IsAggregateEnabled returns true if the specified aggregate is enabled for a column.
+func (s *Query) IsAggregateEnabled(column string, aggType AggregateType) bool {
+	aggs, exists := s.AggregateSettings[column]
+	if !exists {
+		return false
+	}
+	for _, agg := range aggs {
+		if agg == aggType {
+			return true
+		}
+	}
+	return false
+}
+
+// GetEnabledAggregates returns the list of enabled aggregates for a column.
+func (s *Query) GetEnabledAggregates(column string) []AggregateType {
+	return s.AggregateSettings[column]
 }

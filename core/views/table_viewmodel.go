@@ -91,24 +91,35 @@ type GroupedCell struct {
 	RawValue        string       // Raw value for multi-select filtering (without display formatting)
 }
 
+// AggregateToggle represents a single aggregate toggle button for the UI
+type AggregateToggle struct {
+	Type      query.AggregateType // The aggregate type
+	Symbol    string              // Display symbol (e.g., "Σ", "μ")
+	Title     string              // Tooltip text
+	IsEnabled bool                // Whether this aggregate is currently enabled
+	ToggleURL safehtml.URL        // URL to toggle this aggregate
+}
+
 // ColumnInfo contains information about a column for UI display
 type ColumnInfo struct {
-	Name              string       // Column internal name
-	DisplayName       string       // Column display name
-	IsVisible         bool         // Whether column is currently visible
-	IsGrouped         bool         // Whether column is currently grouped
-	IsFiltered        bool         // Whether column has an active filter
-	HasEntityType     bool         // Whether column defines an entity type
-	IsKey             bool         // Whether column has all unique values
-	JoinTargets       []JoinTarget // Tables/columns this column can join to
-	IsExpanded        bool         // Whether this column's join list is expanded
-	Path              string       // Path for URL encoding (e.g., "column1")
-	ToggleURL         safehtml.URL // URL to toggle expansion
-	ToggleColumnURL   safehtml.URL // URL to toggle column visibility (preserves all query params)
-	ToggleGroupingURL safehtml.URL // URL to toggle grouping for this column
-	SortIndex         int          // 1-based sort priority (0 = not in sort order)
-	IsSortDescending  bool         // True if sorted descending
-	ToggleSortURL     safehtml.URL // URL to toggle sort for this column
+	Name              string             // Column internal name
+	DisplayName       string             // Column display name
+	IsVisible         bool               // Whether column is currently visible
+	IsGrouped         bool               // Whether column is currently grouped
+	IsFiltered        bool               // Whether column has an active filter
+	HasEntityType     bool               // Whether column defines an entity type
+	IsKey             bool               // Whether column has all unique values
+	JoinTargets       []JoinTarget       // Tables/columns this column can join to
+	IsExpanded        bool               // Whether this column's join list is expanded
+	Path              string             // Path for URL encoding (e.g., "column1")
+	ToggleURL         safehtml.URL       // URL to toggle expansion
+	ToggleColumnURL   safehtml.URL       // URL to toggle column visibility (preserves all query params)
+	ToggleGroupingURL safehtml.URL       // URL to toggle grouping for this column
+	SortIndex         int                // 1-based sort priority (0 = not in sort order)
+	IsSortDescending  bool               // True if sorted descending
+	ToggleSortURL     safehtml.URL       // URL to toggle sort for this column
+	ColumnType        query.ColumnType   // Column data type for determining available aggregates
+	AggregateToggles  []AggregateToggle  // Available aggregate toggles for this column
 }
 
 // JoinTarget represents a column that can be joined to
@@ -137,6 +148,67 @@ type ColumnSummary struct {
 	ToggleURL      safehtml.URL // URL to toggle expansion
 	AddColumnURL   safehtml.URL // URL to add this column and its join to the view
 	IsSelected     bool         // Whether this column is already in the current view
+}
+
+// getColumnTypeFromName determines the query.ColumnType for a column based on its name pattern
+// For now, we use a simple heuristic based on column naming conventions
+// TODO: Eventually this should introspect the actual column type
+func getColumnTypeFromName(colName string, tableView *tables.TableView) query.ColumnType {
+	// Try to get the column and check its actual type via type assertion
+	col := tableView.GetColumn(colName)
+	if col == nil {
+		return query.ColumnTypeString
+	}
+
+	// Use type name heuristics based on common column naming patterns
+	// This is a simple approach - actual type checking would require interface changes
+	colNameLower := strings.ToLower(colName)
+
+	// Check for datetime patterns
+	if strings.Contains(colNameLower, "date") || strings.Contains(colNameLower, "time") ||
+		strings.Contains(colNameLower, "created") || strings.Contains(colNameLower, "updated") ||
+		strings.Contains(colNameLower, "timestamp") {
+		return query.ColumnTypeDatetime
+	}
+
+	// Check for boolean patterns
+	if strings.HasPrefix(colNameLower, "is_") || strings.HasPrefix(colNameLower, "has_") ||
+		strings.Contains(colNameLower, "enabled") || strings.Contains(colNameLower, "active") ||
+		strings.Contains(colNameLower, "flag") {
+		return query.ColumnTypeBool
+	}
+
+	// Check for numeric patterns
+	if strings.Contains(colNameLower, "count") || strings.Contains(colNameLower, "amount") ||
+		strings.Contains(colNameLower, "price") || strings.Contains(colNameLower, "quantity") ||
+		strings.Contains(colNameLower, "total") || strings.Contains(colNameLower, "sum") ||
+		strings.Contains(colNameLower, "num") || strings.Contains(colNameLower, "id") ||
+		strings.Contains(colNameLower, "age") || strings.Contains(colNameLower, "size") ||
+		strings.Contains(colNameLower, "population") || strings.Contains(colNameLower, "gdp") ||
+		strings.Contains(colNameLower, "area") || strings.Contains(colNameLower, "elevation") {
+		return query.ColumnTypeNumeric
+	}
+
+	// Default to string for text-like columns
+	return query.ColumnTypeString
+}
+
+// buildAggregateToggles creates the aggregate toggle buttons for a column
+func buildAggregateToggles(colName string, colType query.ColumnType, q *query.Query) []AggregateToggle {
+	availableAggs := query.GetAvailableAggregates(colType)
+	toggles := make([]AggregateToggle, 0, len(availableAggs))
+
+	for _, aggType := range availableAggs {
+		toggles = append(toggles, AggregateToggle{
+			Type:      aggType,
+			Symbol:    query.AggregateSymbol(aggType),
+			Title:     query.AggregateTitle(aggType),
+			IsEnabled: q.IsAggregateEnabled(colName, aggType),
+			ToggleURL: q.WithAggregateToggled(colName, aggType),
+		})
+	}
+
+	return toggles
 }
 
 // detectCycle checks if a table appears in the path to prevent infinite loops
@@ -421,6 +493,10 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			// Check if this column has an active filter
 			_, isFiltered := q.Filters[colName]
 
+			// Determine column type and build aggregate toggles
+			colType := getColumnTypeFromName(colName, tableView)
+			aggToggles := buildAggregateToggles(colName, colType, q)
+
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 				Name:              colName,
 				DisplayName:       col.ColumnDef().DisplayName(),
@@ -438,6 +514,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				SortIndex:         q.GetSortIndex(colName),
 				IsSortDescending:  q.IsSortedDescending(colName),
 				ToggleSortURL:     q.WithSortToggled(colName),
+				ColumnType:        colType,
+				AggregateToggles:  aggToggles,
 			})
 		}
 	}
@@ -466,6 +544,10 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					lastColumn := parts[numParts-1]
 					displayName := fmt.Sprintf("%s → %s", lastTable, lastColumn)
 
+					// Determine column type and build aggregate toggles for joined column
+					colType := getColumnTypeFromName(lastColumn, tableView)
+					aggToggles := buildAggregateToggles(colName, colType, q)
+
 					// Add the joined column info
 					vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 						Name:              colName,
@@ -483,6 +565,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 						SortIndex:         q.GetSortIndex(colName),
 						IsSortDescending:  q.IsSortedDescending(colName),
 						ToggleSortURL:     q.WithSortToggled(colName),
+						ColumnType:        colType,
+						AggregateToggles:  aggToggles,
 					})
 				}
 			}
@@ -493,6 +577,11 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	for _, comp := range q.ComputedColumns {
 		// Check if this column has an active filter
 		_, isFiltered := q.Filters[comp.Name]
+
+		// Computed columns default to string type for now
+		// TODO: Infer type from expression result
+		colType := query.ColumnTypeString
+		aggToggles := buildAggregateToggles(comp.Name, colType, q)
 
 		vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 			Name:              comp.Name,
@@ -511,6 +600,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			SortIndex:         q.GetSortIndex(comp.Name),
 			IsSortDescending:  q.IsSortedDescending(comp.Name),
 			ToggleSortURL:     q.WithSortToggled(comp.Name),
+			ColumnType:        colType,
+			AggregateToggles:  aggToggles,
 		})
 	}
 
