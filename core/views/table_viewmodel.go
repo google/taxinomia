@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/google/safehtml"
+	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/grouping"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/query"
@@ -89,6 +90,9 @@ type GroupedCell struct {
 	IsGroupedColumn bool         // True if this is a grouped column cell (shows filter link)
 	ColumnName      string       // Column name for identifying cells in multi-select mode
 	RawValue        string       // Raw value for multi-select filtering (without display formatting)
+	// ColumnAggregates holds the formatted aggregates for all leaf columns in this group.
+	// Each entry represents one leaf column with its name and enabled aggregates.
+	ColumnAggregates []aggregates.ColumnAggregateDisplay
 }
 
 // AggregateToggle represents a single aggregate toggle button for the UI
@@ -150,47 +154,10 @@ type ColumnSummary struct {
 	IsSelected     bool         // Whether this column is already in the current view
 }
 
-// getColumnTypeFromName determines the query.ColumnType for a column based on its name pattern
-// For now, we use a simple heuristic based on column naming conventions
-// TODO: Eventually this should introspect the actual column type
-func getColumnTypeFromName(colName string, tableView *tables.TableView) query.ColumnType {
-	// Try to get the column and check its actual type via type assertion
-	col := tableView.GetColumn(colName)
-	if col == nil {
-		return query.ColumnTypeString
-	}
-
-	// Use type name heuristics based on common column naming patterns
-	// This is a simple approach - actual type checking would require interface changes
-	colNameLower := strings.ToLower(colName)
-
-	// Check for datetime patterns
-	if strings.Contains(colNameLower, "date") || strings.Contains(colNameLower, "time") ||
-		strings.Contains(colNameLower, "created") || strings.Contains(colNameLower, "updated") ||
-		strings.Contains(colNameLower, "timestamp") {
-		return query.ColumnTypeDatetime
-	}
-
-	// Check for boolean patterns
-	if strings.HasPrefix(colNameLower, "is_") || strings.HasPrefix(colNameLower, "has_") ||
-		strings.Contains(colNameLower, "enabled") || strings.Contains(colNameLower, "active") ||
-		strings.Contains(colNameLower, "flag") {
-		return query.ColumnTypeBool
-	}
-
-	// Check for numeric patterns
-	if strings.Contains(colNameLower, "count") || strings.Contains(colNameLower, "amount") ||
-		strings.Contains(colNameLower, "price") || strings.Contains(colNameLower, "quantity") ||
-		strings.Contains(colNameLower, "total") || strings.Contains(colNameLower, "sum") ||
-		strings.Contains(colNameLower, "num") || strings.Contains(colNameLower, "id") ||
-		strings.Contains(colNameLower, "age") || strings.Contains(colNameLower, "size") ||
-		strings.Contains(colNameLower, "population") || strings.Contains(colNameLower, "gdp") ||
-		strings.Contains(colNameLower, "area") || strings.Contains(colNameLower, "elevation") {
-		return query.ColumnTypeNumeric
-	}
-
-	// Default to string for text-like columns
-	return query.ColumnTypeString
+// getColumnType determines the query.ColumnType for a column by checking its actual type.
+// It delegates to TableView.GetColumnType which does proper type assertion on the column.
+func getColumnType(colName string, tableView *tables.TableView) query.ColumnType {
+	return tableView.GetColumnType(colName)
 }
 
 // buildAggregateToggles creates the aggregate toggle buttons for a column
@@ -494,7 +461,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			_, isFiltered := q.Filters[colName]
 
 			// Determine column type and build aggregate toggles
-			colType := getColumnTypeFromName(colName, tableView)
+			colType := getColumnType(colName, tableView)
 			aggToggles := buildAggregateToggles(colName, colType, q)
 
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
@@ -545,7 +512,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					displayName := fmt.Sprintf("%s → %s", lastTable, lastColumn)
 
 					// Determine column type and build aggregate toggles for joined column
-					colType := getColumnTypeFromName(lastColumn, tableView)
+					// Use full colName path, not lastColumn, since tableView stores joined columns by full path
+					colType := getColumnType(colName, tableView)
 					aggToggles := buildAggregateToggles(colName, colType, q)
 
 					// Add the joined column info
@@ -578,9 +546,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		// Check if this column has an active filter
 		_, isFiltered := q.Filters[comp.Name]
 
-		// Computed columns default to string type for now
-		// TODO: Infer type from expression result
-		colType := query.ColumnTypeString
+		// Get actual column type from the computed column
+		colType := getColumnType(comp.Name, tableView)
 		aggToggles := buildAggregateToggles(comp.Name, colType, q)
 
 		vm.AllColumns = append(vm.AllColumns, ColumnInfo{
@@ -668,6 +635,13 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	// Check if table is grouped and build grouped rows if needed
 	if tableView.IsGrouped() {
 		vm.IsGrouped = true
+		// Compute aggregates for all groups before building rows
+		leafColumns := tableView.GetLeafColumns()
+		columnTypes := make(map[string]query.ColumnType)
+		for _, colName := range leafColumns {
+			columnTypes[colName] = tableView.GetColumnType(colName)
+		}
+		tableView.ComputeAggregates(leafColumns, columnTypes)
 		vm.GroupedRows = buildGroupedRows(tableView, view.Columns, q)
 	}
 
@@ -971,39 +945,88 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			tooltip = "[rows]"
 		}
 
+		// Build column aggregates for this group
+		// Only show aggregates in grouped column cells that are NOT the last grouped column,
+		// because leaf cells already display their own aggregates.
+		var columnAggs []aggregates.ColumnAggregateDisplay
+		if group.Aggregates != nil && group.ChildBlock != nil {
+			for _, leafColName := range tableView.GetLeafColumns() {
+				state := group.Aggregates[leafColName]
+				colType := tableView.GetColumnType(leafColName)
+				enabledAggs := q.GetEnabledAggregates(leafColName, colType)
+				if len(enabledAggs) > 0 && state != nil {
+					columnAggs = append(columnAggs, aggregates.ColumnAggregateDisplay{
+						ColumnName: leafColName,
+						Aggregates: aggregates.FormatAggregates(state, enabledAggs),
+					})
+				}
+			}
+		}
+
 		// Add the grouped column cell for this group
 		groupedCell := GroupedCell{
-			Value:           groupInfo,
-			Rowspan:         group.Height(),
-			Title:           tooltip,
-			FilterURL:       q.WithFilterAndUngrouped(colName, rawValue),
-			IsGroupedColumn: true,
-			ColumnName:      colName,
-			RawValue:        rawValue,
+			Value:            groupInfo,
+			Rowspan:          group.Height(),
+			Title:            tooltip,
+			FilterURL:        q.WithFilterAndUngrouped(colName, rawValue),
+			IsGroupedColumn:  true,
+			ColumnName:       colName,
+			RawValue:         rawValue,
+			ColumnAggregates: columnAggs,
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 
 		if group.ChildBlock == nil {
-			fmt.Println()
-			fmt.Println(len((*rows)[len(*rows)-1].Cells))
-			// Leaf group - add aggregated column cells for "other" (non-filtered) leaf columns
-			for range tableView.GetOtherLeafColumns() {
+			// Leaf group - add cells for "other" (non-filtered) leaf columns with their aggregates
+			for _, leafColName := range tableView.GetOtherLeafColumns() {
+				// Build aggregates for this specific leaf column
+				var leafAggs []aggregates.ColumnAggregateDisplay
+				if group.Aggregates != nil {
+					state := group.Aggregates[leafColName]
+					colType := tableView.GetColumnType(leafColName)
+					enabledAggs := q.GetEnabledAggregates(leafColName, colType)
+					if len(enabledAggs) > 0 && state != nil {
+						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
+							ColumnName: leafColName,
+							Aggregates: aggregates.FormatAggregates(state, enabledAggs),
+						})
+					}
+				}
 				(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, GroupedCell{
-					Value:   fmt.Sprintf("[%d]", numRows),
-					Rowspan: group.Height(),
-					Title:   "[rows]",
+					Value:            "",
+					Rowspan:          group.Height(),
+					Title:            "",
+					ColumnName:       leafColName,
+					ColumnAggregates: leafAggs,
 				})
 			}
-			cells := make([]GroupedCell, len(tableView.GetFilteredLeafColumns()))
-			for i, _ := range tableView.GetFilteredLeafColumns() {
+
+			// Add cells for filtered leaf columns with their aggregates
+			filteredLeafCols := tableView.GetFilteredLeafColumns()
+			cells := make([]GroupedCell, len(filteredLeafCols))
+			for i, leafColName := range filteredLeafCols {
+				// Build aggregates for this specific leaf column
+				var leafAggs []aggregates.ColumnAggregateDisplay
+				if group.Aggregates != nil {
+					state := group.Aggregates[leafColName]
+					colType := tableView.GetColumnType(leafColName)
+					enabledAggs := q.GetEnabledAggregates(leafColName, colType)
+					if len(enabledAggs) > 0 && state != nil {
+						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
+							ColumnName: leafColName,
+							Aggregates: aggregates.FormatAggregates(state, enabledAggs),
+						})
+					}
+				}
 				cells[i] = GroupedCell{
-					Value:   fmt.Sprintf("[%d]", len(group.Indices)),
-					Rowspan: group.Height(),
-					Title:   "[rows]",
+					Value:            "",
+					Rowspan:          group.Height(),
+					Title:            "",
+					ColumnName:       leafColName,
+					ColumnAggregates: leafAggs,
 				}
 			}
 			(*rows)[len(*rows)-1].Cells = append(cells, (*rows)[len(*rows)-1].Cells...)
-			fmt.Println(len((*rows)[len(*rows)-1].Cells))
 
 			// Start a new row for the next group
 			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})

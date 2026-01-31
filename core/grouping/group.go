@@ -1,6 +1,7 @@
 package grouping
 
 import (
+	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/columns"
 )
 
@@ -27,6 +28,9 @@ type Group struct {
 	ParentGroup *Group
 	Block       *Block
 	ChildBlock  *Block
+	// Aggregates stores computed aggregates for each leaf column.
+	// Keys are column names, values are aggregate states.
+	Aggregates map[string]aggregates.AggregateState
 }
 
 func (g *Group) GetValue() string {

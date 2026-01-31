@@ -82,9 +82,9 @@ const (
 func GetAvailableAggregates(colType ColumnType) []AggregateType {
 	switch colType {
 	case ColumnTypeNumeric:
-		return []AggregateType{AggSum, AggAvg, AggStdDev, AggMin, AggMax, AggCount}
+		return []AggregateType{AggCount, AggSum, AggAvg, AggStdDev, AggMin, AggMax}
 	case ColumnTypeString:
-		return []AggregateType{AggCount, AggUnique}
+		return []AggregateType{AggCount, AggUnique, AggMin, AggMax}
 	case ColumnTypeBool:
 		return []AggregateType{AggCount, AggTrue, AggFalse, AggRatio}
 	case ColumnTypeDatetime:
@@ -798,33 +798,32 @@ func (s *Query) IsSortedDescending(column string) bool {
 
 // WithAggregateToggled returns a URL with the specified aggregate toggled for a column.
 // If the aggregate is enabled, it's disabled; if disabled, it's enabled.
+// Handles the case where count is enabled by default when no explicit settings exist.
 func (s *Query) WithAggregateToggled(column string, aggType AggregateType) safehtml.URL {
 	newState := s.Clone()
 
-	// Get current aggregates for this column
-	currentAggs := newState.AggregateSettings[column]
+	// Check if aggregate is currently enabled (considering default count)
+	isCurrentlyEnabled := s.IsAggregateEnabled(column, aggType)
 
-	// Check if the aggregate is already enabled
-	found := false
-	newAggs := make([]AggregateType, 0, len(currentAggs))
-	for _, agg := range currentAggs {
-		if agg == aggType {
-			found = true
-			// Skip this one (remove it)
-		} else {
-			newAggs = append(newAggs, agg)
-		}
-	}
+	currentAggs, hasExplicitSettings := newState.AggregateSettings[column]
 
-	if found {
-		// Was enabled, now disabled - update or remove from map
-		if len(newAggs) > 0 {
+	if isCurrentlyEnabled {
+		// Currently enabled, need to disable
+		if hasExplicitSettings {
+			// Remove from explicit list
+			newAggs := make([]AggregateType, 0, len(currentAggs))
+			for _, agg := range currentAggs {
+				if agg != aggType {
+					newAggs = append(newAggs, agg)
+				}
+			}
 			newState.AggregateSettings[column] = newAggs
 		} else {
-			delete(newState.AggregateSettings, column)
+			// Was enabled by default (count), explicitly set to empty to disable
+			newState.AggregateSettings[column] = []AggregateType{}
 		}
 	} else {
-		// Was disabled, now enabled - add it
+		// Currently disabled, need to enable
 		newState.AggregateSettings[column] = append(currentAggs, aggType)
 	}
 
@@ -832,11 +831,15 @@ func (s *Query) WithAggregateToggled(column string, aggType AggregateType) safeh
 }
 
 // IsAggregateEnabled returns true if the specified aggregate is enabled for a column.
+// Count is enabled by default when no aggregates are explicitly set.
+// If explicitly set to empty, nothing is enabled (user disabled all aggregates).
 func (s *Query) IsAggregateEnabled(column string, aggType AggregateType) bool {
 	aggs, exists := s.AggregateSettings[column]
 	if !exists {
-		return false
+		// No explicit settings: count is enabled by default
+		return aggType == AggCount
 	}
+	// Explicit settings exist (even if empty slice means nothing is enabled)
 	for _, agg := range aggs {
 		if agg == aggType {
 			return true
@@ -846,6 +849,33 @@ func (s *Query) IsAggregateEnabled(column string, aggType AggregateType) bool {
 }
 
 // GetEnabledAggregates returns the list of enabled aggregates for a column.
-func (s *Query) GetEnabledAggregates(column string) []AggregateType {
-	return s.AggregateSettings[column]
+// The results are ordered according to GetAvailableAggregates to match the toggle order in the UI.
+// If no aggregates are explicitly set (no entry in map), returns [AggCount] as the default.
+// If explicitly set to empty, returns nil (user disabled all aggregates including default count).
+func (s *Query) GetEnabledAggregates(column string, colType ColumnType) []AggregateType {
+	enabled, exists := s.AggregateSettings[column]
+	if !exists {
+		// No explicit settings: default to count
+		return []AggregateType{AggCount}
+	}
+	if len(enabled) == 0 {
+		// Explicitly set to empty (user disabled all aggregates)
+		return nil
+	}
+
+	// Build a set of enabled aggregates for quick lookup
+	enabledSet := make(map[AggregateType]bool)
+	for _, agg := range enabled {
+		enabledSet[agg] = true
+	}
+
+	// Return aggregates in the canonical order defined by GetAvailableAggregates
+	available := GetAvailableAggregates(colType)
+	result := make([]AggregateType, 0, len(enabled))
+	for _, agg := range available {
+		if enabledSet[agg] {
+			result = append(result, agg)
+		}
+	}
+	return result
 }

@@ -22,9 +22,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/grouping"
+	"github.com/google/taxinomia/core/query"
 )
 
 // JoinResolver is an interface for resolving join and table information
@@ -719,4 +722,219 @@ func (tv *TableView) GetOtherLeafColumns() []string {
 		}
 	}
 	return otherLeafColumns
+}
+
+// ComputeAggregates computes aggregates for all groups in the hierarchy.
+// It uses bottom-up aggregation: leaf groups compute from data, parent groups combine children.
+// leafColumns specifies which columns to aggregate; columnTypes maps column names to types.
+func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[string]query.ColumnType) {
+	if tv.firstBlock == nil || len(leafColumns) == 0 {
+		return
+	}
+
+	// Walk the hierarchy bottom-up, starting from leaves
+	tv.computeAggregatesForBlock(tv.firstBlock, leafColumns, columnTypes)
+}
+
+// computeAggregatesForBlock recursively computes aggregates for a block and its children.
+// Returns after processing all groups in the block.
+func (tv *TableView) computeAggregatesForBlock(block *grouping.Block, leafColumns []string, columnTypes map[string]query.ColumnType) {
+	if block == nil {
+		return
+	}
+
+	for _, group := range block.Groups {
+		// First, process child block (if any) - bottom-up
+		if group.ChildBlock != nil {
+			tv.computeAggregatesForBlock(group.ChildBlock, leafColumns, columnTypes)
+		}
+
+		// Now compute aggregates for this group
+		group.Aggregates = make(map[string]aggregates.AggregateState)
+
+		if group.ChildBlock == nil {
+			// Leaf group: compute from indices
+			tv.computeLeafAggregates(group, leafColumns, columnTypes)
+		} else {
+			// Parent group: combine from children
+			tv.combineChildAggregates(group, leafColumns, columnTypes)
+		}
+	}
+}
+
+// computeLeafAggregates computes aggregates for a leaf group by iterating over its indices.
+func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]query.ColumnType) {
+	for _, colName := range leafColumns {
+		colType := columnTypes[colName]
+		col := tv.GetColumn(colName)
+		if col == nil {
+			continue
+		}
+
+		state := aggregates.CreateAggState(colType)
+
+		// Add each value from the group's indices
+		for _, idx := range group.Indices {
+			switch colType {
+			case query.ColumnTypeNumeric:
+				if numState, ok := state.(*aggregates.NumericAggState); ok {
+					tv.addNumericValue(numState, col, idx)
+				}
+			case query.ColumnTypeBool:
+				if boolState, ok := state.(*aggregates.BoolAggState); ok {
+					tv.addBoolValue(boolState, col, idx)
+				}
+			case query.ColumnTypeDatetime:
+				if dtState, ok := state.(*aggregates.DatetimeAggState); ok {
+					tv.addDatetimeValue(dtState, col, idx)
+				}
+			case query.ColumnTypeString:
+				if strState, ok := state.(*aggregates.StringAggState); ok {
+					tv.addStringValue(strState, col, idx)
+				}
+			}
+		}
+
+		group.Aggregates[colName] = state
+	}
+}
+
+// combineChildAggregates combines aggregates from child groups into a parent group.
+func (tv *TableView) combineChildAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]query.ColumnType) {
+	for _, colName := range leafColumns {
+		colType := columnTypes[colName]
+		parentState := aggregates.CreateAggState(colType)
+
+		// Combine from all child groups
+		for _, childGroup := range group.ChildBlock.Groups {
+			if childState, ok := childGroup.Aggregates[colName]; ok {
+				parentState.Combine(childState)
+			}
+		}
+
+		group.Aggregates[colName] = parentState
+	}
+}
+
+// addNumericValue adds a numeric value from a column to the aggregate state.
+func (tv *TableView) addNumericValue(state *aggregates.NumericAggState, col columns.IDataColumn, idx uint32) {
+	// Try to get numeric value - check for typed columns
+	switch typedCol := col.(type) {
+	case *columns.Uint32Column:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.AddUint32(val)
+		}
+	case interface{ GetValue(uint32) (float64, error) }:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.Add(val)
+		}
+	case interface{ GetValue(uint32) (int64, error) }:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.Add(float64(val))
+		}
+	default:
+		// Fallback: try to parse string as number
+		if strVal, err := col.GetString(idx); err == nil {
+			var f float64
+			if _, err := fmt.Sscanf(strVal, "%f", &f); err == nil {
+				state.Add(f)
+			}
+		}
+	}
+}
+
+// addBoolValue adds a boolean value from a column to the aggregate state.
+func (tv *TableView) addBoolValue(state *aggregates.BoolAggState, col columns.IDataColumn, idx uint32) {
+	switch typedCol := col.(type) {
+	case *columns.BoolColumn:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.Add(val)
+		}
+	case interface{ GetValue(uint32) (bool, error) }:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.Add(val)
+		}
+	default:
+		// Fallback: parse string
+		if strVal, err := col.GetString(idx); err == nil {
+			if val, err := columns.ParseBool(strVal); err == nil {
+				state.Add(val)
+			}
+		}
+	}
+}
+
+// addDatetimeValue adds a datetime value from a column to the aggregate state.
+func (tv *TableView) addDatetimeValue(state *aggregates.DatetimeAggState, col columns.IDataColumn, idx uint32) {
+	switch typedCol := col.(type) {
+	case *columns.DatetimeColumn:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.Add(val)
+		}
+	case interface{ GetValue(uint32) (time.Time, error) }:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.Add(val)
+		}
+	default:
+		// Fallback: parse string
+		if strVal, err := col.GetString(idx); err == nil {
+			if val, err := columns.ParseDatetime(strVal, time.UTC); err == nil && !val.IsZero() {
+				state.Add(val)
+			}
+		}
+	}
+}
+
+// addStringValue adds a string value from a column to the aggregate state.
+func (tv *TableView) addStringValue(state *aggregates.StringAggState, col columns.IDataColumn, idx uint32) {
+	if strVal, err := col.GetString(idx); err == nil {
+		state.Add(strVal)
+	}
+}
+
+// GetColumnType determines the column type for aggregate purposes.
+func (tv *TableView) GetColumnType(colName string) query.ColumnType {
+	col := tv.GetColumn(colName)
+	if col == nil {
+		return query.ColumnTypeString
+	}
+
+	// Check concrete types
+	switch col.(type) {
+	case *columns.Uint32Column:
+		return query.ColumnTypeNumeric
+	case *columns.BoolColumn:
+		return query.ColumnTypeBool
+	case *columns.DatetimeColumn:
+		return query.ColumnTypeDatetime
+	case *columns.StringColumn:
+		return query.ColumnTypeString
+	case *columns.DurationColumn:
+		return query.ColumnTypeDatetime // Duration treated like datetime for aggregation
+	// Computed column types
+	case *columns.ComputedUint32Column:
+		return query.ColumnTypeNumeric
+	case *columns.ComputedFloat64Column:
+		return query.ColumnTypeNumeric
+	case *columns.ComputedInt64Column:
+		return query.ColumnTypeNumeric
+	case *columns.ComputedStringColumn:
+		return query.ColumnTypeString
+	}
+
+	// Check for typed column interfaces (for computed/joined columns)
+	switch col.(type) {
+	case interface{ GetValue(uint32) (uint32, error) }:
+		return query.ColumnTypeNumeric
+	case interface{ GetValue(uint32) (int64, error) }:
+		return query.ColumnTypeNumeric
+	case interface{ GetValue(uint32) (float64, error) }:
+		return query.ColumnTypeNumeric
+	case interface{ GetValue(uint32) (bool, error) }:
+		return query.ColumnTypeBool
+	case interface{ GetValue(uint32) (time.Time, error) }:
+		return query.ColumnTypeDatetime
+	}
+
+	return query.ColumnTypeString
 }

@@ -987,6 +987,64 @@
         .remove-computed-btn:hover {
             color: #c0392b;
         }
+
+        /* Aggregate display in grouped cells */
+        .cell-aggregates {
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 1px dashed #ddd;
+            font-size: 11px;
+            color: #555;
+        }
+
+        .column-agg {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 3px;
+        }
+
+        .column-agg-name {
+            color: #888;
+            font-weight: 500;
+            min-width: 60px;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .agg-values {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .agg-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            padding: 1px 4px;
+            background-color: #f5f5f5;
+            border-radius: 3px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .agg-symbol {
+            color: #666;
+            font-weight: bold;
+        }
+
+        .agg-value {
+            color: #333;
+            font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace;
+        }
+
+        /* Leaf column cell aggregates - simple text */
+        .leaf-agg-text {
+            margin-top: 4px;
+            font-size: 11px;
+            color: #666;
+        }
     </style>
     <script>
         // Toggle sidebar visibility
@@ -1456,8 +1514,8 @@
                     <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
                         {{if .IsGrouped}}⊟{{else}}⊞{{end}}
                     </a>
-                    {{/* Aggregate controls - rightmost, only show when grouped */}}
-                    {{if .IsGrouped}}
+                    {{/* Aggregate controls - show only for leaf columns (not grouped columns) when table is grouped */}}
+                    {{if and $.IsGrouped (not .IsGrouped)}}
                     <span class="controls-separator"></span>
                     {{range .AggregateToggles}}
                     <a href="{{.ToggleURL}}" class="agg-toggle-btn{{if .IsEnabled}} enabled{{end}}" title="{{.Title}}">{{.Symbol}}</a>
@@ -1532,9 +1590,23 @@ Use &quot;quotes&quot; for exact match">
                 <tr>
                     {{range $cell := $row.Cells}}
                         {{if gt $cell.Rowspan 1}}
-                            <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">{{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}</td>
+                            <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">
+                                {{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}
+                                {{if $cell.ColumnAggregates}}
+                                <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
+                                <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}</div>
+                                {{end}}{{else}}{{range $colAgg := $cell.ColumnAggregates}}{{range $agg := $colAgg.Aggregates}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}{{end}}</div>
+                                {{end}}
+                            </td>
                         {{else}}
-                            <td title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">{{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}</td>
+                            <td title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">
+                                {{$cell.Value}}{{if $cell.IsGroupedColumn}} <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{end}}
+                                {{if $cell.ColumnAggregates}}
+                                <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
+                                <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}</div>
+                                {{end}}{{else}}{{range $colAgg := $cell.ColumnAggregates}}{{range $agg := $colAgg.Aggregates}}{{$agg.Symbol}}{{$agg.Value}} {{end}}{{end}}{{end}}</div>
+                                {{end}}
+                            </td>
                         {{end}}
                     {{end}}
                 </tr>
