@@ -694,6 +694,14 @@
             margin-left: 2px;
         }
 
+        .sort-toggle-btn.disabled {
+            color: #ccc;
+            cursor: not-allowed;
+            pointer-events: none;
+            background-color: #f5f5f5;
+            border-color: #e0e0e0;
+        }
+
         /* Aggregate toggle buttons */
         .agg-toggle-btn {
             display: inline-block;
@@ -1506,10 +1514,14 @@
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
                 <td class="grouping-cell">
-                    {{/* Sort control - leftmost */}}
+                    {{/* Sort control - leftmost. Disabled for leaf columns when grouping is active */}}
+                    {{if and $.IsGrouped (not .IsGrouped)}}
+                    <span class="sort-toggle-btn disabled" title="Sorting disabled for leaf columns when grouped">⇅</span>
+                    {{else}}
                     <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if gt .SortIndex 0}} active{{end}}{{if eq .SortIndex 1}} primary{{end}}" title="Click to change sort order ({{if .IsSortDescending}}descending{{else}}ascending{{end}})">
-                        {{if gt .SortIndex 0}}{{if .IsSortDescending}}▼{{else}}▲{{end}}<span class="sort-priority">{{.SortIndex}}</span>{{else}}⇅{{end}}
+                        {{if gt .SortIndex 0}}{{if .IsSortDescending}}▼{{else}}▲{{end}}{{if not $.IsGrouped}}<span class="sort-priority">{{.SortIndex}}</span>{{end}}{{else}}⇅{{end}}
                     </a>
+                    {{end}}
                     {{/* Group control - middle */}}
                     <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
                         {{if .IsGrouped}}⊟{{else}}⊞{{end}}

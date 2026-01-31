@@ -199,8 +199,20 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 
 	// Apply grouping if grouped columns are specified
 	if len(q.GroupedColumns) > 0 {
+		// Build ascending map from sort order for grouped columns
+		ascMap := make(map[string]bool)
+		for _, col := range q.GroupedColumns {
+			// Default to ascending if not in sort order
+			ascMap[col] = true
+			for _, sc := range q.SortOrder {
+				if sc.Name == col {
+					ascMap[col] = !sc.Descending
+					break
+				}
+			}
+		}
 		// Call GroupTable - it will use the cached filter mask
-		tableView.GroupTable(q.GroupedColumns, []string{}, make(map[string]tables.Compare), make(map[string]bool))
+		tableView.GroupTable(q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap)
 
 		// Output ASCII representation to console
 		fmt.Println("\n=== Grouped Table (ASCII) ===")

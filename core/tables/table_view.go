@@ -21,6 +21,7 @@ package tables
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -63,6 +64,7 @@ type TableView struct {
 	// Grouping cache tracking
 	lastGroupingOrder   []string          // Grouping order when grouping was computed
 	lastGroupingFilters map[string]string // Filter state when grouping was computed
+	lastGroupingSortAsc map[string]bool   // Sort direction when grouping was computed
 }
 
 // ApplyFilters builds and caches a filter mask based on the provided filters
@@ -269,11 +271,12 @@ func (t *TableView) ClearGroupings() {
 	t.firstBlock = nil
 	t.lastGroupingOrder = nil
 	t.lastGroupingFilters = nil
+	t.lastGroupingSortAsc = nil
 }
 
 func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
 	// Check if grouping inputs are unchanged - skip recomputation
-	if t.groupingEqual(groupingOrder) {
+	if t.groupingEqual(groupingOrder, asc) {
 		return
 	}
 
@@ -304,8 +307,14 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 	parentBlocks := t.groupFirstColumnInTable(indices)
 	t.firstBlock = parentBlocks[0]
 
+	// Sort first column groups
+	firstColumn := groupingOrder[0]
+	ascending, hasSort := asc[firstColumn]
+	descending := hasSort && !ascending // default to ascending if not specified
+	t.sortGroupsInBlock(t.firstBlock, descending)
+
 	// Process subsequent columns
-	t.groupSubsequentColumnsInTable(indices, t.groupingOrder[1:], parentBlocks)
+	t.groupSubsequentColumnsInTable(indices, t.groupingOrder[1:], parentBlocks, asc)
 
 	// Save the state that produced this grouping
 	t.lastGroupingOrder = make([]string, len(groupingOrder))
@@ -314,10 +323,33 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 	for k, v := range t.lastFilters {
 		t.lastGroupingFilters[k] = v
 	}
+	t.lastGroupingSortAsc = make(map[string]bool, len(asc))
+	for k, v := range asc {
+		t.lastGroupingSortAsc[k] = v
+	}
+}
+
+// sortGroupsInBlock sorts the groups within a block based on their values
+func (t *TableView) sortGroupsInBlock(block *grouping.Block, descending bool) {
+	if block == nil || len(block.Groups) <= 1 {
+		return
+	}
+
+	col := block.GroupedColumn.DataColumn
+	sort.Slice(block.Groups, func(i, j int) bool {
+		// Compare groups by their first index (all indices in a group have the same value)
+		idxI := block.Groups[i].Indices[0]
+		idxJ := block.Groups[j].Indices[0]
+		cmp := columns.CompareAtIndex(col, idxI, idxJ)
+		if descending {
+			return cmp > 0
+		}
+		return cmp < 0
+	})
 }
 
 // groupingEqual checks if the grouping inputs match the last computed grouping
-func (t *TableView) groupingEqual(groupingOrder []string) bool {
+func (t *TableView) groupingEqual(groupingOrder []string, asc map[string]bool) bool {
 	// Check grouping order
 	if len(groupingOrder) != len(t.lastGroupingOrder) {
 		return false
@@ -333,6 +365,15 @@ func (t *TableView) groupingEqual(groupingOrder []string) bool {
 	}
 	for k, v := range t.lastFilters {
 		if t.lastGroupingFilters[k] != v {
+			return false
+		}
+	}
+	// Check if sort direction matches what was used for grouping
+	if len(asc) != len(t.lastGroupingSortAsc) {
+		return false
+	}
+	for k, v := range asc {
+		if t.lastGroupingSortAsc[k] != v {
 			return false
 		}
 	}
@@ -375,7 +416,7 @@ func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block 
 	return []*grouping.Block{b}
 }
 
-func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []string, parentBlocks []*grouping.Block) {
+func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []string, parentBlocks []*grouping.Block, asc map[string]bool) {
 	// for following columns, each parent group spawns a child block
 	for level, col := range columns {
 		dataColumn := t.GetColumn(col)
@@ -389,6 +430,10 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 		}
 
 		t.groupedColumns[col] = g
+
+		// Determine sort direction for this column
+		ascending, hasSort := asc[col]
+		descending := hasSort && !ascending // default to ascending if not specified
 
 		// every parent group spawns a block
 		for _, parentBlock := range parentBlocks {
@@ -414,6 +459,9 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 					}
 					b.Groups = append(b.Groups, g2)
 				}
+
+				// Sort groups within this block
+				t.sortGroupsInBlock(b, descending)
 			}
 		}
 		parentBlocks = g.Blocks
