@@ -256,12 +256,6 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 		// Call GroupTable - it will use the cached filter mask
 		tableView.GroupTable(q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap)
 
-		// Output ASCII representation to console
-		fmt.Println("\n=== Grouped Table (ASCII) ===")
-		fmt.Printf("Table: %s\n", q.Table)
-		fmt.Printf("Grouped by: %v\n", q.GroupedColumns)
-		fmt.Println(tableView.ToAscii())
-		fmt.Println("=============================")
 	} else {
 		tableView.ClearGroupings()
 	}

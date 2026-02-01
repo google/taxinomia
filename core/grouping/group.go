@@ -31,6 +31,9 @@ type Group struct {
 	// Aggregates stores computed aggregates for each leaf column.
 	// Keys are column names, values are aggregate states.
 	Aggregates map[string]aggregates.AggregateState
+	// IsComplete indicates whether this group has been fully processed.
+	// When false, the group was truncated due to display row limits,
+	IsComplete bool
 }
 
 func (g *Group) GetValue() string {

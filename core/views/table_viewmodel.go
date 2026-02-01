@@ -112,6 +112,9 @@ type GroupedCell struct {
 	// ColumnAggregates holds the formatted aggregates for all leaf columns in this group.
 	// Each entry represents one leaf column with its name and enabled aggregates.
 	ColumnAggregates []aggregates.ColumnAggregateDisplay
+	// IsIncomplete indicates the cell belongs to a group that was truncated due to display limits.
+	// Such cells should be visually distinguished (e.g., light grey background).
+	IsIncomplete bool
 }
 
 // AggregateToggle represents a single aggregate toggle button for the UI
@@ -445,12 +448,6 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		vm.ColumnWidths[colName] = width
 	}
 
-	// Debug: Print view model building info
-	fmt.Printf("\n=== BuildViewModel Debug Info ===\n")
-	fmt.Printf("Table: %s\n", tableName)
-	fmt.Printf("View Columns to display: %v\n", view.Columns)
-	fmt.Printf("Column Filters: %v\n", vm.ColumnFilters)
-
 	// Create a map of visible columns for quick lookup
 	visibleCols := make(map[string]bool)
 	for _, colName := range view.Columns {
@@ -749,6 +746,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	if tableView.IsGrouped() {
 		vm.IsGrouped = true
 		// Compute aggregates for all groups before building rows
+		// Note: Aggregates for incomplete groups (due to limit) will not be displayed
 		leafColumns := tableView.GetLeafColumns()
 		columnTypes := make(map[string]query.ColumnType)
 		for _, colName := range leafColumns {
@@ -759,7 +757,14 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		if len(q.GroupAggregateSorts) > 0 {
 			tableView.SortGroupsByAggregate(q.GroupAggregateSorts)
 		}
-		vm.GroupedRows = buildGroupedRows(tableView, view.Columns, q)
+		// Build grouped rows with limit - stops early and marks incomplete groups
+		groupResult := buildGroupedRows(tableView, view.Columns, q, q.Limit)
+		vm.GroupedRows = groupResult.Rows
+
+		// Update pagination info for grouped views
+		vm.TotalRows = groupResult.TotalRows
+		vm.DisplayedRows = groupResult.ShownRows
+		vm.HasMoreRows = groupResult.Truncated
 	}
 
 	vm.ColumnStats = buildColumnStats(tableView)
@@ -778,19 +783,6 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		// Mark this column as computed (for UI, even if formula is empty)
 		vm.IsComputedColumn[computed.Name] = true
 	}
-
-	// Debug: Print final view model info
-	fmt.Printf("Final VM Headers: %v\n", vm.Headers)
-	fmt.Printf("Final VM Columns: %v\n", vm.Columns)
-	fmt.Printf("Number of rows: %d displayed out of %d total\n", vm.DisplayedRows, vm.TotalRows)
-
-	// Print all columns info
-	fmt.Printf("All Columns in VM:\n")
-	for _, col := range vm.AllColumns {
-		fmt.Printf("  - %s (visible: %v, entity: %v, key: %v, joins: %d)\n",
-			col.Name, col.IsVisible, col.HasEntityType, col.IsKey, len(col.JoinTargets))
-	}
-	fmt.Printf("=================================\n\n")
 
 	return vm
 }
@@ -1026,28 +1018,88 @@ func BuildToggleGroupingURL(q *query.Query, columnName string) safehtml.URL {
 	return q.WithGroupedColumnToggled(columnName)
 }
 
+// GroupBuildResult contains the result of building grouped rows
+type GroupBuildResult struct {
+	Rows       []GroupedRow
+	Truncated  bool // True if display row limit was reached
+	TotalRows  int  // Total display rows that would exist without limit
+	ShownRows  int  // Actual display rows shown
+}
+
 // buildGroupedRows converts the hierarchical grouping structure into rows with rowspan
 // It walks the group hierarchy recursively, using group.Height() for rowspan
-func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *query.Query) []GroupedRow {
+// If limit > 0, stops after limit display rows and marks incomplete groups
+func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *query.Query, limit int) GroupBuildResult {
 	firstBlock := tableView.GetFirstBlock()
 	if firstBlock == nil {
-		return nil
+		return GroupBuildResult{}
 	}
+
+	// Calculate total rows without limit for display purposes
+	totalRows := 0
+	for _, g := range firstBlock.Groups {
+		totalRows += g.Height()
+	}
+
 	var rows []GroupedRow = []GroupedRow{{Cells: []GroupedCell{}}}
-	walkGroupHierarchy(tableView, firstBlock, &rows, 0, q)
-	return rows
+	rowCount := 0
+	truncated := walkGroupHierarchy(tableView, firstBlock, &rows, 0, q, limit, &rowCount)
+
+	// Remove trailing empty row if present
+	if len(rows) > 0 && len(rows[len(rows)-1].Cells) == 0 {
+		rows = rows[:len(rows)-1]
+	}
+
+	// If truncated, fix rowspans for cells that now extend beyond the array
+	if truncated && len(rows) > 0 {
+		fixRowspans(rows)
+	}
+
+	return GroupBuildResult{
+		Rows:      rows,
+		Truncated: truncated,
+		TotalRows: totalRows,
+		ShownRows: len(rows),
+	}
+}
+
+// fixRowspans adjusts rowspans for cells that extend beyond the actual row count
+// Also marks cells as incomplete if their rowspan was reduced (meaning they were truncated)
+func fixRowspans(rows []GroupedRow) {
+	limit := len(rows)
+	for rowIdx := range rows {
+		for cellIdx := range rows[rowIdx].Cells {
+			cell := &rows[rowIdx].Cells[cellIdx]
+			if cell.Rowspan > 1 {
+				// Cell starts at rowIdx and spans Rowspan rows
+				// After truncation, it can only span to the end of the array
+				maxRowspan := limit - rowIdx
+				if cell.Rowspan > maxRowspan {
+					cell.Rowspan = maxRowspan
+					// Mark as incomplete since this cell was truncated
+					cell.IsIncomplete = true
+				}
+			}
+		}
+	}
 }
 
 // walkGroupHierarchy recursively walks the group hierarchy and builds rows
 // level indicates the depth in the grouping hierarchy (0 = first grouped column)
-func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *query.Query) {
+// limit is the max display rows (0 = unlimited), rowCount tracks current count
+// Returns true if truncated due to limit
+func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *query.Query, limit int, rowCount *int) bool {
 	if block == nil {
-		return
+		return false
 	}
 	// Get the column name for this grouping level
 	colName := block.GroupedColumn.DataColumn.ColumnDef().Name()
 
 	for _, group := range block.Groups {
+		// Check if we've hit the limit before processing this group
+		if limit > 0 && *rowCount >= limit {
+			return true
+		}
 		// Get the raw value for filtering
 		rawValue := group.GetValue()
 		numRows := len(group.Indices)
@@ -1108,6 +1160,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			IsRowCountSorted:      isRowCountSorted,
 			IsSubgroupCountSorted: isSubgroupCountSorted,
 			ColumnAggregates:      columnAggs,
+			IsIncomplete:          false, // Set by fixRowspans based on rowspan reduction
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 
@@ -1140,6 +1193,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 					Title:            "",
 					ColumnName:       leafColName,
 					ColumnAggregates: leafAggs,
+					IsIncomplete:     false, // Set by fixRowspans based on rowspan reduction
 				})
 			}
 
@@ -1173,17 +1227,25 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 					Title:            "",
 					ColumnName:       leafColName,
 					ColumnAggregates: leafAggs,
+					IsIncomplete:     false, // Set by fixRowspans based on rowspan reduction
 				}
 			}
 			(*rows)[len(*rows)-1].Cells = append(cells, (*rows)[len(*rows)-1].Cells...)
+
+			// Increment row count for this leaf group
+			*rowCount++
 
 			// Start a new row for the next group
 			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
 		} else {
 			// Non-leaf group - recurse into child blocks
-			walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1, q)
+			truncated := walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1, q, limit, rowCount)
+			if truncated {
+				return true
+			}
 		}
 	}
+	return false
 }
 
 func buildColumnStats(tableView *tables.TableView) []string {

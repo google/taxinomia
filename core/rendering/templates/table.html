@@ -652,6 +652,34 @@
             white-space: nowrap;
         }
 
+        /* Incomplete group styling - groups truncated due to display limits */
+        td.incomplete-group {
+            background-color: #f5f5f5;
+            color: #888;
+        }
+
+        /* Truncation indicator - shown when rows are truncated */
+        .truncation-row td {
+            background: linear-gradient(to bottom, #f5f5f5, #e8e8e8);
+            text-align: center;
+            padding: 12px 8px;
+            color: #666;
+            font-style: italic;
+            border-top: 2px dashed #ccc;
+        }
+
+        .truncation-row .show-more-link {
+            color: #3498db;
+            text-decoration: none;
+            font-style: normal;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .truncation-row .show-more-link:hover {
+            text-decoration: underline;
+        }
+
         /* Column resize handle */
         .resize-handle {
             position: absolute;
@@ -1495,7 +1523,23 @@
             setupMultiselectMode();
             initColumnResize();
             restoreScrollPosition();
+            updateHiddenRowsCount();
         });
+
+        // Calculate and display hidden rows count
+        function updateHiddenRowsCount() {
+            const table = document.getElementById('data-table');
+            const hiddenRowsSpan = document.getElementById('hidden-rows-count');
+            if (!table || !hiddenRowsSpan) return;
+
+            const totalRows = parseInt(table.dataset.totalRows, 10) || 0;
+            const displayedRows = parseInt(table.dataset.displayedRows, 10) || 0;
+            const hiddenRows = totalRows - displayedRows;
+
+            if (hiddenRows > 0) {
+                hiddenRowsSpan.textContent = hiddenRows.toLocaleString();
+            }
+        }
 
         // Display browser timing after page is fully loaded
         window.addEventListener('load', function() {
@@ -1795,7 +1839,7 @@
                 {{end}}
             </div>
             {{end}}
-            <table id="data-table">
+            <table id="data-table" data-total-rows="{{.TotalRows}}" data-displayed-rows="{{.DisplayedRows}}">
         <thead>
             <tr>
                 {{range $idx, $header := .Headers}}
@@ -1914,7 +1958,7 @@ Use &quot;quotes&quot; for exact match">
                 <tr>
                     {{range $cell := $row.Cells}}
                         {{if gt $cell.Rowspan 1}}
-                            <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">
+                            <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}"{{if $cell.IsIncomplete}} class="incomplete-group"{{end}}>
                                 {{if $cell.IsGroupedColumn}}{{if $cell.IsValueSorted}}<b>{{$cell.Value}}</b>{{else}}{{$cell.Value}}{{end}} [{{if gt $cell.NumSubgroups 0}}{{if $cell.IsSubgroupCountSorted}}<b>{{$cell.NumSubgroups}}</b>{{else}}{{$cell.NumSubgroups}}{{end}}/{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{else}}{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{end}}] <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{else}}{{$cell.Value}}{{end}}
                                 {{if $cell.ColumnAggregates}}
                                 <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
@@ -1923,7 +1967,7 @@ Use &quot;quotes&quot; for exact match">
                                 {{end}}
                             </td>
                         {{else}}
-                            <td title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}">
+                            <td title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}"{{if $cell.IsIncomplete}} class="incomplete-group"{{end}}>
                                 {{if $cell.IsGroupedColumn}}{{if $cell.IsValueSorted}}<b>{{$cell.Value}}</b>{{else}}{{$cell.Value}}{{end}} [{{if gt $cell.NumSubgroups 0}}{{if $cell.IsSubgroupCountSorted}}<b>{{$cell.NumSubgroups}}</b>{{else}}{{$cell.NumSubgroups}}{{end}}/{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{else}}{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{end}}] <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{else}}{{$cell.Value}}{{end}}
                                 {{if $cell.ColumnAggregates}}
                                 <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
@@ -1945,14 +1989,22 @@ Use &quot;quotes&quot; for exact match">
                 </tr>
                 {{end}}
             {{end}}
+            {{if .HasMoreRows}}
+            <tr class="truncation-row">
+                <td colspan="{{len .Columns}}">
+                    ... <span id="hidden-rows-count"></span> more rows not displayed
+                    <a href="javascript:void(0)" class="show-more-link" onclick="changeLimit(2)" title="Double the number of rows">Show more</a>
+                </td>
+            </tr>
+            {{end}}
         </tbody>
     </table>
         </main>
     </div>
 
     <script>
-        // Total rows in the table (for capping limit)
-        const totalRows = {{.TotalRows}};
+        // Total rows in the table (for capping limit) - read from data attribute
+        const totalRows = parseInt(document.getElementById('data-table').dataset.totalRows, 10) || 0;
 
         // Change the row limit by a multiplier
         function changeLimit(multiplier) {

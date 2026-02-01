@@ -409,6 +409,7 @@ func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block 
 			Indices:     groupIndices,
 			ParentGroup: nil,
 			Block:       b,
+			IsComplete:  true,
 		}
 		b.Groups = append(b.Groups, g2)
 	}
@@ -417,6 +418,10 @@ func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block 
 }
 
 func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []string, parentBlocks []*grouping.Block, asc map[string]bool) {
+	if len(columns) == 0 {
+		return
+	}
+
 	// for following columns, each parent group spawns a child block
 	for level, col := range columns {
 		dataColumn := t.GetColumn(col)
@@ -456,6 +461,7 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 						Indices:     groupIndices,
 						ParentGroup: parentGroup,
 						Block:       b,
+						IsComplete:  true,
 					}
 					b.Groups = append(b.Groups, g2)
 				}
