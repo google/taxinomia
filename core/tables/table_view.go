@@ -1016,14 +1016,36 @@ func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts m
 
 	// Check if this grouped column has an aggregate sort
 	if aggSort, ok := groupAggSorts[groupedColName]; ok && aggSort != nil {
-		// Sort groups by aggregate value
+		// Sort groups based on sort type
 		sort.Slice(block.Groups, func(i, j int) bool {
-			// Get aggregate states for both groups
-			stateI := block.Groups[i].Aggregates[aggSort.LeafColumn]
-			stateJ := block.Groups[j].Aggregates[aggSort.LeafColumn]
+			var cmp int
 
-			// Compare aggregate values
-			cmp := tv.compareAggregateValues(stateI, stateJ, aggSort.AggType)
+			switch aggSort.AggType {
+			case query.AggRowCount:
+				// Sort by total row count in the group
+				countI := tv.getGroupRowCount(block.Groups[i])
+				countJ := tv.getGroupRowCount(block.Groups[j])
+				if countI < countJ {
+					cmp = -1
+				} else if countI > countJ {
+					cmp = 1
+				}
+			case query.AggSubgroupCount:
+				// Sort by number of subgroups
+				countI := tv.getGroupSubgroupCount(block.Groups[i])
+				countJ := tv.getGroupSubgroupCount(block.Groups[j])
+				if countI < countJ {
+					cmp = -1
+				} else if countI > countJ {
+					cmp = 1
+				}
+			default:
+				// Sort by leaf column aggregate value
+				stateI := block.Groups[i].Aggregates[aggSort.LeafColumn]
+				stateJ := block.Groups[j].Aggregates[aggSort.LeafColumn]
+				cmp = tv.compareAggregateValues(stateI, stateJ, aggSort.AggType)
+			}
+
 			if aggSort.Descending {
 				return cmp > 0
 			}
@@ -1037,6 +1059,28 @@ func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts m
 			tv.sortBlockByAggregate(group.ChildBlock, groupAggSorts)
 		}
 	}
+}
+
+// getGroupRowCount returns the total number of rows in a group (recursively counting leaf indices).
+func (tv *TableView) getGroupRowCount(group *grouping.Group) int {
+	if group.ChildBlock == nil {
+		// Leaf group - return direct index count
+		return len(group.Indices)
+	}
+	// Parent group - sum up all child group row counts
+	total := 0
+	for _, childGroup := range group.ChildBlock.Groups {
+		total += tv.getGroupRowCount(childGroup)
+	}
+	return total
+}
+
+// getGroupSubgroupCount returns the number of direct subgroups in a group.
+func (tv *TableView) getGroupSubgroupCount(group *grouping.Group) int {
+	if group.ChildBlock == nil {
+		return 0
+	}
+	return len(group.ChildBlock.Groups)
 }
 
 // compareAggregateValues compares two aggregate states for a specific aggregate type.

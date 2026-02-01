@@ -76,6 +76,12 @@ const (
 	AggSpan AggregateType = "span" // Time span (max - min)
 )
 
+// Special aggregate types for group-level sorting (not leaf column aggregates)
+const (
+	AggRowCount      AggregateType = "rows"      // Total row count in group
+	AggSubgroupCount AggregateType = "subgroups" // Number of subgroups
+)
+
 // ColumnType represents the data type of a column for aggregate purposes
 type ColumnType string
 
@@ -127,6 +133,10 @@ func AggregateSymbol(agg AggregateType) string {
 		return "%"
 	case AggSpan:
 		return "Δ"
+	case AggRowCount:
+		return "≡"
+	case AggSubgroupCount:
+		return "⊞"
 	default:
 		return string(agg)
 	}
@@ -157,6 +167,10 @@ func AggregateTitle(agg AggregateType) string {
 		return "True Ratio"
 	case AggSpan:
 		return "Time Span"
+	case AggRowCount:
+		return "Row Count"
+	case AggSubgroupCount:
+		return "Subgroup Count"
 	default:
 		return string(agg)
 	}
@@ -385,10 +399,10 @@ func parseGroupAggSort(groupedCol, value string) *GroupAggSort {
 		return nil
 	}
 
-	// Rest is leafCol:aggType
+	// Rest is leafCol:aggType (leafCol can be empty for group-level sorts like row count)
 	rest := value[1:]
 	colonIdx := strings.LastIndex(rest, ":")
-	if colonIdx == -1 || colonIdx == 0 || colonIdx == len(rest)-1 {
+	if colonIdx == -1 || colonIdx == len(rest)-1 {
 		return nil
 	}
 
@@ -399,7 +413,8 @@ func parseGroupAggSort(groupedCol, value string) *GroupAggSort {
 	aggType := AggregateType(aggTypeStr)
 	switch aggType {
 	case AggSum, AggAvg, AggStdDev, AggMin, AggMax, AggCount,
-		AggUnique, AggTrue, AggFalse, AggRatio, AggSpan:
+		AggUnique, AggTrue, AggFalse, AggRatio, AggSpan,
+		AggRowCount, AggSubgroupCount:
 		// Valid
 	default:
 		return nil
@@ -974,7 +989,7 @@ func (s *Query) GetEnabledAggregates(column string, colType ColumnType) []Aggreg
 }
 
 // WithNextGroupAggSort cycles through aggregate sort options for a grouped column.
-// Options cycle through: no aggregate sort -> each enabled aggregate of each leaf column -> back to no aggregate sort
+// Options cycle through: no aggregate sort -> row count -> subgroup count -> each enabled aggregate of each leaf column -> back to no aggregate sort
 // leafColumns is an ordered list of leaf column names; enabledAggs maps leaf column name to enabled aggregates.
 // Note: Count aggregates are skipped since they are not displayed in the UI.
 func (s *Query) WithNextGroupAggSort(groupedColumn string, leafColumns []string, enabledAggs map[string][]AggregateType) safehtml.URL {
@@ -982,12 +997,19 @@ func (s *Query) WithNextGroupAggSort(groupedColumn string, leafColumns []string,
 
 	// Build the list of all possible aggregate sort options
 	// Each option is (leafColumn, aggType)
-	// Skip count aggregates since they are not displayed in the UI
+	// Start with group-level sorts (row count, subgroup count), then leaf column aggregates
 	type sortOption struct {
 		leafCol string
 		aggType AggregateType
 	}
 	var options []sortOption
+
+	// Add group-level sort options first (these use empty leafCol)
+	options = append(options, sortOption{"", AggRowCount})
+	options = append(options, sortOption{"", AggSubgroupCount})
+
+	// Add leaf column aggregate options
+	// Skip count aggregates since they are not displayed in the UI
 	for _, leafCol := range leafColumns {
 		for _, agg := range enabledAggs[leafCol] {
 			if agg == AggCount {

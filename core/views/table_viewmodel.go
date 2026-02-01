@@ -83,14 +83,18 @@ type GroupedRow struct {
 // GroupedCell represents a cell to be rendered in the grouped table
 // Rowspan indicates how many rows this cell spans (1 = no span, >1 = spans multiple rows)
 type GroupedCell struct {
-	Value           string
-	Rowspan         int
-	Title           string       // Tooltip text for hover-over information
-	FilterURL       safehtml.URL // URL to filter on this value and remove grouping
-	IsGroupedColumn bool         // True if this is a grouped column cell (shows filter link)
-	ColumnName      string       // Column name for identifying cells in multi-select mode
-	RawValue        string       // Raw value for multi-select filtering (without display formatting)
-	IsValueSorted   bool         // True if sorting by grouped value (not aggregate) - value should be bold
+	Value                 string       // Display value for the cell
+	NumRows               int          // Number of rows in this group (for display in brackets)
+	NumSubgroups          int          // Number of subgroups (0 if leaf group)
+	Rowspan               int
+	Title                 string       // Tooltip text for hover-over information
+	FilterURL             safehtml.URL // URL to filter on this value and remove grouping
+	IsGroupedColumn       bool         // True if this is a grouped column cell (shows filter link)
+	ColumnName            string       // Column name for identifying cells in multi-select mode
+	RawValue              string       // Raw value for multi-select filtering (without display formatting)
+	IsValueSorted         bool         // True if sorting by grouped value (not aggregate) - value should be bold
+	IsRowCountSorted      bool         // True if sorting by row count - row count should be bold
+	IsSubgroupCountSorted bool         // True if sorting by subgroup count - subgroup count should be bold
 	// ColumnAggregates holds the formatted aggregates for all leaf columns in this group.
 	// Each entry represents one leaf column with its name and enabled aggregates.
 	ColumnAggregates []aggregates.ColumnAggregateDisplay
@@ -1032,15 +1036,14 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 	for _, group := range block.Groups {
 		// Get the raw value for filtering
 		rawValue := group.GetValue()
-
-		// Format: "value [#subgroups/#rows]" for non-leaf, "value [#rows]" for leaf
-		var groupInfo, tooltip string
 		numRows := len(group.Indices)
-		if group.NumSubgroups() > 0 {
-			groupInfo = fmt.Sprintf("%s [%d/%d]", rawValue, group.NumSubgroups(), numRows)
+		numSubgroups := group.NumSubgroups()
+
+		// Tooltip explains the bracket format
+		var tooltip string
+		if numSubgroups > 0 {
 			tooltip = "[subgroups/rows]"
 		} else {
-			groupInfo = fmt.Sprintf("%s [%d]", rawValue, numRows)
 			tooltip = "[rows]"
 		}
 
@@ -1074,16 +1077,23 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		// Add the grouped column cell for this group
 		// IsValueSorted is true if column is sorted and not using aggregate sort
 		isValueSorted := q.GetSortIndex(colName) > 0 && aggSort == nil
+		// Check if sorting by row count or subgroup count
+		isRowCountSorted := aggSort != nil && aggSort.AggType == query.AggRowCount
+		isSubgroupCountSorted := aggSort != nil && aggSort.AggType == query.AggSubgroupCount
 		groupedCell := GroupedCell{
-			Value:            groupInfo,
-			Rowspan:          group.Height(),
-			Title:            tooltip,
-			FilterURL:        q.WithFilterAndUngrouped(colName, rawValue),
-			IsGroupedColumn:  true,
-			ColumnName:       colName,
-			RawValue:         rawValue,
-			IsValueSorted:    isValueSorted,
-			ColumnAggregates: columnAggs,
+			Value:                 rawValue,
+			NumRows:               numRows,
+			NumSubgroups:          numSubgroups,
+			Rowspan:               group.Height(),
+			Title:                 tooltip,
+			FilterURL:             q.WithFilterAndUngrouped(colName, rawValue),
+			IsGroupedColumn:       true,
+			ColumnName:            colName,
+			RawValue:              rawValue,
+			IsValueSorted:         isValueSorted,
+			IsRowCountSorted:      isRowCountSorted,
+			IsSubgroupCountSorted: isSubgroupCountSorted,
+			ColumnAggregates:      columnAggs,
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 
