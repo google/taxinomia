@@ -378,57 +378,98 @@
         }
 
 
-        /* URL Info Pane styles */
-        .url-info-pane {
+        /* Info Pane styles with tabs */
+        .info-pane {
             background-color: #fafafa;
             border: 1px solid #e0e0e0;
             border-radius: 4px;
-            padding: 15px;
             margin-bottom: 20px;
-            transition: all 0.3s ease;
             overflow: hidden;
         }
 
-        .url-info-pane.collapsed {
-            padding: 0;
-            margin-bottom: 10px;
+        .info-pane.collapsed {
             border: none;
+            margin-bottom: 10px;
         }
 
-        .url-info-pane.collapsed .url-info-content {
-            display: none;
-        }
-
-        .url-info-header {
+        .info-pane-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            padding: 8px 15px;
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #e0e0e0;
         }
 
-        .url-info-pane.collapsed .url-info-header {
-            margin-bottom: 0;
+        .info-pane.collapsed .info-pane-header {
+            border-bottom: none;
         }
 
-        .url-info-toggle {
+        .info-pane-tabs {
+            display: flex;
+            gap: 0;
+        }
+
+        .info-pane.collapsed .info-pane-tabs {
+            display: none;
+        }
+
+        .info-tab {
+            padding: 6px 16px;
+            border: none;
+            background-color: transparent;
+            color: #666;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .info-tab:hover {
+            color: #333;
+            background-color: rgba(0,0,0,0.05);
+        }
+
+        .info-tab.active {
+            color: #3498db;
+            border-bottom-color: #3498db;
+            font-weight: 500;
+        }
+
+        .info-pane-toggle {
             background-color: #e0e0e0;
             color: #666;
             border: none;
-            padding: 5px 12px;
+            padding: 4px 10px;
             border-radius: 3px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             transition: background-color 0.2s;
+            text-decoration: none;
         }
 
-        .url-info-toggle:hover {
+        .info-pane-toggle:hover {
             background-color: #d0d0d0;
         }
 
-        .url-info-content {
+        .info-pane-content {
+            padding: 15px;
             font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, 'Inconsolata', 'Fira Code', monospace;
             font-size: 13px;
             color: #666;
+        }
+
+        .info-pane.collapsed .info-pane-content {
+            display: none;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         .url-display {
@@ -439,10 +480,6 @@
             margin-bottom: 15px;
             color: #777;
             border: 1px solid #e8e8e8;
-        }
-
-        .url-params {
-            margin-top: 10px;
         }
 
         .url-params h3 {
@@ -476,6 +513,45 @@
         .param-value {
             color: #666;
             word-break: break-all;
+        }
+
+        /* Performance tab styles */
+        .perf-timing-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .perf-timing-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            background-color: #fff;
+            border: 1px solid #e8e8e8;
+            margin-bottom: 4px;
+            border-radius: 3px;
+        }
+
+        .perf-timing-item.total {
+            background-color: #e8f5e9;
+            border-color: #c8e6c9;
+            font-weight: 500;
+        }
+
+        .perf-operation {
+            color: #555;
+        }
+
+        .perf-duration {
+            color: #2e7d32;
+            font-weight: 500;
+        }
+
+        .perf-section-title {
+            font-size: 14px;
+            color: #777;
+            margin-bottom: 10px;
+            font-weight: normal;
         }
 
         /* Main content styles */
@@ -998,6 +1074,68 @@
             color: #495057;
         }
 
+        .render-time {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .timing-metrics {
+            display: inline-flex;
+            gap: 12px;
+            margin-left: 8px;
+        }
+
+        .timing-metric {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
+
+        .timing-metric.server {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .timing-metric.browser {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .timing-label {
+            font-weight: 500;
+        }
+
+        .timing-value {
+            font-family: Consolas, 'Cascadia Code', monospace;
+        }
+
+        .limit-btn {
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background-color: #f5f5f5;
+            color: #333;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .limit-btn:hover {
+            background-color: #e0e0e0;
+            border-color: #ccc;
+        }
+
+        .limit-controls {
+            display: inline-flex;
+            gap: 6px;
+            margin-left: 12px;
+        }
+
         .computed-columns-section {
             margin-top: 20px;
             padding-top: 15px;
@@ -1122,18 +1260,31 @@
             openBtn.classList.toggle('visible');
         }
 
-        // Toggle URL info pane visibility
-        function toggleUrlInfo() {
-            const pane = document.getElementById('url-info-pane');
-            const button = document.getElementById('url-info-toggle');
+        // Toggle info pane visibility (updates URL)
+        function toggleInfoPane() {
+            const url = new URL(window.location);
+            const isCurrentlyVisible = url.searchParams.get('info') !== '0';
 
-            pane.classList.toggle('collapsed');
-
-            if (pane.classList.contains('collapsed')) {
-                button.textContent = 'Show URL Info';
+            if (isCurrentlyVisible) {
+                url.searchParams.set('info', '0');
             } else {
-                button.textContent = 'Hide URL Info';
+                url.searchParams.delete('info');
             }
+
+            window.location.href = url.toString();
+        }
+
+        // Switch info pane tab (updates URL)
+        function switchInfoTab(tabName) {
+            const url = new URL(window.location);
+
+            if (tabName === 'url') {
+                url.searchParams.delete('infotab');
+            } else {
+                url.searchParams.set('infotab', tabName);
+            }
+
+            window.location.href = url.toString();
         }
 
         // Parse URL parameters
@@ -1304,6 +1455,38 @@
             }
         }
 
+        // Calculate and display browser timing metrics
+        function displayBrowserTiming() {
+            // Use Performance Navigation Timing API (modern) or fall back to deprecated timing
+            const entries = performance.getEntriesByType('navigation');
+            let totalTime;
+
+            if (entries.length > 0) {
+                // Modern Navigation Timing API (Level 2)
+                const navTiming = entries[0];
+                // Total time from navigation start to load event end
+                totalTime = navTiming.loadEventEnd - navTiming.startTime;
+            } else if (performance.timing) {
+                // Deprecated Navigation Timing API (Level 1) - fallback
+                const timing = performance.timing;
+                totalTime = timing.loadEventEnd - timing.navigationStart;
+            }
+
+            const timeStr = (totalTime && totalTime > 0) ? totalTime.toFixed(0) + 'ms' : 'N/A';
+
+            // Update the pagination info timing
+            const timingElement = document.getElementById('browser-timing');
+            if (timingElement) {
+                timingElement.textContent = timeStr;
+            }
+
+            // Update the performance tab timing
+            const perfElement = document.getElementById('perf-browser-total');
+            if (perfElement) {
+                perfElement.textContent = timeStr;
+            }
+        }
+
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', function() {
             parseUrlParams();
@@ -1312,6 +1495,12 @@
             setupMultiselectMode();
             initColumnResize();
             restoreScrollPosition();
+        });
+
+        // Display browser timing after page is fully loaded
+        window.addEventListener('load', function() {
+            // Use setTimeout to ensure loadEventEnd is populated
+            setTimeout(displayBrowserTiming, 0);
         });
 
         // =====================
@@ -1530,24 +1719,82 @@
                 <span>☰</span> Menu
             </button>
 
-            <!-- URL Info Pane -->
-            <div class="url-info-pane" id="url-info-pane">
-                <div class="url-info-header">
-                    <h3 style="margin: 0; color: #888; font-size: 16px; font-weight: normal;">URL Information</h3>
-                    <button class="url-info-toggle" id="url-info-toggle" onclick="toggleUrlInfo()">Hide URL Info</button>
+            <!-- Info Pane with Tabs -->
+            <div class="info-pane{{if not .ShowInfoPane}} collapsed{{end}}" id="info-pane">
+                <div class="info-pane-header">
+                    <div class="info-pane-tabs">
+                        <a href="javascript:void(0)" class="info-tab{{if eq .InfoPaneTab "url"}} active{{end}}" data-tab="url" onclick="switchInfoTab('url')">URL</a>
+                        <a href="javascript:void(0)" class="info-tab{{if eq .InfoPaneTab "perf"}} active{{end}}" data-tab="perf" onclick="switchInfoTab('perf')">Performance</a>
+                    </div>
+                    <a href="javascript:void(0)" class="info-pane-toggle" onclick="toggleInfoPane()">{{if .ShowInfoPane}}Hide{{else}}Show{{end}}</a>
                 </div>
-                <div class="url-info-content">
-                    <div class="url-display" id="url-display"></div>
-                    <div class="url-params">
-                        <h3>Parameters:</h3>
-                        <ul class="param-list" id="param-list"></ul>
+                <div class="info-pane-content">
+                    <!-- URL Tab -->
+                    <div class="tab-content{{if eq .InfoPaneTab "url"}} active{{end}}" id="tab-url">
+                        <div class="url-display" id="url-display"></div>
+                        <div class="url-params">
+                            <h3>Parameters:</h3>
+                            <ul class="param-list" id="param-list"></ul>
+                        </div>
+                    </div>
+                    <!-- Performance Tab -->
+                    <div class="tab-content{{if eq .InfoPaneTab "perf"}} active{{end}}" id="tab-perf">
+                        <h3 class="perf-section-title">Server-side Timing Breakdown</h3>
+                        <ul class="perf-timing-list">
+                            {{range .TimingBreakdown}}
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">{{.Operation}}</span>
+                                <span class="perf-duration">{{.DurationMs}}ms</span>
+                            </li>
+                            {{end}}
+                            <li class="perf-timing-item total">
+                                <span class="perf-operation">Total Server Time</span>
+                                <span class="perf-duration">{{.RenderTimeMs}}ms</span>
+                            </li>
+                        </ul>
+                        <h3 class="perf-section-title" style="margin-top: 15px;">Browser Timing</h3>
+                        <ul class="perf-timing-list">
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Total (navigation to load)</span>
+                                <span class="perf-duration" id="perf-browser-total">...</span>
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>
 
             <h1>{{.Title}}</h1>
-
-            <h2>Data Table</h2>
+            {{if gt .TotalRows 0}}
+            <div class="pagination-info">
+                {{if .HasMoreRows}}
+                <p>Showing {{.DisplayedRows}} of {{.TotalRows}} rows
+                    <span class="limit-controls">
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(0.1)" title="Show 10 times fewer rows">/10</a>
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(0.5)" title="Halve the number of rows">/2</a>
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(2)" title="Double the number of rows">2x</a>
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(10)" title="Show 10 times more rows">10x</a>
+                    </span>
+                    <span class="timing-metrics">
+                        {{if .RenderTimeMs}}<span class="timing-metric server" title="Time for the server to prepare the HTML (query, aggregate, render template)"><span class="timing-label">Server:</span> <span class="timing-value">{{.RenderTimeMs}}ms</span></span>{{end}}
+                        <span class="timing-metric browser" title="Total time from navigation start to page fully loaded and rendered"><span class="timing-label">Total:</span> <span class="timing-value" id="browser-timing">...</span></span>
+                    </span>
+                </p>
+                {{else}}
+                <p>Showing all {{.TotalRows}} rows
+                    <span class="limit-controls">
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(0.1)" title="Show 10 times fewer rows">/10</a>
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(0.5)" title="Halve the number of rows">/2</a>
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(2)" title="Double the number of rows">2x</a>
+                        <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(10)" title="Show 10 times more rows">10x</a>
+                    </span>
+                    <span class="timing-metrics">
+                        {{if .RenderTimeMs}}<span class="timing-metric server" title="Time for the server to prepare the HTML (query, aggregate, render template)"><span class="timing-label">Server:</span> <span class="timing-value">{{.RenderTimeMs}}ms</span></span>{{end}}
+                        <span class="timing-metric browser" title="Total time from navigation start to page fully loaded and rendered"><span class="timing-label">Total:</span> <span class="timing-value" id="browser-timing">...</span></span>
+                    </span>
+                </p>
+                {{end}}
+            </div>
+            {{end}}
             <table id="data-table">
         <thead>
             <tr>
@@ -1700,20 +1947,23 @@ Use &quot;quotes&quot; for exact match">
             {{end}}
         </tbody>
     </table>
-
-    {{if gt .TotalRows 0}}
-    <div class="pagination-info">
-        {{if .HasMoreRows}}
-        <p>Showing {{.DisplayedRows}} of {{.TotalRows}} rows</p>
-        {{else}}
-        <p>Showing all {{.TotalRows}} rows</p>
-        {{end}}
-    </div>
-    {{end}}
         </main>
     </div>
 
     <script>
+        // Total rows in the table (for capping limit)
+        const totalRows = {{.TotalRows}};
+
+        // Change the row limit by a multiplier
+        function changeLimit(multiplier) {
+            const url = new URL(window.location);
+            const currentLimit = parseInt(url.searchParams.get('limit'), 10) || 25;
+            // Calculate new limit, ensure it's at least 1, is an integer, and doesn't exceed total rows
+            const newLimit = Math.min(totalRows, Math.max(1, Math.round(currentLimit * multiplier)));
+            url.searchParams.set('limit', newLimit.toString());
+            window.location.href = url.toString();
+        }
+
         function removeComputedColumn(name) {
             const url = new URL(window.location);
 

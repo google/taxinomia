@@ -59,6 +59,20 @@ type TableViewModel struct {
 	// Validation errors
 	ComputedColumnErrors map[string]ValidationError // Errors for computed columns (columnName -> error)
 	FilterErrors         map[string]ValidationError // Errors for filters (columnName -> error)
+
+	// Performance metrics
+	RenderTimeMs   string        // Time to render the page in milliseconds (formatted)
+	TimingBreakdown []TimingEntry // Detailed timing breakdown of operations
+
+	// Info pane state (controlled via URL)
+	ShowInfoPane bool   // Whether to show the info pane
+	InfoPaneTab  string // Which tab is active: "url" or "perf"
+}
+
+// TimingEntry represents a single timing measurement
+type TimingEntry struct {
+	Operation string // Name of the operation (e.g., "Parse Query", "Apply Filters")
+	DurationMs string // Duration in milliseconds (formatted)
 }
 
 // ValidationError contains details about a validation error for display to the user

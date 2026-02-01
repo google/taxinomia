@@ -128,11 +128,44 @@ func (s *Server) validateFilters(tableView *tables.TableView, filters map[string
 	return errors
 }
 
+// TimingCollector collects timing measurements for various operations
+type TimingCollector struct {
+	entries []views.TimingEntry
+	start   time.Time
+}
+
+// NewTimingCollector creates a new timing collector
+func NewTimingCollector() *TimingCollector {
+	return &TimingCollector{start: time.Now()}
+}
+
+// Record records a timing entry
+func (tc *TimingCollector) Record(operation string, duration time.Duration) {
+	tc.entries = append(tc.entries, views.TimingEntry{
+		Operation:  operation,
+		DurationMs: fmt.Sprintf("%.2f", float64(duration.Microseconds())/1000.0),
+	})
+}
+
+// GetEntries returns all timing entries
+func (tc *TimingCollector) GetEntries() []views.TimingEntry {
+	return tc.entries
+}
+
+// TotalMs returns total elapsed time in milliseconds as formatted string
+func (tc *TimingCollector) TotalMs() string {
+	return fmt.Sprintf("%.2f", float64(time.Since(tc.start).Microseconds())/1000.0)
+}
+
 // HandleTableRequest processes a table request and writes the response
 // Returns an error result if the request is invalid, nil on success
 func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
+	timing := NewTimingCollector()
+
 	// Parse URL into Query
+	parseStart := time.Now()
 	q := query.NewQuery(requestURL)
+	timing.Record("Parse Query", time.Since(parseStart))
 
 	// Get user from URL parameter - cache is user-specific
 	userName := requestURL.Query().Get("user")
@@ -180,24 +213,33 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	}
 
 	// Get or create a cached TableView for this user+table combination
+	cacheStart := time.Now()
 	tableView := views.GetOrCreateTableView(cacheKey, table, s.tableViewCache)
+	timing.Record("Get TableView", time.Since(cacheStart))
 
 	// Update joined columns to match the current request
+	joinStart := time.Now()
 	views.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
+	timing.Record("Process Joins", time.Since(joinStart))
 
 	// Create validation result to collect errors
 	validation := NewValidationResult()
 
 	// Create computed columns from the query (with caching)
+	computedStart := time.Now()
 	validation.ComputedColumnErrors = s.updateComputedColumns(tableView, q, cacheKey)
+	timing.Record("Computed Columns", time.Since(computedStart))
 
 	// Validate filter columns exist before applying
 	validation.FilterErrors = s.validateFilters(tableView, q.Filters)
 
 	// Apply filters to the table view (even with errors, apply valid filters)
+	filterStart := time.Now()
 	tableView.ApplyFilters(q.Filters)
+	timing.Record("Apply Filters", time.Since(filterStart))
 
 	// Apply grouping if grouped columns are specified
+	groupStart := time.Now()
 	if len(q.GroupedColumns) > 0 {
 		// Build ascending map from sort order for grouped columns
 		ascMap := make(map[string]bool)
@@ -223,17 +265,34 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	} else {
 		tableView.ClearGroupings()
 	}
+	timing.Record("Grouping", time.Since(groupStart))
 
 	// Build the view model from the table view
-	title := fmt.Sprintf("%s Table - Taxinomia Demo", strings.Title(q.Table))
+	vmStart := time.Now()
+	title := strings.Title(q.Table)
 	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors)
+	timing.Record("Build ViewModel", time.Since(vmStart))
+
+	// Set timing information
+	viewModel.RenderTimeMs = timing.TotalMs()
+	viewModel.TimingBreakdown = timing.GetEntries()
+
+	// Parse info pane state from URL
+	viewModel.ShowInfoPane = requestURL.Query().Get("info") != "0"
+	viewModel.InfoPaneTab = requestURL.Query().Get("infotab")
+	if viewModel.InfoPaneTab == "" {
+		viewModel.InfoPaneTab = "url"
+	}
 
 	// Set content type and render
+	renderStart := time.Now()
 	setHeader("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderer.Render(w, viewModel); err != nil {
 		log.Printf("Template rendering error: %v", err)
 		return &TableHandlerResult{Error: err}
 	}
+	// Note: render timing not included in page since it happens after ViewModel is built
+	_ = renderStart
 
 	return nil
 }
