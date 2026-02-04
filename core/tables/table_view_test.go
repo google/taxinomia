@@ -19,6 +19,7 @@ limitations under the License.
 package tables
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/google/taxinomia/core/columns"
@@ -546,4 +547,249 @@ func TestGroupTableThreeColumns(t *testing.T) {
 	t.Logf("Level 1 (col1): %d groups", len(tableView.firstBlock.Groups))
 	t.Logf("Level 2 (col2): %d blocks", len(col2Grouped.Blocks))
 	t.Logf("Level 3 (col3): %d blocks", len(col3Grouped.Blocks))
+}
+
+// ============================================================================
+// Benchmarks for full GroupTable flow (closer to UI-level performance)
+// ============================================================================
+
+const benchSize = 1_000_000
+
+// BenchmarkGroupTable_1M_100Groups benchmarks the full GroupTable flow with 100 groups
+func BenchmarkGroupTable_1M_100Groups(b *testing.B) {
+	// Setup: create table with 1M rows, 100 groups
+	table := NewDataTable()
+	col := columns.NewUint32Column(columns.NewColumnDef("value", "Value", ""))
+	for i := 0; i < benchSize; i++ {
+		col.Append(uint32(i % 100)) // 100 unique values = 100 groups
+	}
+	col.FinalizeColumn()
+	table.AddColumn(col)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Create fresh TableView each iteration (simulates new request)
+		tableView := NewTableView(table, "bench_table")
+		tableView.columnViews = make(map[string]*columns.ColumnView)
+		tableView.columnViews["value"] = &columns.ColumnView{}
+		tableView.groupedColumns = make(map[string]*grouping.GroupedColumn)
+		tableView.blocksByColumn = make(map[string][]*grouping.Block)
+		tableView.VisibleColumns = []string{"value"}
+
+		// This is the full grouping path: GroupIndices + Group structs + sorting + aggregates
+		tableView.GroupTable([]string{"value"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	}
+}
+
+// BenchmarkGroupTable_1M_1MGroups benchmarks the worst case: 1M rows, 1M groups
+func BenchmarkGroupTable_1M_1MGroups(b *testing.B) {
+	// Setup: create table with 1M rows, all unique values = 1M groups
+	table := NewDataTable()
+	col := columns.NewUint32Column(columns.NewColumnDef("value", "Value", ""))
+	for i := 0; i < benchSize; i++ {
+		col.Append(uint32(i)) // All unique = 1M groups
+	}
+	col.FinalizeColumn()
+	table.AddColumn(col)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Create fresh TableView each iteration
+		tableView := NewTableView(table, "bench_table")
+		tableView.columnViews = make(map[string]*columns.ColumnView)
+		tableView.columnViews["value"] = &columns.ColumnView{}
+		tableView.groupedColumns = make(map[string]*grouping.GroupedColumn)
+		tableView.blocksByColumn = make(map[string][]*grouping.Block)
+		tableView.VisibleColumns = []string{"value"}
+
+		tableView.GroupTable([]string{"value"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	}
+}
+
+// BenchmarkGroupTable_1M_1Group benchmarks the best case: 1M rows, 1 group
+func BenchmarkGroupTable_1M_1Group(b *testing.B) {
+	// Setup: create table with 1M rows, all same value = 1 group
+	table := NewDataTable()
+	col := columns.NewUint32Column(columns.NewColumnDef("value", "Value", ""))
+	for i := 0; i < benchSize; i++ {
+		col.Append(42) // All same = 1 group
+	}
+	col.FinalizeColumn()
+	table.AddColumn(col)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		tableView := NewTableView(table, "bench_table")
+		tableView.columnViews = make(map[string]*columns.ColumnView)
+		tableView.columnViews["value"] = &columns.ColumnView{}
+		tableView.groupedColumns = make(map[string]*grouping.GroupedColumn)
+		tableView.blocksByColumn = make(map[string][]*grouping.Block)
+		tableView.VisibleColumns = []string{"value"}
+
+		tableView.GroupTable([]string{"value"}, []string{}, make(map[string]Compare), make(map[string]bool))
+	}
+}
+
+// BenchmarkGroupTable_Breakdown_1M_1MGroups provides timing breakdown for each phase
+func BenchmarkGroupTable_Breakdown_1M_1MGroups(b *testing.B) {
+	// Setup: create table with 1M rows, all unique = 1M groups
+	table := NewDataTable()
+	col := columns.NewUint32Column(columns.NewColumnDef("value", "Value", ""))
+	for i := 0; i < benchSize; i++ {
+		col.Append(uint32(i))
+	}
+	col.FinalizeColumn()
+	table.AddColumn(col)
+
+	// Create indices once
+	indices := make([]uint32, benchSize)
+	for i := 0; i < benchSize; i++ {
+		indices[i] = uint32(i)
+	}
+
+	b.Run("1_GroupIndices_Only", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			col.GroupIndices(indices, nil)
+		}
+	})
+
+	b.Run("2_GroupIndices+Structs", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			// GroupIndices
+			groupedIndices, _ := col.GroupIndices(indices, nil)
+
+			// Create Group structs (like groupFirstColumnInTable does - iterates over map)
+			block := &grouping.Block{}
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					Block:      block,
+					IsComplete: true,
+				}
+				block.Groups = append(block.Groups, g)
+			}
+		}
+	})
+
+	b.Run("3_GroupIndices+Structs+Sort", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			// GroupIndices
+			groupedIndices, _ := col.GroupIndices(indices, nil)
+
+			// Create Group structs (iterate over map like real code)
+			block := &grouping.Block{}
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					Block:      block,
+					IsComplete: true,
+				}
+				block.Groups = append(block.Groups, g)
+			}
+
+			// Sort groups (by value ascending)
+			sort.Slice(block.Groups, func(i, j int) bool {
+				return block.Groups[i].GroupKey < block.Groups[j].GroupKey
+			})
+		}
+	})
+
+	b.Run("3b_GroupIndices+Structs+RealSort", func(b *testing.B) {
+		// Sort using CompareAtIndex like real code does
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			groupedIndices, _ := col.GroupIndices(indices, nil)
+
+			block := &grouping.Block{}
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					Block:      block,
+					IsComplete: true,
+				}
+				block.Groups = append(block.Groups, g)
+			}
+
+			// Sort using CompareAtIndex like sortGroupsInBlock
+			sort.Slice(block.Groups, func(i, j int) bool {
+				idxI := block.Groups[i].Indices[0]
+				idxJ := block.Groups[j].Indices[0]
+				return columns.CompareAtIndex(col, idxI, idxJ) < 0
+			})
+		}
+	})
+
+	b.Run("4_Full_GroupTable", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			tableView := NewTableView(table, "bench_table")
+			tableView.columnViews = make(map[string]*columns.ColumnView)
+			tableView.columnViews["value"] = &columns.ColumnView{}
+			tableView.groupedColumns = make(map[string]*grouping.GroupedColumn)
+			tableView.blocksByColumn = make(map[string][]*grouping.Block)
+			tableView.VisibleColumns = []string{"value"}
+
+			tableView.GroupTable([]string{"value"}, []string{}, make(map[string]Compare), make(map[string]bool))
+		}
+	})
+}
+
+// BenchmarkGroupTable_Breakdown_WithLeafColumn adds a leaf column to see aggregate impact
+func BenchmarkGroupTable_Breakdown_WithLeafColumn(b *testing.B) {
+	// Setup: 1M rows, 1M groups, with a second column as leaf
+	table := NewDataTable()
+
+	groupCol := columns.NewUint32Column(columns.NewColumnDef("group", "Group", ""))
+	leafCol := columns.NewUint32Column(columns.NewColumnDef("amount", "Amount", ""))
+	for i := 0; i < benchSize; i++ {
+		groupCol.Append(uint32(i))        // All unique = 1M groups
+		leafCol.Append(uint32(i * 10))    // Some values to aggregate
+	}
+	groupCol.FinalizeColumn()
+	leafCol.FinalizeColumn()
+	table.AddColumn(groupCol)
+	table.AddColumn(leafCol)
+
+	b.Run("1_GroupTable_NoLeaf", func(b *testing.B) {
+		// Only the grouped column visible - no aggregates computed
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			tableView := NewTableView(table, "bench_table")
+			tableView.columnViews = make(map[string]*columns.ColumnView)
+			tableView.columnViews["group"] = &columns.ColumnView{}
+			tableView.groupedColumns = make(map[string]*grouping.GroupedColumn)
+			tableView.blocksByColumn = make(map[string][]*grouping.Block)
+			tableView.VisibleColumns = []string{"group"}
+
+			tableView.GroupTable([]string{"group"}, []string{}, make(map[string]Compare), make(map[string]bool))
+		}
+	})
+
+	b.Run("2_GroupTable_WithLeaf", func(b *testing.B) {
+		// Both columns visible - aggregates computed for amount
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			tableView := NewTableView(table, "bench_table")
+			tableView.columnViews = make(map[string]*columns.ColumnView)
+			tableView.columnViews["group"] = &columns.ColumnView{}
+			tableView.columnViews["amount"] = &columns.ColumnView{}
+			tableView.groupedColumns = make(map[string]*grouping.GroupedColumn)
+			tableView.blocksByColumn = make(map[string][]*grouping.Block)
+			tableView.VisibleColumns = []string{"group", "amount"}
+
+			tableView.GroupTable([]string{"group"}, []string{}, make(map[string]Compare), make(map[string]bool))
+		}
+	})
 }

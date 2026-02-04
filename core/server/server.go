@@ -253,8 +253,9 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 				}
 			}
 		}
-		// Call GroupTable - it will use the cached filter mask
-		tableView.GroupTable(q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap)
+		// Call GroupTableWithLimit - it will use the cached filter mask
+		// Pass display limit for top-K optimization when sorting groups
+		tableView.GroupTableWithLimit(q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.Limit)
 
 	} else {
 		tableView.ClearGroupings()
@@ -277,6 +278,9 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	if viewModel.InfoPaneTab == "" {
 		viewModel.InfoPaneTab = "url"
 	}
+
+	// Parse column types display state from URL
+	viewModel.ShowColumnTypes = requestURL.Query().Get("types") == "1"
 
 	// Set content type and render
 	renderStart := time.Now()

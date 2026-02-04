@@ -72,11 +72,13 @@ package tables
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"testing"
 
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/expr"
+	"github.com/google/taxinomia/core/grouping"
 )
 
 // createLargeTable creates a table with the specified number of rows and columns
@@ -559,4 +561,183 @@ func TestFullPipelineTiming(t *testing.T) {
 		}
 	}
 	t.Logf("Read %d rows with %d columns each", limit, len(tableView.GetColumnNames()))
+}
+
+// BenchmarkGroupTable_TopK_1M_1MGroups compares full sort vs top-K for 1M groups
+func BenchmarkGroupTable_TopK_1M_1MGroups(b *testing.B) {
+	// Create table with 1M unique values (worst case for grouping: 1M groups)
+	numRows := 1_000_000
+	table := NewDataTable()
+	colDef := columns.NewColumnDef("value", "Value", "")
+	col := columns.NewUint32Column(colDef)
+	for i := 0; i < numRows; i++ {
+		col.Append(uint32(i)) // Each row has unique value
+	}
+	col.FinalizeColumn()
+	table.AddColumn(col)
+
+	b.Run("FullSort_NoLimit", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			tableView := NewTableView(table, "bench")
+			tableView.VisibleColumns = []string{"value"}
+			// Use GroupTable (no limit - sorts all 1M groups)
+			tableView.GroupTable([]string{"value"}, []string{}, make(map[string]Compare), make(map[string]bool))
+		}
+	})
+
+	b.Run("TopK_100", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			tableView := NewTableView(table, "bench")
+			tableView.VisibleColumns = []string{"value"}
+			// Use GroupTableWithLimit - only keep top 100 groups
+			tableView.GroupTableWithLimit([]string{"value"}, []string{}, make(map[string]Compare), make(map[string]bool), 100)
+		}
+	})
+
+	b.Run("TopK_1000", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			tableView := NewTableView(table, "bench")
+			tableView.VisibleColumns = []string{"value"}
+			// Use GroupTableWithLimit - only keep top 1000 groups
+			tableView.GroupTableWithLimit([]string{"value"}, []string{}, make(map[string]Compare), make(map[string]bool), 1000)
+		}
+	})
+}
+
+// BenchmarkGroupTable_Breakdown_TopK isolates each phase to understand time distribution
+func BenchmarkGroupTable_Breakdown_TopK(b *testing.B) {
+	numRows := 1_000_000
+	table := NewDataTable()
+	colDef := columns.NewColumnDef("value", "Value", "")
+	col := columns.NewUint32Column(colDef)
+	for i := 0; i < numRows; i++ {
+		col.Append(uint32(i))
+	}
+	col.FinalizeColumn()
+	table.AddColumn(col)
+
+	// Pre-create indices (simulating what GroupTable does)
+	indices := make([]uint32, numRows)
+	for i := 0; i < numRows; i++ {
+		indices[i] = uint32(i)
+	}
+
+	b.Run("1_GroupIndices_Only", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			col.GroupIndices(indices, nil)
+		}
+	})
+
+	b.Run("2a_MapIteration_Only", func(b *testing.B) {
+		groupedIndices, _ := col.GroupIndices(indices, nil)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			count := 0
+			for range groupedIndices {
+				count++
+			}
+			_ = count
+		}
+	})
+
+	b.Run("2b_MapIteration+StructAlloc", func(b *testing.B) {
+		groupedIndices, _ := col.GroupIndices(indices, nil)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					IsComplete: true,
+				}
+				_ = g
+			}
+		}
+	})
+
+	b.Run("2c_MapIteration+StructAlloc+SliceAppend", func(b *testing.B) {
+		groupedIndices, _ := col.GroupIndices(indices, nil)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			groups := make([]*grouping.Group, 0, len(groupedIndices))
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					IsComplete: true,
+				}
+				groups = append(groups, g)
+			}
+			_ = groups
+		}
+	})
+
+	b.Run("2_GroupIndices+Structs", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			groupedIndices, _ := col.GroupIndices(indices, nil)
+			// Create Group structs (like groupFirstColumnInTable does)
+			groups := make([]*grouping.Group, 0, len(groupedIndices))
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					IsComplete: true,
+				}
+				groups = append(groups, g)
+			}
+			_ = groups
+		}
+	})
+
+	b.Run("3_GroupIndices+Structs+FullSort", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			groupedIndices, _ := col.GroupIndices(indices, nil)
+			groups := make([]*grouping.Group, 0, len(groupedIndices))
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					IsComplete: true,
+				}
+				groups = append(groups, g)
+			}
+			// Full sort (like sortGroupsInBlock does)
+			sort.Slice(groups, func(i, j int) bool {
+				return columns.CompareAtIndex(col, groups[i].Indices[0], groups[j].Indices[0]) < 0
+			})
+		}
+	})
+
+	b.Run("4_GroupIndices+Structs+TopK100", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			groupedIndices, _ := col.GroupIndices(indices, nil)
+			groups := make([]*grouping.Group, 0, len(groupedIndices))
+			for groupKey, groupIndices := range groupedIndices {
+				g := &grouping.Group{
+					GroupKey:   groupKey,
+					Indices:    groupIndices,
+					IsComplete: true,
+				}
+				groups = append(groups, g)
+			}
+			// TopK: scan all groups, compare each with threshold
+			limit := 100
+			for j := limit; j < len(groups); j++ {
+				// One comparison per element (checking against heap top)
+				_ = columns.CompareAtIndex(col, groups[j].Indices[0], groups[0].Indices[0])
+			}
+			// Final sort of K elements
+			topK := groups[:limit]
+			sort.Slice(topK, func(i, j int) bool {
+				return columns.CompareAtIndex(col, topK[i].Indices[0], topK[j].Indices[0]) < 0
+			})
+		}
+	})
 }

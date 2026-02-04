@@ -923,6 +923,53 @@
             border-top: none !important;
         }
 
+        /* Type row styles */
+        .type-row {
+            background-color: #f0e8f5;
+        }
+
+        .type-cell {
+            padding: 4px 8px !important;
+            text-align: center;
+            background-color: #f0e8f5;
+            font-size: 11px;
+            color: #6b4e7a;
+            font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace;
+            font-weight: 500;
+            border-top: none !important;
+        }
+
+        /* Type toggle button */
+        .type-toggle-btn {
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background-color: #f5f5f5;
+            color: #666;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            margin-left: 8px;
+        }
+
+        .type-toggle-btn:hover {
+            background-color: #e0e0e0;
+            border-color: #ccc;
+        }
+
+        .type-toggle-btn.active {
+            background-color: #9b59b6;
+            border-color: #8e44ad;
+            color: white;
+        }
+
+        .type-toggle-btn.active:hover {
+            background-color: #8e44ad;
+            border-color: #7d3c98;
+        }
+
         /* Formula row styles */
         .formula-row {
             background-color: #f5f0e6;
@@ -1297,6 +1344,20 @@
                 url.searchParams.set('info', '0');
             } else {
                 url.searchParams.delete('info');
+            }
+
+            window.location.href = url.toString();
+        }
+
+        // Toggle column types row visibility (updates URL)
+        function toggleColumnTypes() {
+            const url = new URL(window.location);
+            const isCurrentlyVisible = url.searchParams.get('types') === '1';
+
+            if (isCurrentlyVisible) {
+                url.searchParams.delete('types');
+            } else {
+                url.searchParams.set('types', '1');
             }
 
             window.location.href = url.toString();
@@ -1818,6 +1879,7 @@
                         <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(2)" title="Double the number of rows">2x</a>
                         <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(10)" title="Show 10 times more rows">10x</a>
                     </span>
+                    <a href="javascript:void(0)" class="type-toggle-btn{{if .ShowColumnTypes}} active{{end}}" onclick="toggleColumnTypes()" title="{{if .ShowColumnTypes}}Hide{{else}}Show{{end}} column types">Types</a>
                     <span class="timing-metrics">
                         {{if .RenderTimeMs}}<span class="timing-metric server" title="Time for the server to prepare the HTML (query, aggregate, render template)"><span class="timing-label">Server:</span> <span class="timing-value">{{.RenderTimeMs}}ms</span></span>{{end}}
                         <span class="timing-metric browser" title="Total time from navigation start to page fully loaded and rendered"><span class="timing-label">Total:</span> <span class="timing-value" id="browser-timing">...</span></span>
@@ -1831,6 +1893,7 @@
                         <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(2)" title="Double the number of rows">2x</a>
                         <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(10)" title="Show 10 times more rows">10x</a>
                     </span>
+                    <a href="javascript:void(0)" class="type-toggle-btn{{if .ShowColumnTypes}} active{{end}}" onclick="toggleColumnTypes()" title="{{if .ShowColumnTypes}}Hide{{else}}Show{{end}} column types">Types</a>
                     <span class="timing-metrics">
                         {{if .RenderTimeMs}}<span class="timing-metric server" title="Time for the server to prepare the HTML (query, aggregate, render template)"><span class="timing-label">Server:</span> <span class="timing-value">{{.RenderTimeMs}}ms</span></span>{{end}}
                         <span class="timing-metric browser" title="Total time from navigation start to page fully loaded and rendered"><span class="timing-label">Total:</span> <span class="timing-value" id="browser-timing">...</span></span>
@@ -1894,6 +1957,13 @@
                     {{end}}
                 {{end}}
             </tr>
+            {{if $.ShowColumnTypes}}
+            <tr class="type-row">
+                {{range $idx, $colName := $.Columns}}
+                <td class="type-cell" title="Internal data type for column {{$colName}}">{{index $.ColumnTypes $colName}}</td>
+                {{end}}
+            </tr>
+            {{end}}
             <tr class="formula-row">
                 {{range $idx, $colName := $.Columns}}
                 {{$isComputed := index $.IsComputedColumn $colName}}

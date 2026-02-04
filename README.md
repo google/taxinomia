@@ -47,7 +47,9 @@ There is no point in displaying more than at the very most a few hundreds of row
 
 Everything in the displayed data must be fully deterministic, page refreshes should change the content of the page
 
-The code should be as simple as possible and cleanly implemented with proper abstractions. Avoid over complicating the code, in case of doubts ask.
+The code should be as simple as possible and cleanly implemented with proper abstractions. Avoid overcomplicating the code, in case of doubts ask.
+
+The View Model must not perform any data computation. Ask if there is a case.
 
 
 

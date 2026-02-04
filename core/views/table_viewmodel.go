@@ -67,6 +67,10 @@ type TableViewModel struct {
 	// Info pane state (controlled via URL)
 	ShowInfoPane bool   // Whether to show the info pane
 	InfoPaneTab  string // Which tab is active: "url" or "perf"
+
+	// Column types display (controlled via URL)
+	ShowColumnTypes bool              // Whether to show the column types row
+	ColumnTypes     map[string]string // Column internal types (columnName -> type string)
 }
 
 // TimingEntry represents a single timing measurement
@@ -416,6 +420,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		IsComputedColumn:     make(map[string]bool),
 		ComputedColumnErrors: make(map[string]ValidationError),
 		FilterErrors:         make(map[string]ValidationError),
+		ColumnTypes:          make(map[string]string),
 	}
 
 	// Convert error strings to ValidationError structs
@@ -724,6 +729,9 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				vm.Columns = append(vm.Columns, colName)
 			}
 		}
+
+		// Populate column type for display (Go struct name)
+		vm.ColumnTypes[colName] = tableView.GetColumnTypeName(colName)
 	}
 
 	// Get filtered row count and rows from TableView
@@ -745,14 +753,6 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	// Check if table is grouped and build grouped rows if needed
 	if tableView.IsGrouped() {
 		vm.IsGrouped = true
-		// Compute aggregates for all groups before building rows
-		// Note: Aggregates for incomplete groups (due to limit) will not be displayed
-		leafColumns := tableView.GetLeafColumns()
-		columnTypes := make(map[string]query.ColumnType)
-		for _, colName := range leafColumns {
-			columnTypes[colName] = tableView.GetColumnType(colName)
-		}
-		tableView.ComputeAggregates(leafColumns, columnTypes)
 		// Sort groups by aggregate values if specified
 		if len(q.GroupAggregateSorts) > 0 {
 			tableView.SortGroupsByAggregate(q.GroupAggregateSorts)
@@ -764,7 +764,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		// Update pagination info for grouped views
 		vm.TotalRows = groupResult.TotalRows
 		vm.DisplayedRows = groupResult.ShownRows
-		vm.HasMoreRows = groupResult.Truncated
+		vm.HasMoreRows = groupResult.ShownRows < groupResult.TotalRows
 	}
 
 	vm.ColumnStats = buildColumnStats(tableView)

@@ -19,6 +19,7 @@ limitations under the License.
 package tables
 
 import (
+	"container/heap"
 	"errors"
 	"fmt"
 	"sort"
@@ -30,6 +31,47 @@ import (
 	"github.com/google/taxinomia/core/grouping"
 	"github.com/google/taxinomia/core/query"
 )
+
+// groupHeap implements a max-heap for top-K group selection.
+// When we want the K "best" groups (smallest for asc, largest for desc),
+// we use a max-heap where the "worst" of the K best is at the top.
+type groupHeap struct {
+	groups     []*grouping.Group
+	col        columns.IDataColumn
+	descending bool
+}
+
+func (h *groupHeap) Len() int { return len(h.groups) }
+
+// Less returns true if element at i should be ABOVE j in the heap.
+// For a max-heap of "best" elements, the worst element should be at the top.
+func (h *groupHeap) Less(i, j int) bool {
+	idxI := h.groups[i].Indices[0]
+	idxJ := h.groups[j].Indices[0]
+	cmp := columns.CompareAtIndex(h.col, idxI, idxJ)
+	// For ascending sort: we want smallest, so largest (worst) should be at top
+	// For descending sort: we want largest, so smallest (worst) should be at top
+	if h.descending {
+		return cmp < 0 // smaller values bubble up (they're "worse" for descending)
+	}
+	return cmp > 0 // larger values bubble up (they're "worse" for ascending)
+}
+
+func (h *groupHeap) Swap(i, j int) {
+	h.groups[i], h.groups[j] = h.groups[j], h.groups[i]
+}
+
+func (h *groupHeap) Push(x interface{}) {
+	h.groups = append(h.groups, x.(*grouping.Group))
+}
+
+func (h *groupHeap) Pop() interface{} {
+	old := h.groups
+	n := len(old)
+	x := old[n-1]
+	h.groups = old[0 : n-1]
+	return x
+}
 
 // JoinResolver is an interface for resolving join and table information
 // The GetJoin method returns an object that has a GetJoiner() method
@@ -275,6 +317,13 @@ func (t *TableView) ClearGroupings() {
 }
 
 func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
+	t.GroupTableWithLimit(groupingOrder, aggregatedColumns, compare, asc, 0)
+}
+
+// GroupTableWithLimit groups the table with an optional display limit for top-K optimization.
+// When displayLimit > 0, only the top K groups are kept after sorting (O(n log k) vs O(n log n)).
+// Use displayLimit=0 to sort all groups (original behavior).
+func (t *TableView) GroupTableWithLimit(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool, displayLimit int) {
 	// Check if grouping inputs are unchanged - skip recomputation
 	if t.groupingEqual(groupingOrder, asc) {
 		return
@@ -307,14 +356,22 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 	parentBlocks := t.groupFirstColumnInTable(indices)
 	t.firstBlock = parentBlocks[0]
 
-	// Sort first column groups
+	// Sort first column groups with top-K optimization
 	firstColumn := groupingOrder[0]
 	ascending, hasSort := asc[firstColumn]
 	descending := hasSort && !ascending // default to ascending if not specified
-	t.sortGroupsInBlock(t.firstBlock, descending)
+	t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
 
 	// Process subsequent columns
 	t.groupSubsequentColumnsInTable(indices, t.groupingOrder[1:], parentBlocks, asc)
+
+	// Compute aggregates for all groups
+	leafColumns := t.GetLeafColumns()
+	columnTypes := make(map[string]query.ColumnType)
+	for _, colName := range leafColumns {
+		columnTypes[colName] = t.GetColumnType(colName)
+	}
+	t.ComputeAggregates(leafColumns, columnTypes)
 
 	// Save the state that produced this grouping
 	t.lastGroupingOrder = make([]string, len(groupingOrder))
@@ -331,21 +388,78 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 
 // sortGroupsInBlock sorts the groups within a block based on their values
 func (t *TableView) sortGroupsInBlock(block *grouping.Block, descending bool) {
+	t.sortGroupsInBlockTopK(block, descending, 0) // 0 = no limit, sort all
+}
+
+// sortGroupsInBlockTopK sorts groups using top-K selection when limit > 0.
+// Uses heap-based selection for O(n log k) instead of O(n log n) when k << n.
+// If limit is 0 or >= len(groups), sorts all groups.
+func (t *TableView) sortGroupsInBlockTopK(block *grouping.Block, descending bool, limit int) {
 	if block == nil || len(block.Groups) <= 1 {
 		return
 	}
 
 	col := block.GroupedColumn.DataColumn
-	sort.Slice(block.Groups, func(i, j int) bool {
-		// Compare groups by their first index (all indices in a group have the same value)
-		idxI := block.Groups[i].Indices[0]
-		idxJ := block.Groups[j].Indices[0]
+	groups := block.Groups
+
+	// If no limit or limit >= total groups, use standard sort
+	if limit <= 0 || limit >= len(groups) {
+		sort.Slice(groups, func(i, j int) bool {
+			idxI := groups[i].Indices[0]
+			idxJ := groups[j].Indices[0]
+			cmp := columns.CompareAtIndex(col, idxI, idxJ)
+			if descending {
+				return cmp > 0
+			}
+			return cmp < 0
+		})
+		return
+	}
+
+	// Use heap-based top-K selection
+	h := &groupHeap{
+		groups:     make([]*grouping.Group, 0, limit),
+		col:        col,
+		descending: descending,
+	}
+
+	// Initialize heap with first K groups
+	for i := 0; i < limit; i++ {
+		h.groups = append(h.groups, groups[i])
+	}
+	heap.Init(h)
+
+	// Process remaining groups
+	for i := limit; i < len(groups); i++ {
+		group := groups[i]
+		// Compare with heap top (the "worst" of current K best)
+		idxNew := group.Indices[0]
+		idxTop := h.groups[0].Indices[0]
+		cmp := columns.CompareAtIndex(col, idxNew, idxTop)
+
+		// For ascending: we want smallest, so heap top is largest of K smallest
+		// For descending: we want largest, so heap top is smallest of K largest
+		isBetter := (cmp < 0 && !descending) || (cmp > 0 && descending)
+		if isBetter {
+			heap.Pop(h)
+			heap.Push(h, group)
+		}
+	}
+
+	// Extract top K and sort them
+	topK := h.groups
+	sort.Slice(topK, func(i, j int) bool {
+		idxI := topK[i].Indices[0]
+		idxJ := topK[j].Indices[0]
 		cmp := columns.CompareAtIndex(col, idxI, idxJ)
 		if descending {
 			return cmp > 0
 		}
 		return cmp < 0
 	})
+
+	// Replace block groups with sorted top K
+	block.Groups = topK
 }
 
 // groupingEqual checks if the grouping inputs match the last computed grouping
@@ -991,6 +1105,45 @@ func (tv *TableView) GetColumnType(colName string) query.ColumnType {
 	}
 
 	return query.ColumnTypeString
+}
+
+// GetColumnTypeName returns the Go struct name for a column (e.g., "StringColumn", "Uint32Column").
+func (tv *TableView) GetColumnTypeName(colName string) string {
+	col := tv.GetColumn(colName)
+	if col == nil {
+		return "unknown"
+	}
+
+	// Check concrete types and return struct names
+	switch col.(type) {
+	case *columns.Uint32Column:
+		return "Uint32Column"
+	case *columns.BoolColumn:
+		return "BoolColumn"
+	case *columns.DatetimeColumn:
+		return "DatetimeColumn"
+	case *columns.StringColumn:
+		return "StringColumn"
+	case *columns.DurationColumn:
+		return "DurationColumn"
+	// Computed column types
+	case *columns.ComputedUint32Column:
+		return "ComputedUint32Column"
+	case *columns.ComputedFloat64Column:
+		return "ComputedFloat64Column"
+	case *columns.ComputedInt64Column:
+		return "ComputedInt64Column"
+	case *columns.ComputedStringColumn:
+		return "ComputedStringColumn"
+	}
+
+	// For joined columns, check if we can get the underlying type
+	if jc, ok := col.(columns.IJoinedDataColumn); ok {
+		// Return a descriptive name for joined columns
+		return "JoinedColumn[" + jc.ColumnDef().Name() + "]"
+	}
+
+	return "unknown"
 }
 
 // SortGroupsByAggregate re-sorts groups in a block by their aggregate value.
