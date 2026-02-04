@@ -195,8 +195,9 @@ type Query struct {
 	GroupAggregateSorts map[string]*GroupAggSort    // Aggregate sort for grouped columns (groupedColumn -> sort spec)
 
 	// UI state
-	ShowInfoPane bool   // Whether the info pane is visible (default: true)
-	InfoPaneTab  string // Active tab in info pane ("url" or "perf")
+	ShowInfoPane   bool   // Whether the info pane is visible (default: true)
+	InfoPaneTab    string // Active tab in info pane ("url" or "perf")
+	AnimatedColumn string // Column to animate (e.g., just grouped) - transient, not persisted in subsequent URLs
 }
 
 // NewQuery creates a Query from a URL
@@ -317,6 +318,9 @@ func NewQuery(u *url.URL) *Query {
 	if infotabParam != "" {
 		state.InfoPaneTab = infotabParam
 	}
+
+	// Extract animation parameter (transient - column that was just grouped)
+	state.AnimatedColumn = q.Get("_anim")
 
 	// Reorder columns: filtered columns first, then grouped columns, then others
 	state.reorderColumns()
@@ -775,6 +779,21 @@ func (s *Query) ToSafeURL() safehtml.URL {
 	return safehtml.URLSanitized(urlStr)
 }
 
+// ToSafeURLWithAnimation converts the Query to a safehtml.URL, including the _anim parameter if set.
+// This is used for grouping actions where we want to trigger an animation on the target column.
+func (s *Query) ToSafeURLWithAnimation() safehtml.URL {
+	urlStr := s.ToURL()
+	if s.AnimatedColumn != "" {
+		// Add _anim parameter to the URL
+		if strings.Contains(urlStr, "?") {
+			urlStr += "&_anim=" + url.QueryEscape(s.AnimatedColumn)
+		} else {
+			urlStr += "?_anim=" + url.QueryEscape(s.AnimatedColumn)
+		}
+	}
+	return safehtml.URLSanitized(urlStr)
+}
+
 // IsColumnVisible checks if a column is in the visible columns list
 func (s *Query) IsColumnVisible(column string) bool {
 	for _, col := range s.Columns {
@@ -822,15 +841,17 @@ func (s *Query) WithGroupedColumnToggled(column string) safehtml.URL {
 	if found {
 		// Column was grouped, remove it
 		newState.GroupedColumns = newGrouped
+		newState.AnimatedColumn = "" // No animation when ungrouping
 	} else {
 		// Column was not grouped, add it to the end
 		newState.GroupedColumns = append(s.GroupedColumns, column)
+		newState.AnimatedColumn = column // Animate the newly grouped column
 	}
 
 	// Reorder columns: filtered first, then grouped, then others
 	newState.reorderColumns()
 
-	return newState.ToSafeURL()
+	return newState.ToSafeURLWithAnimation()
 }
 
 // IsColumnGrouped checks if a column is in the grouped columns list

@@ -276,6 +276,9 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	viewModel.ShowInfoPane = q.ShowInfoPane
 	viewModel.InfoPaneTab = q.InfoPaneTab
 
+	// Set animation state (transient, for newly grouped columns)
+	viewModel.AnimatedColumn = q.AnimatedColumn
+
 	// Parse column types display state from URL
 	viewModel.ShowColumnTypes = requestURL.Query().Get("types") == "1"
 

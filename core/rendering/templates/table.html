@@ -757,6 +757,42 @@
             pointer-events: none;
         }
 
+        /* Animation for newly grouped column */
+        @keyframes just-grouped-pulse {
+            0% {
+                background-color: rgba(52, 152, 219, 0.5);
+                box-shadow: 0 0 20px rgba(52, 152, 219, 0.8);
+            }
+            50% {
+                background-color: rgba(52, 152, 219, 0.3);
+                box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+            }
+            100% {
+                background-color: transparent;
+                box-shadow: none;
+            }
+        }
+
+        @keyframes slide-in-left {
+            0% {
+                transform: translateX(50px);
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        th.just-grouped {
+            animation: slide-in-left 0.3s ease-out, just-grouped-pulse 1.2s ease-out 0.3s;
+        }
+
+        /* Also highlight the grouping cell for the animated column */
+        td.grouping-cell.just-grouped {
+            animation: just-grouped-pulse 1.2s ease-out 0.3s;
+        }
+
         .sort-toggle-btn {
             display: inline-block;
             padding: 2px 6px;
@@ -1908,7 +1944,9 @@
                 {{range $idx, $header := .Headers}}
                 {{$colName := index $.Columns $idx}}
                 {{$isComputed := index $.IsComputedColumn $colName}}
-                <th data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}}>
+                {{$isGroupedCol := false}}{{range $.AllColumns}}{{if eq .Name $colName}}{{$isGroupedCol = .IsGrouped}}{{end}}{{end}}
+                {{$isAnimated := eq $colName $.AnimatedColumn}}
+                <th data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}} {{if $isGroupedCol}}data-is-grouped="true"{{end}} class="{{if $isAnimated}}just-grouped{{end}}">
                     {{if $isComputed}}
                     <input type="text" class="th-name-input" data-column="{{$colName}}" value="{{$colName}}" title="Edit column name and press Enter">
                     {{else}}
@@ -1923,7 +1961,7 @@
                 {{range $idx, $colName := $.Columns}}
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
-                <td class="grouping-cell">
+                <td class="grouping-cell{{if eq $colName $.AnimatedColumn}} just-grouped{{end}}">
                     {{/* Sort control - leftmost. Disabled for leaf columns when grouping is active */}}
                     {{if and $.IsGrouped (not .IsGrouped)}}
                     <span class="sort-toggle-btn disabled" title="Sorting disabled for leaf columns when grouped">⇅</span>
@@ -2240,6 +2278,17 @@ Use &quot;quotes&quot; for exact match">
                     // Clear the hash to avoid re-focusing on refresh
                     history.replaceState(null, '', window.location.pathname + window.location.search);
                 }
+            }
+
+            // Clean up _anim parameter from URL after animation plays
+            // This prevents re-triggering the animation on page refresh
+            const url = new URL(window.location);
+            if (url.searchParams.has('_anim')) {
+                // Wait for animation to complete (1.5s total), then clean URL
+                setTimeout(function() {
+                    url.searchParams.delete('_anim');
+                    window.history.replaceState({}, '', url);
+                }, 1500);
             }
 
             // Handle + button to create new column

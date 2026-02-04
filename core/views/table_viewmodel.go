@@ -68,6 +68,9 @@ type TableViewModel struct {
 	ShowInfoPane bool   // Whether to show the info pane
 	InfoPaneTab  string // Which tab is active: "url" or "perf"
 
+	// Animation state (transient, from _anim URL parameter)
+	AnimatedColumn string // Column that was just grouped (triggers animation)
+
 	// Column types display (controlled via URL)
 	ShowColumnTypes bool              // Whether to show the column types row
 	ColumnTypes     map[string]string // Column internal types (columnName -> type string)
