@@ -1126,6 +1126,8 @@ func (tv *TableView) GetColumnTypeName(colName string) string {
 		return "StringColumn"
 	case *columns.DurationColumn:
 		return "DurationColumn"
+	case *columns.Float64Column:
+		return "Float64Column"
 	// Computed column types
 	case *columns.ComputedUint32Column:
 		return "ComputedUint32Column"

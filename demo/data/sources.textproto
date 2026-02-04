@@ -189,12 +189,12 @@ tables {
   columns {
     name: "weight"
     display_name: "Weight (kg)"
-    type: COLUMN_TYPE_STRING
+    type: COLUMN_TYPE_FLOAT64
   }
   columns {
     name: "rating"
     display_name: "Rating"
-    type: COLUMN_TYPE_STRING
+    type: COLUMN_TYPE_FLOAT64
   }
   columns {
     name: "reviews"

@@ -19,6 +19,7 @@ limitations under the License.
 package columns
 
 import (
+	"math"
 	"strings"
 	"time"
 )
@@ -48,6 +49,9 @@ func CompareAtIndex(col IDataColumn, i, j uint32) int {
 
 	case *BoolColumn:
 		return compareBools(c.data[i], c.data[j])
+
+	case *Float64Column:
+		return compareFloat64s(c.data[i], c.data[j])
 
 	// Computed columns - must evaluate on the fly
 	case *ComputedStringColumn:
@@ -92,13 +96,7 @@ func CompareAtIndex(col IDataColumn, i, j uint32) int {
 		if errI != nil || errJ != nil {
 			return compareErrors(errI, errJ)
 		}
-		if vi < vj {
-			return -1
-		}
-		if vi > vj {
-			return 1
-		}
-		return 0
+		return compareFloat64s(vi, vj)
 
 	case *ComputedDatetimeColumn:
 		vi, errI := c.GetValue(i)
@@ -173,6 +171,31 @@ func compareBools(a, b bool) int {
 		return -1
 	}
 	return 1
+}
+
+// compareFloat64s compares two float64 values with NaN handling.
+// NaN values are considered greater than all other values (sort to end).
+func compareFloat64s(a, b float64) int {
+	aNaN := math.IsNaN(a)
+	bNaN := math.IsNaN(b)
+
+	if aNaN && bNaN {
+		return 0 // Both NaN - equal
+	}
+	if aNaN {
+		return 1 // a is NaN, b isn't - a comes after
+	}
+	if bNaN {
+		return -1 // b is NaN, a isn't - a comes before
+	}
+
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 // compareErrors handles error cases in comparison.

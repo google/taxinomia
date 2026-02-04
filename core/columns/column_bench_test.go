@@ -380,6 +380,66 @@ func BenchmarkDurationColumn_GroupIndices_1M_100Groups(b *testing.B) {
 }
 
 // ============================================================================
+// Float64Column Benchmarks
+// ============================================================================
+
+func BenchmarkFloat64Column_Append_1M(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		col := NewFloat64Column(NewColumnDef("test", "Test", ""))
+		for j := 0; j < largeSize; j++ {
+			col.Append(float64(j % 100))
+		}
+	}
+}
+
+func BenchmarkFloat64Column_FinalizeColumn_1M(b *testing.B) {
+	col := NewFloat64Column(NewColumnDef("test", "Test", ""))
+	for j := 0; j < largeSize; j++ {
+		col.Append(float64(j % 100))
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		col.valueIndex = nil
+		col.FinalizeColumn()
+	}
+}
+
+func BenchmarkFloat64Column_GetString_1M(b *testing.B) {
+	col := NewFloat64Column(NewColumnDef("test", "Test", ""))
+	for j := 0; j < largeSize; j++ {
+		col.Append(float64(j % 100))
+	}
+	col.FinalizeColumn()
+	indices := createBenchIndices(largeSize)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, idx := range indices {
+			col.GetString(idx)
+		}
+	}
+}
+
+func BenchmarkFloat64Column_GroupIndices_1M_100Groups(b *testing.B) {
+	col := NewFloat64Column(NewColumnDef("test", "Test", ""))
+	for j := 0; j < largeSize; j++ {
+		col.Append(float64(j % 100))
+	}
+	col.FinalizeColumn()
+	indices := createBenchIndices(largeSize)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		col.GroupIndices(indices, nil)
+	}
+}
+
+// ============================================================================
 // Cross-column comparison benchmarks (same operation, different types)
 // ============================================================================
 
@@ -447,6 +507,20 @@ func BenchmarkGroupIndices_Comparison_1M_100Groups(b *testing.B) {
 		col := NewDatetimeColumn(NewColumnDef("test", "Test", ""))
 		for j := 0; j < largeSize; j++ {
 			col.Append(baseTime.Add(time.Duration(j%100) * 24 * time.Hour))
+		}
+		col.FinalizeColumn()
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			col.GroupIndices(indices, nil)
+		}
+	})
+
+	b.Run("Float64", func(b *testing.B) {
+		col := NewFloat64Column(NewColumnDef("test", "Test", ""))
+		for j := 0; j < largeSize; j++ {
+			col.Append(float64(j % 100))
 		}
 		col.FinalizeColumn()
 

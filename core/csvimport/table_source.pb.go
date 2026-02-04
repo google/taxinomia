@@ -49,6 +49,8 @@ const (
 	ColumnType_COLUMN_TYPE_UINT32 ColumnType = 2
 	// Boolean column (true/false).
 	ColumnType_COLUMN_TYPE_BOOL ColumnType = 3
+	// 64-bit floating point column.
+	ColumnType_COLUMN_TYPE_FLOAT64 ColumnType = 4
 )
 
 // Enum value maps for ColumnType.
@@ -58,12 +60,14 @@ var (
 		1: "COLUMN_TYPE_STRING",
 		2: "COLUMN_TYPE_UINT32",
 		3: "COLUMN_TYPE_BOOL",
+		4: "COLUMN_TYPE_FLOAT64",
 	}
 	ColumnType_value = map[string]int32{
-		"COLUMN_TYPE_AUTO":   0,
-		"COLUMN_TYPE_STRING": 1,
-		"COLUMN_TYPE_UINT32": 2,
-		"COLUMN_TYPE_BOOL":   3,
+		"COLUMN_TYPE_AUTO":    0,
+		"COLUMN_TYPE_STRING":  1,
+		"COLUMN_TYPE_UINT32":  2,
+		"COLUMN_TYPE_BOOL":    3,
+		"COLUMN_TYPE_FLOAT64": 4,
 	}
 )
 
@@ -305,13 +309,14 @@ const file_core_csvimport_table_source_proto_rawDesc = "" +
 	"\adomains\x18\x03 \x03(\tR\adomains\x12\x19\n" +
 	"\bcsv_file\x18\x04 \x01(\tR\acsvFile\"H\n" +
 	"\fTableSources\x128\n" +
-	"\x06tables\x18\x01 \x03(\v2 .taxinomia.csvimport.TableSourceR\x06tables*h\n" +
+	"\x06tables\x18\x01 \x03(\v2 .taxinomia.csvimport.TableSourceR\x06tables*\x81\x01\n" +
 	"\n" +
 	"ColumnType\x12\x14\n" +
 	"\x10COLUMN_TYPE_AUTO\x10\x00\x12\x16\n" +
 	"\x12COLUMN_TYPE_STRING\x10\x01\x12\x16\n" +
 	"\x12COLUMN_TYPE_UINT32\x10\x02\x12\x14\n" +
-	"\x10COLUMN_TYPE_BOOL\x10\x03B,Z*github.com/google/taxinomia/core/csvimportb\x06proto3"
+	"\x10COLUMN_TYPE_BOOL\x10\x03\x12\x17\n" +
+	"\x13COLUMN_TYPE_FLOAT64\x10\x04B,Z*github.com/google/taxinomia/core/csvimportb\x06proto3"
 
 var (
 	file_core_csvimport_table_source_proto_rawDescOnce sync.Once

@@ -133,6 +133,14 @@ func getColumnType(col columns.IDataColumn) string {
 		return "string"
 	case *columns.Uint32Column:
 		return "uint32"
+	case *columns.Float64Column:
+		return "float64"
+	case *columns.BoolColumn:
+		return "bool"
+	case *columns.DatetimeColumn:
+		return "datetime"
+	case *columns.DurationColumn:
+		return "duration"
 	default:
 		return "unknown"
 	}

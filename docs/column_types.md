@@ -8,6 +8,7 @@ Taxinomia supports several column types for storing and processing data. This do
 |------|-------------|---------|----------------|
 | `string` | Text values | Interned strings | `"hello"`, `"New York"` |
 | `uint32` | Unsigned integers | 32-bit unsigned | `0`, `42`, `4294967295` |
+| `float64` | Floating point | 64-bit IEEE 754 | `3.14`, `1.8`, `NaN` |
 | `bool` | Boolean values | Native boolean | `True`, `False` |
 | `datetime` | Date and time | Unix nanoseconds | `2024-01-15 10:30:00` |
 | `duration` | Time duration | Nanoseconds | `2h30m`, `3d4h15m` |
@@ -39,6 +40,29 @@ Unsigned 32-bit integer columns store non-negative whole numbers.
 
 ### Display
 Integer values are displayed as decimal numbers without separators.
+
+## Float64 Columns
+
+Float64 columns store 64-bit IEEE 754 floating-point numbers.
+
+### Value Range
+- Minimum: approximately ±1.8×10⁻³⁰⁸
+- Maximum: approximately ±1.8×10³⁰⁸
+- Precision: ~15-17 significant decimal digits
+
+### Special Values
+- `NaN` (Not a Number) - displayed as `NaN`
+- `+Inf` (positive infinity) - displayed as `+Inf`
+- `-Inf` (negative infinity) - displayed as `-Inf`
+
+### Features
+- Fixed 8-byte storage per value
+- IEEE 754 double precision
+- NaN values are grouped together despite NaN ≠ NaN mathematically
+- NaN values sort to end in ascending/descending order
+
+### Display
+Values are displayed in compact notation without trailing zeros (e.g., `1.8`, `4.5`, `0.05`).
 
 ## Bool Columns
 
@@ -150,6 +174,7 @@ enum ColumnType {
   COLUMN_TYPE_STRING = 1;  // Force string type
   COLUMN_TYPE_UINT32 = 2;  // Force uint32 type
   COLUMN_TYPE_BOOL = 3;    // Force bool type
+  COLUMN_TYPE_FLOAT64 = 4; // Force float64 type
 }
 ```
 
@@ -170,6 +195,10 @@ tables {
   columns {
     name: "is_priority"
     type: COLUMN_TYPE_BOOL
+  }
+  columns {
+    name: "total_price"
+    type: COLUMN_TYPE_FLOAT64
   }
 }
 ```
@@ -208,7 +237,8 @@ Computed columns calculate values at query time using expressions. The expressio
 
 | Expression Result | Column Type |
 |-------------------|-------------|
-| Number | `ComputedUint32Column` |
+| Integer | `ComputedUint32Column` or `ComputedInt64Column` |
+| Float | `ComputedFloat64Column` |
 | String | `ComputedStringColumn` |
 | Boolean | `ComputedBoolColumn` |
 | Datetime | `ComputedDatetimeColumn` |

@@ -20,6 +20,7 @@ package columns
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -430,6 +431,98 @@ func (c *JoinedBoolColumn) GroupIndices(indices []uint32, columnView *ColumnView
 			groupKey = 0
 		}
 		groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+	}
+	return groupedIndices, unmapped
+}
+
+// JoinedFloat64Column represents a column that gets its data by joining to a float64 column in another table
+type JoinedFloat64Column struct {
+	columnDef    *ColumnDef
+	sourceColumn *Float64Column
+	joiner       IJoiner
+}
+
+// NewJoinedFloat64Column creates a new joined column for float64 data
+func NewJoinedFloat64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn *Float64Column) *JoinedFloat64Column {
+	return &JoinedFloat64Column{
+		columnDef:    columnDef,
+		joiner:       joiner,
+		sourceColumn: sourceColumn,
+	}
+}
+
+func (c *JoinedFloat64Column) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *JoinedFloat64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *JoinedFloat64Column) Length() int {
+	return c.sourceColumn.Length()
+}
+
+func (c *JoinedFloat64Column) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", ErrUnmatched
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedFloat64Column) GetValue(i uint32) (float64, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return 0, ErrUnmatched
+	}
+	return c.sourceColumn.GetValue(targetIndex)
+}
+
+func (c *JoinedFloat64Column) IsKey() bool {
+	return false
+}
+
+func (c *JoinedFloat64Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[float64]uint32{}
+	var unmapped []uint32
+	var nanGroupKey uint32 = math.MaxUint32
+	hasNanGroup := false
+
+	for _, i := range indices {
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		// Handle NaN specially since NaN != NaN
+		if math.IsNaN(value) {
+			if !hasNanGroup {
+				nanGroupKey = uint32(len(valueToGroupKey))
+				hasNanGroup = true
+			}
+			groupedIndices[nanGroupKey] = append(groupedIndices[nanGroupKey], i)
+			continue
+		}
+
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			if hasNanGroup {
+				groupKey++
+			}
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
 	}
 	return groupedIndices, unmapped
 }

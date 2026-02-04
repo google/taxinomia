@@ -22,6 +22,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -42,6 +43,8 @@ const (
 	CsvColumnTypeUint32
 	// CsvColumnTypeBool forces bool type
 	CsvColumnTypeBool
+	// CsvColumnTypeFloat64 forces float64 type
+	CsvColumnTypeFloat64
 )
 
 // CsvColumnSource defines source metadata for how a column is imported
@@ -141,6 +144,7 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	stringCols := make(map[int]*columns.StringColumn)
 	uint32Cols := make(map[int]*columns.Uint32Column)
 	boolCols := make(map[int]*columns.BoolColumn)
+	float64Cols := make(map[int]*columns.Float64Column)
 
 	for i, header := range headers {
 		config := getColumnSource(header, options.ColumnSources)
@@ -163,6 +167,10 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 		if columnTypes[i] == "bool" || config.Type == CsvColumnTypeBool {
 			col := columns.NewBoolColumn(colDef)
 			boolCols[i] = col
+			table.AddColumn(col)
+		} else if columnTypes[i] == "float64" || config.Type == CsvColumnTypeFloat64 {
+			col := columns.NewFloat64Column(colDef)
+			float64Cols[i] = col
 			table.AddColumn(col)
 		} else if columnTypes[i] == "uint32" && config.Type != CsvColumnTypeString {
 			col := columns.NewUint32Column(colDef)
@@ -198,6 +206,19 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 						col.Append(uint32(n))
 					}
 				}
+			} else if col, ok := float64Cols[i]; ok {
+				// Parse as float64
+				if value == "" {
+					col.Append(0)
+				} else {
+					f, err := strconv.ParseFloat(value, 64)
+					if err != nil {
+						// Fallback: treat as NaN if parsing fails
+						col.Append(math.NaN())
+					} else {
+						col.Append(f)
+					}
+				}
 			} else if col, ok := boolCols[i]; ok {
 				// Parse as bool
 				b, err := columns.ParseBool(value)
@@ -219,6 +240,9 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 		col.FinalizeColumn()
 	}
 	for _, col := range boolCols {
+		col.FinalizeColumn()
+	}
+	for _, col := range float64Cols {
 		col.FinalizeColumn()
 	}
 
@@ -247,6 +271,9 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 				continue
 			case CsvColumnTypeBool:
 				types[i] = "bool"
+				continue
+			case CsvColumnTypeFloat64:
+				types[i] = "float64"
 				continue
 			}
 		}
