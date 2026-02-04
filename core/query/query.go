@@ -193,6 +193,10 @@ type Query struct {
 	SortOrder          []SortColumn                 // Ordered list of sort columns (all visible columns with +/- direction)
 	AggregateSettings  map[string][]AggregateType   // Enabled aggregates per column (columnName -> list of enabled aggregates)
 	GroupAggregateSorts map[string]*GroupAggSort    // Aggregate sort for grouped columns (groupedColumn -> sort spec)
+
+	// UI state
+	ShowInfoPane bool   // Whether the info pane is visible (default: true)
+	InfoPaneTab  string // Active tab in info pane ("url" or "perf")
 }
 
 // NewQuery creates a Query from a URL
@@ -206,7 +210,9 @@ func NewQuery(u *url.URL) *Query {
 		ColumnWidths:        make(map[string]int),
 		AggregateSettings:   make(map[string][]AggregateType),
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
-		Limit:               25, // Default limit
+		Limit:               25,     // Default limit
+		ShowInfoPane:        true,   // Default to showing info pane
+		InfoPaneTab:         "url",  // Default to URL tab
 	}
 
 	// Parse query parameters
@@ -300,6 +306,16 @@ func NewQuery(u *url.URL) *Query {
 				state.GroupAggregateSorts[groupedCol] = aggSort
 			}
 		}
+	}
+
+	// Extract info pane state parameters
+	infoParam := q.Get("info")
+	if infoParam == "0" {
+		state.ShowInfoPane = false
+	}
+	infotabParam := q.Get("infotab")
+	if infotabParam != "" {
+		state.InfoPaneTab = infotabParam
 	}
 
 	// Reorder columns: filtered columns first, then grouped columns, then others
@@ -443,6 +459,8 @@ func (s *Query) Clone() *Query {
 		SortOrder:           make([]SortColumn, len(s.SortOrder)),
 		AggregateSettings:   make(map[string][]AggregateType),
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
+		ShowInfoPane:        s.ShowInfoPane,
+		InfoPaneTab:         s.InfoPaneTab,
 	}
 
 	// Deep copy columns
@@ -736,6 +754,14 @@ func (s *Query) ToURL() string {
 			sign = "-"
 		}
 		q.Set("groupsort:"+groupedCol, sign+aggSort.LeafColumn+":"+string(aggSort.AggType))
+	}
+
+	// Add info pane state parameters
+	if !s.ShowInfoPane {
+		q.Set("info", "0")
+	}
+	if s.InfoPaneTab != "" && s.InfoPaneTab != "url" {
+		q.Set("infotab", s.InfoPaneTab)
 	}
 
 	u.RawQuery = q.Encode()

@@ -272,12 +272,9 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	viewModel.RenderTimeMs = timing.TotalMs()
 	viewModel.TimingBreakdown = timing.GetEntries()
 
-	// Parse info pane state from URL
-	viewModel.ShowInfoPane = requestURL.Query().Get("info") != "0"
-	viewModel.InfoPaneTab = requestURL.Query().Get("infotab")
-	if viewModel.InfoPaneTab == "" {
-		viewModel.InfoPaneTab = "url"
-	}
+	// Set info pane state from Query (already parsed from URL)
+	viewModel.ShowInfoPane = q.ShowInfoPane
+	viewModel.InfoPaneTab = q.InfoPaneTab
 
 	// Parse column types display state from URL
 	viewModel.ShowColumnTypes = requestURL.Query().Get("types") == "1"
