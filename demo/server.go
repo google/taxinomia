@@ -71,7 +71,7 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	fmt.Println("=== Loading Textproto Tables ===")
 	_, currentFile, _, _ := runtime.Caller(0)
 	protoLoader := NewProtoTableLoader()
-	descriptorPath := filepath.Join(filepath.Dir(currentFile), "proto", "customer_orders.pb")
+	descriptorPath := filepath.Join(filepath.Dir(currentFile), "customer_orders.pb")
 	if err := protoLoader.LoadDescriptorSet(descriptorPath); err != nil {
 		fmt.Printf("Warning: Failed to load proto descriptors: %v\n", err)
 	} else {
