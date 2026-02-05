@@ -148,16 +148,17 @@ func (l *Loader) FindLinearHierarchy(msgDesc protoreflect.MessageDescriptor) []H
 
 // RowBuilder accumulates denormalized rows from a hierarchical message.
 type RowBuilder struct {
-	columns        []string            // Column names in order
-	rows           [][]string          // All extracted rows
-	current        map[string]string   // Current row being built
-	columnsByLevel [][]string          // Column names grouped by hierarchy level
+	columns        []string                       // Column names in order
+	fieldDescs     []protoreflect.FieldDescriptor // Field descriptors for each column
+	rows           [][]any                        // All extracted rows (typed values)
+	current        map[string]any                 // Current row being built (typed values)
+	columnsByLevel [][]string                     // Column names grouped by hierarchy level
 }
 
 // newRowBuilder creates a new RowBuilder with columns derived from hierarchy levels.
 func newRowBuilder(hierarchy []HierarchyLevel) *RowBuilder {
 	rb := &RowBuilder{
-		current:        make(map[string]string),
+		current:        make(map[string]any),
 		columnsByLevel: make([][]string, len(hierarchy)),
 	}
 
@@ -166,6 +167,7 @@ func newRowBuilder(hierarchy []HierarchyLevel) *RowBuilder {
 		for _, fd := range level.ScalarFields {
 			colName := string(fd.Name())
 			rb.columns = append(rb.columns, colName)
+			rb.fieldDescs = append(rb.fieldDescs, fd)
 			rb.columnsByLevel[i] = append(rb.columnsByLevel[i], colName)
 		}
 	}
@@ -177,14 +179,14 @@ func newRowBuilder(hierarchy []HierarchyLevel) *RowBuilder {
 func (rb *RowBuilder) clearFromLevel(level int) {
 	for i := level; i < len(rb.columnsByLevel); i++ {
 		for _, col := range rb.columnsByLevel[i] {
-			rb.current[col] = ""
+			rb.current[col] = nil
 		}
 	}
 }
 
 // emitRow adds the current row state to the rows list.
 func (rb *RowBuilder) emitRow() {
-	row := make([]string, len(rb.columns))
+	row := make([]any, len(rb.columns))
 	for i, col := range rb.columns {
 		row[i] = rb.current[col]
 	}
@@ -209,7 +211,7 @@ func (l *Loader) walkHierarchy(msg protoreflect.Message, hierarchy []HierarchyLe
 	// Extract scalar values at this level
 	for _, fd := range level.ScalarFields {
 		val := msg.Get(fd)
-		rb.current[string(fd.Name())] = formatValue(val, fd)
+		rb.current[string(fd.Name())] = extractTypedValue(val, fd)
 	}
 
 	// If no more levels or no repeated field, emit a row
@@ -235,32 +237,29 @@ func (l *Loader) walkHierarchy(msg protoreflect.Message, hierarchy []HierarchyLe
 	}
 }
 
-// formatValue converts a protoreflect.Value to its string representation.
-func formatValue(val protoreflect.Value, fd protoreflect.FieldDescriptor) string {
+// extractTypedValue extracts a typed value from a protoreflect.Value.
+// Returns the appropriate Go type for use with typed columns.
+func extractTypedValue(val protoreflect.Value, fd protoreflect.FieldDescriptor) any {
 	switch fd.Kind() {
 	case protoreflect.BoolKind:
-		if val.Bool() {
-			return "true"
-		}
-		return "false"
+		return val.Bool()
 	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
-		return fmt.Sprintf("%d", val.Int())
+		// Store as int64 for consistency
+		return val.Int()
 	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
-		return fmt.Sprintf("%d", val.Int())
+		return val.Int()
 	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
-		return fmt.Sprintf("%d", val.Uint())
+		return uint32(val.Uint())
 	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
-		return fmt.Sprintf("%d", val.Uint())
-	case protoreflect.FloatKind:
-		return fmt.Sprintf("%g", val.Float())
-	case protoreflect.DoubleKind:
-		return fmt.Sprintf("%g", val.Float())
+		return val.Uint()
+	case protoreflect.FloatKind, protoreflect.DoubleKind:
+		return val.Float()
 	case protoreflect.StringKind:
 		return val.String()
 	case protoreflect.BytesKind:
 		return string(val.Bytes())
 	case protoreflect.EnumKind:
-		// Return enum name if available
+		// Return enum name as string
 		enumVal := fd.Enum().Values().ByNumber(val.Enum())
 		if enumVal != nil {
 			return string(enumVal.Name())
@@ -269,12 +268,31 @@ func formatValue(val protoreflect.Value, fd protoreflect.FieldDescriptor) string
 	case protoreflect.MessageKind:
 		// Handle google.protobuf.Timestamp
 		if isTimestampField(fd) {
-			return formatTimestamp(val.Message())
+			return extractTimestamp(val.Message())
 		}
 		return val.String()
 	default:
 		return val.String()
 	}
+}
+
+// extractTimestamp extracts a time.Time from a google.protobuf.Timestamp message
+func extractTimestamp(msg protoreflect.Message) time.Time {
+	fields := msg.Descriptor().Fields()
+	secondsField := fields.ByName("seconds")
+	nanosField := fields.ByName("nanos")
+
+	if secondsField == nil {
+		return time.Time{}
+	}
+
+	seconds := msg.Get(secondsField).Int()
+	nanos := int64(0)
+	if nanosField != nil {
+		nanos = msg.Get(nanosField).Int()
+	}
+
+	return time.Unix(seconds, nanos).UTC()
 }
 
 // isTimestampField checks if a field is a google.protobuf.Timestamp
@@ -285,42 +303,119 @@ func isTimestampField(fd protoreflect.FieldDescriptor) bool {
 	return fd.Message().FullName() == "google.protobuf.Timestamp"
 }
 
-// formatTimestamp converts a google.protobuf.Timestamp message to ISO 8601 string
-func formatTimestamp(msg protoreflect.Message) string {
-	fields := msg.Descriptor().Fields()
-	secondsField := fields.ByName("seconds")
-	nanosField := fields.ByName("nanos")
-
-	if secondsField == nil {
-		return ""
-	}
-
-	seconds := msg.Get(secondsField).Int()
-	nanos := int64(0)
-	if nanosField != nil {
-		nanos = msg.Get(nanosField).Int()
-	}
-
-	t := time.Unix(seconds, nanos).UTC()
-	return t.Format(time.RFC3339)
-}
-
 // CreateDataTable creates a DataTable from extracted rows.
+// Creates typed columns based on protobuf field types.
 func (l *Loader) CreateDataTable(rb *RowBuilder) *tables.DataTable {
 	table := tables.NewDataTable()
 
-	// Create a StringColumn for each column
+	// Create appropriately typed columns based on field descriptors
 	for i, colName := range rb.columns {
+		fd := rb.fieldDescs[i]
 		colDef := columns.NewColumnDef(colName, colName, "")
-		col := columns.NewStringColumn(colDef)
 
-		// Add values from each row
-		for _, row := range rb.rows {
-			col.Append(row[i])
+		switch fd.Kind() {
+		case protoreflect.BoolKind:
+			col := columns.NewBoolColumn(colDef)
+			for _, row := range rb.rows {
+				if v, ok := row[i].(bool); ok {
+					col.Append(v)
+				} else {
+					col.Append(false)
+				}
+			}
+			col.FinalizeColumn()
+			table.AddColumn(col)
+
+		case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind,
+			protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
+			col := columns.NewInt64Column(colDef)
+			for _, row := range rb.rows {
+				if v, ok := row[i].(int64); ok {
+					col.Append(v)
+				} else {
+					col.Append(0)
+				}
+			}
+			col.FinalizeColumn()
+			table.AddColumn(col)
+
+		case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
+			col := columns.NewUint32Column(colDef)
+			for _, row := range rb.rows {
+				if v, ok := row[i].(uint32); ok {
+					col.Append(v)
+				} else {
+					col.Append(uint32(0))
+				}
+			}
+			col.FinalizeColumn()
+			table.AddColumn(col)
+
+		case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
+			col := columns.NewUint64Column(colDef)
+			for _, row := range rb.rows {
+				if v, ok := row[i].(uint64); ok {
+					col.Append(v)
+				} else {
+					col.Append(uint64(0))
+				}
+			}
+			col.FinalizeColumn()
+			table.AddColumn(col)
+
+		case protoreflect.FloatKind, protoreflect.DoubleKind:
+			col := columns.NewFloat64Column(colDef)
+			for _, row := range rb.rows {
+				if v, ok := row[i].(float64); ok {
+					col.Append(v)
+				} else {
+					col.Append(0.0)
+				}
+			}
+			col.FinalizeColumn()
+			table.AddColumn(col)
+
+		case protoreflect.MessageKind:
+			if isTimestampField(fd) {
+				col := columns.NewDatetimeColumn(colDef)
+				for _, row := range rb.rows {
+					if v, ok := row[i].(time.Time); ok {
+						col.Append(v)
+					} else {
+						col.Append(time.Time{})
+					}
+				}
+				col.FinalizeColumn()
+				table.AddColumn(col)
+			} else {
+				// Fallback to string for other message types
+				col := columns.NewStringColumn(colDef)
+				for _, row := range rb.rows {
+					if v, ok := row[i].(string); ok {
+						col.Append(v)
+					} else {
+						col.Append("")
+					}
+				}
+				col.FinalizeColumn()
+				table.AddColumn(col)
+			}
+
+		default:
+			// String, bytes, enum, and other types use StringColumn
+			col := columns.NewStringColumn(colDef)
+			for _, row := range rb.rows {
+				if v, ok := row[i].(string); ok {
+					col.Append(v)
+				} else if row[i] != nil {
+					col.Append(fmt.Sprintf("%v", row[i]))
+				} else {
+					col.Append("")
+				}
+			}
+			col.FinalizeColumn()
+			table.AddColumn(col)
 		}
-
-		col.FinalizeColumn()
-		table.AddColumn(col)
 	}
 
 	return table

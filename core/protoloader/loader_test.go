@@ -29,7 +29,7 @@ func TestRowBuilder(t *testing.T) {
 	// Create a simple hierarchy with scalar fields
 	rb := &RowBuilder{
 		columns: []string{"name", "value", "amount"},
-		current: make(map[string]string),
+		current: make(map[string]any),
 	}
 
 	// Simulate building rows

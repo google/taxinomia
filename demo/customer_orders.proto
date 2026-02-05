@@ -6,6 +6,8 @@ syntax = "proto3";
 
 package taxinomia.demo;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/google/taxinomia/demo/proto";
 
 // CustomerOrders demonstrates a linear hierarchy for textproto loading.
@@ -19,7 +21,7 @@ message CustomerOrders {
 
 message Order {
   string order_id = 1;
-  string order_date = 2;
+  google.protobuf.Timestamp order_date = 2;
   string status = 3;
   repeated LineItem line_items = 4;
 }
