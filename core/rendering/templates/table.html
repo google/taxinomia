@@ -707,6 +707,37 @@
             cursor: col-resize !important;
         }
 
+        /* Column drag-and-drop styles */
+        th[draggable="true"] {
+            cursor: grab;
+        }
+
+        th[draggable="true"]:active {
+            cursor: grabbing;
+        }
+
+        th.dragging {
+            opacity: 0.5;
+            background-color: #d0e8ff;
+        }
+
+        th.drag-over-left {
+            box-shadow: inset 4px 0 0 0 #3498db;
+        }
+
+        th.drag-over-right {
+            box-shadow: inset -4px 0 0 0 #3498db;
+        }
+
+        body.column-dragging {
+            cursor: grabbing;
+            user-select: none;
+        }
+
+        body.column-dragging * {
+            cursor: grabbing !important;
+        }
+
         /* Grouping row styles */
         .grouping-row {
             background-color: #fafafa;
@@ -1619,6 +1650,7 @@
             setupFilterClearButtons();
             setupMultiselectMode();
             initColumnResize();
+            initColumnDragDrop();
             restoreScrollPosition();
             updateHiddenRowsCount();
         });
@@ -1767,6 +1799,138 @@
                     // Update URL with new widths and reload
                     updateUrlWithWidths(true);
                 }
+            });
+        }
+
+        // ===========================
+        // Column Drag-and-Drop Feature
+        // ===========================
+
+        // Initialize column drag-and-drop functionality
+        function initColumnDragDrop() {
+            const table = document.getElementById('data-table');
+            if (!table) return;
+
+            const headers = table.querySelectorAll('thead tr:first-child th');
+            let draggedHeader = null;
+
+            headers.forEach(function(th) {
+                // Make headers draggable
+                th.setAttribute('draggable', 'true');
+
+                th.addEventListener('dragstart', function(e) {
+                    draggedHeader = th;
+                    th.classList.add('dragging');
+                    document.body.classList.add('column-dragging');
+
+                    // Set drag data
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', th.dataset.colName);
+
+                    // Use setTimeout to allow the drag image to be captured before adding opacity
+                    setTimeout(function() {
+                        th.classList.add('dragging');
+                    }, 0);
+                });
+
+                th.addEventListener('dragend', function(e) {
+                    th.classList.remove('dragging');
+                    document.body.classList.remove('column-dragging');
+                    draggedHeader = null;
+
+                    // Remove all drag-over classes
+                    headers.forEach(function(header) {
+                        header.classList.remove('drag-over-left', 'drag-over-right');
+                    });
+                });
+
+                th.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    if (!draggedHeader || draggedHeader === th) return;
+
+                    e.dataTransfer.dropEffect = 'move';
+
+                    // Determine if we're on the left or right half of the header
+                    const rect = th.getBoundingClientRect();
+                    const midpoint = rect.left + rect.width / 2;
+                    const isLeftHalf = e.clientX < midpoint;
+
+                    // Remove existing drag-over classes from all headers
+                    headers.forEach(function(header) {
+                        header.classList.remove('drag-over-left', 'drag-over-right');
+                    });
+
+                    // Add appropriate class
+                    if (isLeftHalf) {
+                        th.classList.add('drag-over-left');
+                    } else {
+                        th.classList.add('drag-over-right');
+                    }
+                });
+
+                th.addEventListener('dragleave', function(e) {
+                    th.classList.remove('drag-over-left', 'drag-over-right');
+                });
+
+                th.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    if (!draggedHeader || draggedHeader === th) return;
+
+                    // Determine drop position (left or right of target)
+                    const rect = th.getBoundingClientRect();
+                    const midpoint = rect.left + rect.width / 2;
+                    const dropOnLeft = e.clientX < midpoint;
+
+                    // Get current column order from URL or build from table headers
+                    const url = new URL(window.location);
+                    let columnsParam = url.searchParams.get('columns');
+
+                    // If no columns param, build it from current table headers
+                    if (!columnsParam) {
+                        const colNames = [];
+                        headers.forEach(function(header) {
+                            const colName = header.dataset.colName;
+                            const width = header.style.width ? parseInt(header.style.width, 10) : 0;
+                            if (colName) {
+                                colNames.push(width > 0 ? colName + ':' + width : colName);
+                            }
+                        });
+                        columnsParam = colNames.join(',');
+                    }
+
+                    // Parse columns (preserving widths)
+                    const columns = columnsParam.split(',');
+                    const draggedColName = draggedHeader.dataset.colName;
+                    const targetColName = th.dataset.colName;
+
+                    // Find indices
+                    let draggedIdx = -1;
+                    let targetIdx = -1;
+                    columns.forEach(function(col, idx) {
+                        const colName = col.split(':')[0];
+                        if (colName === draggedColName) draggedIdx = idx;
+                        if (colName === targetColName) targetIdx = idx;
+                    });
+
+                    if (draggedIdx === -1 || targetIdx === -1) return;
+
+                    // Remove dragged column from array
+                    const draggedCol = columns.splice(draggedIdx, 1)[0];
+
+                    // Recalculate target index after removal
+                    if (draggedIdx < targetIdx) {
+                        targetIdx--;
+                    }
+
+                    // Insert at new position
+                    const insertIdx = dropOnLeft ? targetIdx : targetIdx + 1;
+                    columns.splice(insertIdx, 0, draggedCol);
+
+                    // Update URL and reload
+                    url.searchParams.set('columns', columns.join(','));
+                    url.searchParams.set('scrollY', Math.round(window.scrollY).toString());
+                    window.location.href = url.toString();
+                });
             });
         }
 
