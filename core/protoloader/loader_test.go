@@ -7,8 +7,6 @@ Copyright 2024 The Taxinomia Authors
 package protoloader
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"google.golang.org/protobuf/reflect/protoregistry"
@@ -77,19 +75,10 @@ func TestParseTextprotoMissingMessage(t *testing.T) {
 	registry := new(protoregistry.Files)
 	loader := NewLoader(registry)
 
-	// Create a dummy textproto file
-	testDir := filepath.Join(os.TempDir(), "protoloader_textproto_test")
-	if err := os.MkdirAll(testDir, 0755); err != nil {
-		t.Fatalf("failed to create test dir: %v", err)
-	}
-	defer os.RemoveAll(testDir)
+	// Pass textproto content directly as bytes
+	textprotoData := []byte("name: \"test\"")
 
-	textprotoPath := filepath.Join(testDir, "test.textproto")
-	if err := os.WriteFile(textprotoPath, []byte("name: \"test\""), 0644); err != nil {
-		t.Fatalf("failed to write textproto: %v", err)
-	}
-
-	_, err := loader.ParseTextproto(textprotoPath, "unknown.Message")
+	_, err := loader.ParseTextproto(textprotoData, "unknown.Message")
 	if err == nil {
 		t.Error("expected error for unknown message type, got nil")
 	}

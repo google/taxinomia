@@ -16,14 +16,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package protoloader provides functionality to load textproto files with
+// Package protoloader provides functionality to load textproto data with
 // dynamic schema discovery. It uses a pre-populated proto registry to parse
-// textproto files into DataTables.
+// textproto content into DataTables.
 package protoloader
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -48,8 +47,8 @@ func NewLoader(registry *protoregistry.Files) *Loader {
 	}
 }
 
-// ParseTextproto parses a textproto file into a dynamic protobuf message.
-func (l *Loader) ParseTextproto(path string, messageName string) (protoreflect.Message, error) {
+// ParseTextproto parses textproto content from bytes into a dynamic protobuf message.
+func (l *Loader) ParseTextproto(data []byte, messageName string) (protoreflect.Message, error) {
 	// Find the message descriptor in the registry
 	desc, err := l.registry.FindDescriptorByName(protoreflect.FullName(messageName))
 	if err != nil {
@@ -63,12 +62,6 @@ func (l *Loader) ParseTextproto(path string, messageName string) (protoreflect.M
 
 	// Create a dynamic message instance
 	msg := dynamicpb.NewMessage(msgDesc)
-
-	// Read and parse the textproto file
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read textproto file: %w", err)
-	}
 
 	// Use a resolver that can resolve types from our registry
 	opts := prototext.UnmarshalOptions{
@@ -333,10 +326,10 @@ func (l *Loader) CreateDataTable(rb *RowBuilder) *tables.DataTable {
 	return table
 }
 
-// LoadTextprotoAsTable loads a textproto file and returns a denormalized DataTable.
+// LoadTextprotoAsTable loads textproto content from bytes and returns a denormalized DataTable.
 // The messageName should be the fully qualified protobuf message name (e.g., "mypackage.Customer").
-func (l *Loader) LoadTextprotoAsTable(textprotoPath, messageName string) (*tables.DataTable, error) {
-	msg, err := l.ParseTextproto(textprotoPath, messageName)
+func (l *Loader) LoadTextprotoAsTable(data []byte, messageName string) (*tables.DataTable, error) {
+	msg, err := l.ParseTextproto(data, messageName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
 	}

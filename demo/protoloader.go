@@ -114,7 +114,16 @@ func (l *ProtoTableLoader) LoadDescriptorsFromDirectory(dirPath string) error {
 
 // LoadTextprotoAsTable loads a textproto file and returns a denormalized DataTable.
 func (l *ProtoTableLoader) LoadTextprotoAsTable(textprotoPath, messageName string) (*tables.DataTable, error) {
-	return l.loader.LoadTextprotoAsTable(textprotoPath, messageName)
+	data, err := os.ReadFile(textprotoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read textproto file: %w", err)
+	}
+	return l.loader.LoadTextprotoAsTable(data, messageName)
+}
+
+// LoadTextprotoAsTableFromBytes loads textproto content from bytes and returns a denormalized DataTable.
+func (l *ProtoTableLoader) LoadTextprotoAsTableFromBytes(data []byte, messageName string) (*tables.DataTable, error) {
+	return l.loader.LoadTextprotoAsTable(data, messageName)
 }
 
 // LoadTextprotosFromDirectory loads all .textproto files from a directory.
