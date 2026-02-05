@@ -73,23 +73,33 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	fmt.Println("=== Performance Tables Created ===")
 	fmt.Println()
 
-	// Load textproto tables using protoloader
-	fmt.Println("=== Loading Textproto Tables ===")
+	// Load protobuf tables using protoloader
+	fmt.Println("=== Loading Protobuf Tables ===")
 	_, currentFile, _, _ := runtime.Caller(0)
 	protoLoader := NewProtoTableLoader()
 	descriptorPath := filepath.Join(filepath.Dir(currentFile), "customer_orders.pb")
 	if err := protoLoader.LoadDescriptorSet(descriptorPath); err != nil {
 		fmt.Printf("Warning: Failed to load proto descriptors: %v\n", err)
 	} else {
+		// Load textproto version
 		textprotoPath := filepath.Join(filepath.Dir(currentFile), "data", "customer_orders.textproto")
 		if customerOrdersTable, err := protoLoader.LoadTextprotoAsTable(textprotoPath, "taxinomia.demo.CustomerOrders"); err != nil {
 			fmt.Printf("Warning: Failed to load customer_orders.textproto: %v\n", err)
 		} else {
 			dataModel.AddTable("customer_orders", customerOrdersTable)
-			fmt.Printf("Loaded customer_orders table with %d rows\n", customerOrdersTable.Length())
+			fmt.Printf("Loaded customer_orders (textproto) with %d rows\n", customerOrdersTable.Length())
+		}
+
+		// Load binary proto version
+		binaryPath := filepath.Join(filepath.Dir(currentFile), "data", "customer_orders.binpb")
+		if customerOrdersBinaryTable, err := protoLoader.LoadBinaryProtoAsTable(binaryPath, "taxinomia.demo.CustomerOrders"); err != nil {
+			fmt.Printf("Warning: Failed to load customer_orders.binpb: %v\n", err)
+		} else {
+			dataModel.AddTable("customer_orders_binary", customerOrdersBinaryTable)
+			fmt.Printf("Loaded customer_orders_binary (binary proto) with %d rows\n", customerOrdersBinaryTable.Length())
 		}
 	}
-	fmt.Println("=== Textproto Tables Loaded ===")
+	fmt.Println("=== Protobuf Tables Loaded ===")
 	fmt.Println()
 
 	// Print reports
@@ -166,8 +176,18 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 		},
 		{
 			Name:           "Customer Orders (Textproto)",
-			Description:    "Denormalized customer order data loaded from textproto. Shows customer, orders, line items, and discounts.",
+			Description:    "Denormalized customer order data loaded from textproto format. Shows customer, orders, line items, and discounts.",
 			URL:            "table?table=customer_orders&limit=25",
+			RecordCount:    6,
+			ColumnCount:    13,
+			DefaultColumns: "all columns",
+			Categories:     "Sales, Demo",
+			Domains:        []string{"demo"},
+		},
+		{
+			Name:           "Customer Orders (Binary Proto)",
+			Description:    "Same data as textproto version but loaded from binary protobuf format. Binary is ~70% smaller and faster to parse.",
+			URL:            "table?table=customer_orders_binary&limit=25",
 			RecordCount:    6,
 			ColumnCount:    13,
 			DefaultColumns: "all columns",

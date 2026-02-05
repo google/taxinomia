@@ -250,7 +250,9 @@ if err != nil {
 fmt.Printf("Loaded %d rows\n", table.Length())
 ```
 
-Binary protobuf files can be created programmatically using `proto.Marshal()` or by converting from textproto using tools like `protoc`.
+Binary protobuf files can be created programmatically using `proto.Marshal()` or by converting from textproto.
+
+**Size comparison**: For the same data, binary protobuf is typically 70% smaller than textproto (e.g., 400 bytes vs 1331 bytes for the demo `customer_orders` data).
 
 ### 5. Resulting Table Structure
 
