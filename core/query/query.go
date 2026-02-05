@@ -864,12 +864,13 @@ func (s *Query) IsColumnGrouped(column string) bool {
 	return false
 }
 
-// WithFilterAndUngrouped returns a URL that adds a filter for the column and removes it from grouping
+// WithFilterAndUngrouped returns a URL that adds a filter for the column and removes it from grouping.
+// The filter uses exact match (value wrapped in quotes) since we're filtering on a specific group value.
 func (s *Query) WithFilterAndUngrouped(column, value string) safehtml.URL {
 	newState := s.Clone()
 
-	// Add the filter
-	newState.Filters[column] = value
+	// Add the filter with quotes for exact match
+	newState.Filters[column] = `"` + value + `"`
 
 	// Remove column from grouping
 	newGrouped := make([]string, 0, len(s.GroupedColumns))
