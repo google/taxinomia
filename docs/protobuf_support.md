@@ -1,12 +1,12 @@
 # Protobuf Support
 
-Taxinomia supports loading data from Protocol Buffer textproto files and converting them into DataTables for querying and analysis.
+Taxinomia supports loading data from Protocol Buffer files (both textproto and binary formats) and converting them into DataTables for querying and analysis.
 
 ## Overview
 
 The protoloader package provides functionality to:
 1. Load proto descriptor sets (compiled `.pb` files)
-2. Parse textproto content into dynamic protobuf messages
+2. Parse textproto or binary protobuf content into dynamic protobuf messages
 3. Convert hierarchical protobuf data into denormalized DataTables
 
 ## Architecture
@@ -25,8 +25,14 @@ loader := protoloader.NewLoader(registry)
 // Parse textproto from bytes
 msg, err := loader.ParseTextproto(data, "mypackage.MyMessage")
 
+// Parse binary protobuf from bytes
+msg, err := loader.ParseBinaryProto(data, "mypackage.MyMessage")
+
 // Load textproto as a DataTable
 table, err := loader.LoadTextprotoAsTable(data, "mypackage.MyMessage")
+
+// Load binary protobuf as a DataTable
+table, err := loader.LoadBinaryProtoAsTable(data, "mypackage.MyMessage")
 ```
 
 ### Demo Layer (`demo/protoloader`)
@@ -44,6 +50,10 @@ loader.LoadDescriptorSetFromBytes(descriptorBytes)
 // Load textproto from file or bytes
 table, err := loader.LoadTextprotoAsTable("data.textproto", "mypackage.MyMessage")
 table, err := loader.LoadTextprotoAsTableFromBytes(data, "mypackage.MyMessage")
+
+// Load binary protobuf from file or bytes
+table, err := loader.LoadBinaryProtoAsTable("data.binpb", "mypackage.MyMessage")
+table, err := loader.LoadBinaryProtoAsTableFromBytes(data, "mypackage.MyMessage")
 ```
 
 ## Supported Protobuf Types
@@ -192,7 +202,7 @@ orders {
 }
 ```
 
-### 4. Load in Go
+### 4. Load in Go (Textproto)
 
 ```go
 loader := demo.NewProtoTableLoader()
@@ -202,7 +212,7 @@ if err := loader.LoadDescriptorSet("customer_orders.pb"); err != nil {
     log.Fatal(err)
 }
 
-// Load the data
+// Load textproto data
 table, err := loader.LoadTextprotoAsTable(
     "customer_orders.textproto",
     "myapp.CustomerOrders",
@@ -214,6 +224,33 @@ if err != nil {
 // Use the table
 fmt.Printf("Loaded %d rows\n", table.Length())
 ```
+
+### 4b. Load Binary Protobuf (Alternative)
+
+Binary protobuf files are more compact and faster to parse than textproto. To load binary protobuf data:
+
+```go
+loader := demo.NewProtoTableLoader()
+
+// Load the schema
+if err := loader.LoadDescriptorSet("customer_orders.pb"); err != nil {
+    log.Fatal(err)
+}
+
+// Load binary protobuf data
+table, err := loader.LoadBinaryProtoAsTable(
+    "customer_orders.binpb",
+    "myapp.CustomerOrders",
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Use the table
+fmt.Printf("Loaded %d rows\n", table.Length())
+```
+
+Binary protobuf files can be created programmatically using `proto.Marshal()` or by converting from textproto using tools like `protoc`.
 
 ### 5. Resulting Table Structure
 

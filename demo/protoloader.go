@@ -126,6 +126,20 @@ func (l *ProtoTableLoader) LoadTextprotoAsTableFromBytes(data []byte, messageNam
 	return l.loader.LoadTextprotoAsTable(data, messageName)
 }
 
+// LoadBinaryProtoAsTable loads a binary protobuf file and returns a denormalized DataTable.
+func (l *ProtoTableLoader) LoadBinaryProtoAsTable(protoPath, messageName string) (*tables.DataTable, error) {
+	data, err := os.ReadFile(protoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read binary protobuf file: %w", err)
+	}
+	return l.loader.LoadBinaryProtoAsTable(data, messageName)
+}
+
+// LoadBinaryProtoAsTableFromBytes loads binary protobuf content from bytes and returns a denormalized DataTable.
+func (l *ProtoTableLoader) LoadBinaryProtoAsTableFromBytes(data []byte, messageName string) (*tables.DataTable, error) {
+	return l.loader.LoadBinaryProtoAsTable(data, messageName)
+}
+
 // LoadTextprotosFromDirectory loads all .textproto files from a directory.
 // Each file should have a corresponding message name derived from the filename or config.
 // Returns a map of table name to DataTable.

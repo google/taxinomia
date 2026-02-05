@@ -16,9 +16,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package protoloader provides functionality to load textproto data with
+// Package protoloader provides functionality to load protobuf data with
 // dynamic schema discovery. It uses a pre-populated proto registry to parse
-// textproto content into DataTables.
+// textproto or binary protobuf content into DataTables.
 package protoloader
 
 import (
@@ -29,6 +29,7 @@ import (
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/tables"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -69,6 +70,33 @@ func (l *Loader) ParseTextproto(data []byte, messageName string) (protoreflect.M
 	}
 	if err := opts.Unmarshal(data, msg); err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
+	}
+
+	return msg.ProtoReflect(), nil
+}
+
+// ParseBinaryProto parses binary protobuf content from bytes into a dynamic protobuf message.
+func (l *Loader) ParseBinaryProto(data []byte, messageName string) (protoreflect.Message, error) {
+	// Find the message descriptor in the registry
+	desc, err := l.registry.FindDescriptorByName(protoreflect.FullName(messageName))
+	if err != nil {
+		return nil, fmt.Errorf("message %q not found in registry: %w", messageName, err)
+	}
+
+	msgDesc, ok := desc.(protoreflect.MessageDescriptor)
+	if !ok {
+		return nil, fmt.Errorf("%q is not a message type", messageName)
+	}
+
+	// Create a dynamic message instance
+	msg := dynamicpb.NewMessage(msgDesc)
+
+	// Use proto.UnmarshalOptions with our resolver
+	opts := proto.UnmarshalOptions{
+		Resolver: l,
+	}
+	if err := opts.Unmarshal(data, msg); err != nil {
+		return nil, fmt.Errorf("failed to parse binary protobuf: %w", err)
 	}
 
 	return msg.ProtoReflect(), nil
@@ -434,6 +462,24 @@ func (l *Loader) LoadTextprotoAsTable(data []byte, messageName string) (*tables.
 
 	if len(rb.rows) == 0 {
 		return nil, fmt.Errorf("no rows extracted from textproto")
+	}
+
+	return l.CreateDataTable(rb), nil
+}
+
+// LoadBinaryProtoAsTable loads binary protobuf content from bytes and returns a denormalized DataTable.
+// The messageName should be the fully qualified protobuf message name (e.g., "mypackage.Customer").
+func (l *Loader) LoadBinaryProtoAsTable(data []byte, messageName string) (*tables.DataTable, error) {
+	msg, err := l.ParseBinaryProto(data, messageName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse binary protobuf: %w", err)
+	}
+
+	hierarchy := l.FindLinearHierarchy(msg.Descriptor())
+	rb := l.ExtractRows(msg, hierarchy)
+
+	if len(rb.rows) == 0 {
+		return nil, fmt.Errorf("no rows extracted from binary protobuf")
 	}
 
 	return l.CreateDataTable(rb), nil
