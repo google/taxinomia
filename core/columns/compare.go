@@ -53,6 +53,24 @@ func CompareAtIndex(col IDataColumn, i, j uint32) int {
 	case *Float64Column:
 		return compareFloat64s(c.data[i], c.data[j])
 
+	case *Int64Column:
+		if c.data[i] < c.data[j] {
+			return -1
+		}
+		if c.data[i] > c.data[j] {
+			return 1
+		}
+		return 0
+
+	case *Uint64Column:
+		if c.data[i] < c.data[j] {
+			return -1
+		}
+		if c.data[i] > c.data[j] {
+			return 1
+		}
+		return 0
+
 	// Computed columns - must evaluate on the fly
 	case *ComputedStringColumn:
 		vi, errI := c.GetValue(i)

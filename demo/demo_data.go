@@ -168,3 +168,67 @@ func CreateEventsTable() *tables.DataTable {
 	fmt.Printf("  Created %d events with datetime columns\n", 50)
 	return t
 }
+
+// CreateMetricsTable creates a table with int64 and uint64 columns for demonstrating large integer types
+func CreateMetricsTable() *tables.DataTable {
+	fmt.Println("Creating metrics table with int64/uint64 columns...")
+
+	t := tables.NewDataTable()
+
+	// Create columns
+	recordIDCol := columns.NewUint64Column(columns.NewColumnDef("record_id", "Record ID", "record_id"))
+	serviceCol := columns.NewStringColumn(columns.NewColumnDef("service", "Service", "service"))
+	bytesInCol := columns.NewUint64Column(columns.NewColumnDef("bytes_in", "Bytes In", ""))
+	bytesOutCol := columns.NewUint64Column(columns.NewColumnDef("bytes_out", "Bytes Out", ""))
+	deltaCol := columns.NewInt64Column(columns.NewColumnDef("delta", "Delta", ""))
+	balanceCol := columns.NewInt64Column(columns.NewColumnDef("balance", "Balance", ""))
+	timestampCol := columns.NewUint64Column(columns.NewColumnDef("timestamp_ns", "Timestamp (ns)", ""))
+
+	t.AddColumn(recordIDCol)
+	t.AddColumn(serviceCol)
+	t.AddColumn(bytesInCol)
+	t.AddColumn(bytesOutCol)
+	t.AddColumn(deltaCol)
+	t.AddColumn(balanceCol)
+	t.AddColumn(timestampCol)
+
+	// Service names
+	services := []string{"api-gateway", "auth-service", "data-processor", "cache-layer", "message-queue"}
+
+	// Generate 30 metrics records
+	baseTimestamp := uint64(1704067200000000000) // 2024-01-01 00:00:00 UTC in nanoseconds
+
+	for i := uint64(0); i < 30; i++ {
+		// Large unique record IDs (simulating distributed system IDs)
+		recordIDCol.Append(1000000000000 + i*12345678)
+
+		serviceCol.Append(services[i%uint64(len(services))])
+
+		// Bytes in/out: large values typical of network traffic (MB to GB range)
+		bytesInCol.Append((i+1)*1024*1024*10 + i*54321)    // 10MB+ increments
+		bytesOutCol.Append((i+1)*1024*1024*5 + i*12345)    // 5MB+ increments
+
+		// Delta: positive and negative changes (simulating balance changes)
+		delta := int64((i%7)*1000 - 3000) // Values from -3000 to +3000
+		deltaCol.Append(delta)
+
+		// Running balance that can go negative
+		balance := int64(50000) + delta*int64(i+1)
+		balanceCol.Append(balance)
+
+		// Timestamp in nanoseconds (incrementing by ~1 hour per record)
+		timestampCol.Append(baseTimestamp + i*3600000000000)
+	}
+
+	// Finalize columns
+	recordIDCol.FinalizeColumn()
+	serviceCol.FinalizeColumn()
+	bytesInCol.FinalizeColumn()
+	bytesOutCol.FinalizeColumn()
+	deltaCol.FinalizeColumn()
+	balanceCol.FinalizeColumn()
+	timestampCol.FinalizeColumn()
+
+	fmt.Printf("  Created %d metrics with int64/uint64 columns\n", 30)
+	return t
+}

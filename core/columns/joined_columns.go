@@ -526,3 +526,165 @@ func (c *JoinedFloat64Column) GroupIndices(indices []uint32, columnView *ColumnV
 	}
 	return groupedIndices, unmapped
 }
+
+// JoinedInt64Column represents a column that gets its data by joining to an int64 column in another table
+type JoinedInt64Column struct {
+	columnDef    *ColumnDef
+	sourceColumn *Int64Column
+	joiner       IJoiner
+}
+
+// NewJoinedInt64Column creates a new joined column for int64 data
+func NewJoinedInt64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn *Int64Column) *JoinedInt64Column {
+	return &JoinedInt64Column{
+		columnDef:    columnDef,
+		joiner:       joiner,
+		sourceColumn: sourceColumn,
+	}
+}
+
+func (c *JoinedInt64Column) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *JoinedInt64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *JoinedInt64Column) Length() int {
+	return c.sourceColumn.Length()
+}
+
+func (c *JoinedInt64Column) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", ErrUnmatched
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedInt64Column) GetValue(i uint32) (int64, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return 0, ErrUnmatched
+	}
+	return c.sourceColumn.GetValue(targetIndex)
+}
+
+func (c *JoinedInt64Column) GetIndex(value int64) (uint32, error) {
+	return 0, fmt.Errorf("column %q is a joined column and doesn't support reverse lookups", c.columnDef.Name())
+}
+
+func (c *JoinedInt64Column) IsKey() bool {
+	return false
+}
+
+func (c *JoinedInt64Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[int64]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}
+
+// JoinedUint64Column represents a column that gets its data by joining to a uint64 column in another table
+type JoinedUint64Column struct {
+	columnDef    *ColumnDef
+	sourceColumn *Uint64Column
+	joiner       IJoiner
+}
+
+// NewJoinedUint64Column creates a new joined column for uint64 data
+func NewJoinedUint64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn *Uint64Column) *JoinedUint64Column {
+	return &JoinedUint64Column{
+		columnDef:    columnDef,
+		joiner:       joiner,
+		sourceColumn: sourceColumn,
+	}
+}
+
+func (c *JoinedUint64Column) ColumnDef() *ColumnDef {
+	return c.columnDef
+}
+
+func (c *JoinedUint64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
+	return nil
+}
+
+func (c *JoinedUint64Column) Length() int {
+	return c.sourceColumn.Length()
+}
+
+func (c *JoinedUint64Column) GetString(i uint32) (string, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return "", ErrUnmatched
+	}
+	return c.sourceColumn.GetString(targetIndex)
+}
+
+func (c *JoinedUint64Column) GetValue(i uint32) (uint64, error) {
+	targetIndex, err := c.joiner.Lookup(i)
+	if err != nil {
+		return 0, ErrUnmatched
+	}
+	return c.sourceColumn.GetValue(targetIndex)
+}
+
+func (c *JoinedUint64Column) GetIndex(value uint64) (uint32, error) {
+	return 0, fmt.Errorf("column %q is a joined column and doesn't support reverse lookups", c.columnDef.Name())
+}
+
+func (c *JoinedUint64Column) IsKey() bool {
+	return false
+}
+
+func (c *JoinedUint64Column) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
+	groupedIndices := map[uint32][]uint32{}
+	valueToGroupKey := map[uint64]uint32{}
+	var unmapped []uint32
+
+	for _, i := range indices {
+		targetIndex, err := c.joiner.Lookup(i)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		value, err := c.sourceColumn.GetValue(targetIndex)
+		if err != nil {
+			unmapped = append(unmapped, i)
+			continue
+		}
+
+		if groupKey, ok := valueToGroupKey[value]; ok {
+			groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
+		} else {
+			groupKey := uint32(len(valueToGroupKey))
+			valueToGroupKey[value] = groupKey
+			groupedIndices[groupKey] = []uint32{i}
+		}
+	}
+	return groupedIndices, unmapped
+}

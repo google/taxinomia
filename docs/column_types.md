@@ -8,6 +8,8 @@ Taxinomia supports several column types for storing and processing data. This do
 |------|-------------|---------|----------------|
 | `string` | Text values | Interned strings | `"hello"`, `"New York"` |
 | `uint32` | Unsigned integers | 32-bit unsigned | `0`, `42`, `4294967295` |
+| `int64` | Signed integers | 64-bit signed | `-100`, `0`, `9223372036854775807` |
+| `uint64` | Unsigned integers | 64-bit unsigned | `0`, `42`, `18446744073709551615` |
 | `float64` | Floating point | 64-bit IEEE 754 | `3.14`, `1.8`, `NaN` |
 | `bool` | Boolean values | Native boolean | `True`, `False` |
 | `datetime` | Date and time | Unix nanoseconds | `2024-01-15 10:30:00` |
@@ -37,6 +39,40 @@ Unsigned 32-bit integer columns store non-negative whole numbers.
 - Fixed 4-byte storage per value
 - Efficient comparison and arithmetic
 - Can serve as key columns for joins when values are unique
+
+### Display
+Integer values are displayed as decimal numbers without separators.
+
+## Int64 Columns
+
+Signed 64-bit integer columns store whole numbers, including negative values.
+
+### Value Range
+- Minimum: `-9,223,372,036,854,775,808` (-2^63)
+- Maximum: `9,223,372,036,854,775,807` (2^63 - 1)
+
+### Features
+- Fixed 8-byte storage per value
+- Efficient comparison and arithmetic
+- Can serve as key columns for joins when values are unique
+- Supports negative values
+
+### Display
+Integer values are displayed as decimal numbers without separators.
+
+## Uint64 Columns
+
+Unsigned 64-bit integer columns store large non-negative whole numbers.
+
+### Value Range
+- Minimum: `0`
+- Maximum: `18,446,744,073,709,551,615` (2^64 - 1)
+
+### Features
+- Fixed 8-byte storage per value
+- Efficient comparison and arithmetic
+- Can serve as key columns for joins when values are unique
+- Suitable for large identifiers and counters
 
 ### Display
 Integer values are displayed as decimal numbers without separators.
@@ -175,6 +211,8 @@ enum ColumnType {
   COLUMN_TYPE_UINT32 = 2;  // Force uint32 type
   COLUMN_TYPE_BOOL = 3;    // Force bool type
   COLUMN_TYPE_FLOAT64 = 4; // Force float64 type
+  COLUMN_TYPE_INT64 = 5;   // Force int64 type
+  COLUMN_TYPE_UINT64 = 6;  // Force uint64 type
 }
 ```
 
@@ -237,7 +275,8 @@ Computed columns calculate values at query time using expressions. The expressio
 
 | Expression Result | Column Type |
 |-------------------|-------------|
-| Integer | `ComputedUint32Column` or `ComputedInt64Column` |
+| Unsigned 32-bit Integer | `ComputedUint32Column` |
+| Signed 64-bit Integer | `ComputedInt64Column` |
 | Float | `ComputedFloat64Column` |
 | String | `ComputedStringColumn` |
 | Boolean | `ComputedBoolColumn` |

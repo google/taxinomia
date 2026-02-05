@@ -53,6 +53,12 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	dataModel.AddTable("events", eventsTable)
 	fmt.Println("=== Events Table Created ===")
 
+	// Create metrics table with int64/uint64 columns
+	fmt.Println("\n=== Creating Metrics Table (Int64/Uint64 Demo) ===")
+	metricsTable := CreateMetricsTable()
+	dataModel.AddTable("metrics", metricsTable)
+	fmt.Println("=== Metrics Table Created ===")
+
 	// Create performance test tables for scalability testing
 	fmt.Println("\n=== Creating Performance Test Tables ===")
 	transactionsTable := CreatePerfTransactionsTable()
@@ -176,6 +182,16 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 			ColumnCount:    6,
 			DefaultColumns: "6 columns",
 			Categories:     "Demo, Datetime",
+			Domains:        []string{"demo"},
+		},
+		{
+			Name:           "Metrics Table (Int64/Uint64 Demo)",
+			Description:    "Demonstrates int64 and uint64 column types with network metrics data. Features large record IDs, byte counts, and signed deltas.",
+			URL:            "table?table=metrics&limit=30",
+			RecordCount:    30,
+			ColumnCount:    7,
+			DefaultColumns: "7 columns",
+			Categories:     "Demo, Metrics",
 			Domains:        []string{"demo"},
 		},
 		{

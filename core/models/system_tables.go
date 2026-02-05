@@ -133,6 +133,10 @@ func getColumnType(col columns.IDataColumn) string {
 		return "string"
 	case *columns.Uint32Column:
 		return "uint32"
+	case *columns.Int64Column:
+		return "int64"
+	case *columns.Uint64Column:
+		return "uint64"
 	case *columns.Float64Column:
 		return "float64"
 	case *columns.BoolColumn:

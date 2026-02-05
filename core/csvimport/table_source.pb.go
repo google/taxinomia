@@ -18,7 +18,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: core/csvimport/table_source.proto
+// source: table_source.proto
 
 package csvimport
 
@@ -51,6 +51,10 @@ const (
 	ColumnType_COLUMN_TYPE_BOOL ColumnType = 3
 	// 64-bit floating point column.
 	ColumnType_COLUMN_TYPE_FLOAT64 ColumnType = 4
+	// Signed 64-bit integer column.
+	ColumnType_COLUMN_TYPE_INT64 ColumnType = 5
+	// Unsigned 64-bit integer column.
+	ColumnType_COLUMN_TYPE_UINT64 ColumnType = 6
 )
 
 // Enum value maps for ColumnType.
@@ -61,6 +65,8 @@ var (
 		2: "COLUMN_TYPE_UINT32",
 		3: "COLUMN_TYPE_BOOL",
 		4: "COLUMN_TYPE_FLOAT64",
+		5: "COLUMN_TYPE_INT64",
+		6: "COLUMN_TYPE_UINT64",
 	}
 	ColumnType_value = map[string]int32{
 		"COLUMN_TYPE_AUTO":    0,
@@ -68,6 +74,8 @@ var (
 		"COLUMN_TYPE_UINT32":  2,
 		"COLUMN_TYPE_BOOL":    3,
 		"COLUMN_TYPE_FLOAT64": 4,
+		"COLUMN_TYPE_INT64":   5,
+		"COLUMN_TYPE_UINT64":  6,
 	}
 )
 
@@ -82,11 +90,11 @@ func (x ColumnType) String() string {
 }
 
 func (ColumnType) Descriptor() protoreflect.EnumDescriptor {
-	return file_core_csvimport_table_source_proto_enumTypes[0].Descriptor()
+	return file_table_source_proto_enumTypes[0].Descriptor()
 }
 
 func (ColumnType) Type() protoreflect.EnumType {
-	return &file_core_csvimport_table_source_proto_enumTypes[0]
+	return &file_table_source_proto_enumTypes[0]
 }
 
 func (x ColumnType) Number() protoreflect.EnumNumber {
@@ -95,7 +103,7 @@ func (x ColumnType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ColumnType.Descriptor instead.
 func (ColumnType) EnumDescriptor() ([]byte, []int) {
-	return file_core_csvimport_table_source_proto_rawDescGZIP(), []int{0}
+	return file_table_source_proto_rawDescGZIP(), []int{0}
 }
 
 // ColumnSource defines source metadata for a single CSV column.
@@ -116,7 +124,7 @@ type ColumnSource struct {
 
 func (x *ColumnSource) Reset() {
 	*x = ColumnSource{}
-	mi := &file_core_csvimport_table_source_proto_msgTypes[0]
+	mi := &file_table_source_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -128,7 +136,7 @@ func (x *ColumnSource) String() string {
 func (*ColumnSource) ProtoMessage() {}
 
 func (x *ColumnSource) ProtoReflect() protoreflect.Message {
-	mi := &file_core_csvimport_table_source_proto_msgTypes[0]
+	mi := &file_table_source_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -141,7 +149,7 @@ func (x *ColumnSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ColumnSource.ProtoReflect.Descriptor instead.
 func (*ColumnSource) Descriptor() ([]byte, []int) {
-	return file_core_csvimport_table_source_proto_rawDescGZIP(), []int{0}
+	return file_table_source_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ColumnSource) GetName() string {
@@ -190,7 +198,7 @@ type TableSource struct {
 
 func (x *TableSource) Reset() {
 	*x = TableSource{}
-	mi := &file_core_csvimport_table_source_proto_msgTypes[1]
+	mi := &file_table_source_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -202,7 +210,7 @@ func (x *TableSource) String() string {
 func (*TableSource) ProtoMessage() {}
 
 func (x *TableSource) ProtoReflect() protoreflect.Message {
-	mi := &file_core_csvimport_table_source_proto_msgTypes[1]
+	mi := &file_table_source_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -215,7 +223,7 @@ func (x *TableSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableSource.ProtoReflect.Descriptor instead.
 func (*TableSource) Descriptor() ([]byte, []int) {
-	return file_core_csvimport_table_source_proto_rawDescGZIP(), []int{1}
+	return file_table_source_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *TableSource) GetName() string {
@@ -257,7 +265,7 @@ type TableSources struct {
 
 func (x *TableSources) Reset() {
 	*x = TableSources{}
-	mi := &file_core_csvimport_table_source_proto_msgTypes[2]
+	mi := &file_table_source_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -269,7 +277,7 @@ func (x *TableSources) String() string {
 func (*TableSources) ProtoMessage() {}
 
 func (x *TableSources) ProtoReflect() protoreflect.Message {
-	mi := &file_core_csvimport_table_source_proto_msgTypes[2]
+	mi := &file_table_source_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -282,7 +290,7 @@ func (x *TableSources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableSources.ProtoReflect.Descriptor instead.
 func (*TableSources) Descriptor() ([]byte, []int) {
-	return file_core_csvimport_table_source_proto_rawDescGZIP(), []int{2}
+	return file_table_source_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *TableSources) GetTables() []*TableSource {
@@ -292,11 +300,11 @@ func (x *TableSources) GetTables() []*TableSource {
 	return nil
 }
 
-var File_core_csvimport_table_source_proto protoreflect.FileDescriptor
+var File_table_source_proto protoreflect.FileDescriptor
 
-const file_core_csvimport_table_source_proto_rawDesc = "" +
+const file_table_source_proto_rawDesc = "" +
 	"\n" +
-	"!core/csvimport/table_source.proto\x12\x13taxinomia.csvimport\"\x9b\x01\n" +
+	"\x12table_source.proto\x12\x13taxinomia.csvimport\"\x9b\x01\n" +
 	"\fColumnSource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1f\n" +
@@ -309,36 +317,38 @@ const file_core_csvimport_table_source_proto_rawDesc = "" +
 	"\adomains\x18\x03 \x03(\tR\adomains\x12\x19\n" +
 	"\bcsv_file\x18\x04 \x01(\tR\acsvFile\"H\n" +
 	"\fTableSources\x128\n" +
-	"\x06tables\x18\x01 \x03(\v2 .taxinomia.csvimport.TableSourceR\x06tables*\x81\x01\n" +
+	"\x06tables\x18\x01 \x03(\v2 .taxinomia.csvimport.TableSourceR\x06tables*\xb0\x01\n" +
 	"\n" +
 	"ColumnType\x12\x14\n" +
 	"\x10COLUMN_TYPE_AUTO\x10\x00\x12\x16\n" +
 	"\x12COLUMN_TYPE_STRING\x10\x01\x12\x16\n" +
 	"\x12COLUMN_TYPE_UINT32\x10\x02\x12\x14\n" +
 	"\x10COLUMN_TYPE_BOOL\x10\x03\x12\x17\n" +
-	"\x13COLUMN_TYPE_FLOAT64\x10\x04B,Z*github.com/google/taxinomia/core/csvimportb\x06proto3"
+	"\x13COLUMN_TYPE_FLOAT64\x10\x04\x12\x15\n" +
+	"\x11COLUMN_TYPE_INT64\x10\x05\x12\x16\n" +
+	"\x12COLUMN_TYPE_UINT64\x10\x06B,Z*github.com/google/taxinomia/core/csvimportb\x06proto3"
 
 var (
-	file_core_csvimport_table_source_proto_rawDescOnce sync.Once
-	file_core_csvimport_table_source_proto_rawDescData []byte
+	file_table_source_proto_rawDescOnce sync.Once
+	file_table_source_proto_rawDescData []byte
 )
 
-func file_core_csvimport_table_source_proto_rawDescGZIP() []byte {
-	file_core_csvimport_table_source_proto_rawDescOnce.Do(func() {
-		file_core_csvimport_table_source_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_core_csvimport_table_source_proto_rawDesc), len(file_core_csvimport_table_source_proto_rawDesc)))
+func file_table_source_proto_rawDescGZIP() []byte {
+	file_table_source_proto_rawDescOnce.Do(func() {
+		file_table_source_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_table_source_proto_rawDesc), len(file_table_source_proto_rawDesc)))
 	})
-	return file_core_csvimport_table_source_proto_rawDescData
+	return file_table_source_proto_rawDescData
 }
 
-var file_core_csvimport_table_source_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_core_csvimport_table_source_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_core_csvimport_table_source_proto_goTypes = []any{
+var file_table_source_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_table_source_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_table_source_proto_goTypes = []any{
 	(ColumnType)(0),      // 0: taxinomia.csvimport.ColumnType
 	(*ColumnSource)(nil), // 1: taxinomia.csvimport.ColumnSource
 	(*TableSource)(nil),  // 2: taxinomia.csvimport.TableSource
 	(*TableSources)(nil), // 3: taxinomia.csvimport.TableSources
 }
-var file_core_csvimport_table_source_proto_depIdxs = []int32{
+var file_table_source_proto_depIdxs = []int32{
 	0, // 0: taxinomia.csvimport.ColumnSource.type:type_name -> taxinomia.csvimport.ColumnType
 	1, // 1: taxinomia.csvimport.TableSource.columns:type_name -> taxinomia.csvimport.ColumnSource
 	2, // 2: taxinomia.csvimport.TableSources.tables:type_name -> taxinomia.csvimport.TableSource
@@ -349,27 +359,27 @@ var file_core_csvimport_table_source_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_core_csvimport_table_source_proto_init() }
-func file_core_csvimport_table_source_proto_init() {
-	if File_core_csvimport_table_source_proto != nil {
+func init() { file_table_source_proto_init() }
+func file_table_source_proto_init() {
+	if File_table_source_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_csvimport_table_source_proto_rawDesc), len(file_core_csvimport_table_source_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_table_source_proto_rawDesc), len(file_table_source_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_core_csvimport_table_source_proto_goTypes,
-		DependencyIndexes: file_core_csvimport_table_source_proto_depIdxs,
-		EnumInfos:         file_core_csvimport_table_source_proto_enumTypes,
-		MessageInfos:      file_core_csvimport_table_source_proto_msgTypes,
+		GoTypes:           file_table_source_proto_goTypes,
+		DependencyIndexes: file_table_source_proto_depIdxs,
+		EnumInfos:         file_table_source_proto_enumTypes,
+		MessageInfos:      file_table_source_proto_msgTypes,
 	}.Build()
-	File_core_csvimport_table_source_proto = out.File
-	file_core_csvimport_table_source_proto_goTypes = nil
-	file_core_csvimport_table_source_proto_depIdxs = nil
+	File_table_source_proto = out.File
+	file_table_source_proto_goTypes = nil
+	file_table_source_proto_depIdxs = nil
 }

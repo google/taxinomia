@@ -45,6 +45,10 @@ const (
 	CsvColumnTypeBool
 	// CsvColumnTypeFloat64 forces float64 type
 	CsvColumnTypeFloat64
+	// CsvColumnTypeInt64 forces int64 type
+	CsvColumnTypeInt64
+	// CsvColumnTypeUint64 forces uint64 type
+	CsvColumnTypeUint64
 )
 
 // CsvColumnSource defines source metadata for how a column is imported
@@ -145,6 +149,8 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	uint32Cols := make(map[int]*columns.Uint32Column)
 	boolCols := make(map[int]*columns.BoolColumn)
 	float64Cols := make(map[int]*columns.Float64Column)
+	int64Cols := make(map[int]*columns.Int64Column)
+	uint64Cols := make(map[int]*columns.Uint64Column)
 
 	for i, header := range headers {
 		config := getColumnSource(header, options.ColumnSources)
@@ -171,6 +177,14 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 		} else if columnTypes[i] == "float64" || config.Type == CsvColumnTypeFloat64 {
 			col := columns.NewFloat64Column(colDef)
 			float64Cols[i] = col
+			table.AddColumn(col)
+		} else if columnTypes[i] == "int64" || config.Type == CsvColumnTypeInt64 {
+			col := columns.NewInt64Column(colDef)
+			int64Cols[i] = col
+			table.AddColumn(col)
+		} else if columnTypes[i] == "uint64" || config.Type == CsvColumnTypeUint64 {
+			col := columns.NewUint64Column(colDef)
+			uint64Cols[i] = col
 			table.AddColumn(col)
 		} else if columnTypes[i] == "uint32" && config.Type != CsvColumnTypeString {
 			col := columns.NewUint32Column(colDef)
@@ -228,6 +242,32 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 				} else {
 					col.Append(b)
 				}
+			} else if col, ok := int64Cols[i]; ok {
+				// Parse as int64
+				if value == "" {
+					col.Append(0)
+				} else {
+					n, err := strconv.ParseInt(value, 10, 64)
+					if err != nil {
+						// Fallback: treat as 0 if parsing fails
+						col.Append(0)
+					} else {
+						col.Append(n)
+					}
+				}
+			} else if col, ok := uint64Cols[i]; ok {
+				// Parse as uint64
+				if value == "" {
+					col.Append(0)
+				} else {
+					n, err := strconv.ParseUint(value, 10, 64)
+					if err != nil {
+						// Fallback: treat as 0 if parsing fails
+						col.Append(0)
+					} else {
+						col.Append(n)
+					}
+				}
 			}
 		}
 	}
@@ -243,6 +283,12 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 		col.FinalizeColumn()
 	}
 	for _, col := range float64Cols {
+		col.FinalizeColumn()
+	}
+	for _, col := range int64Cols {
+		col.FinalizeColumn()
+	}
+	for _, col := range uint64Cols {
 		col.FinalizeColumn()
 	}
 
@@ -274,6 +320,12 @@ func detectColumnTypes(headers []string, dataRows [][]string, sampleSize int, co
 				continue
 			case CsvColumnTypeFloat64:
 				types[i] = "float64"
+				continue
+			case CsvColumnTypeInt64:
+				types[i] = "int64"
+				continue
+			case CsvColumnTypeUint64:
+				types[i] = "uint64"
 				continue
 			}
 		}

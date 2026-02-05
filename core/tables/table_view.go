@@ -1071,6 +1071,12 @@ func (tv *TableView) GetColumnType(colName string) query.ColumnType {
 	switch col.(type) {
 	case *columns.Uint32Column:
 		return query.ColumnTypeNumeric
+	case *columns.Int64Column:
+		return query.ColumnTypeNumeric
+	case *columns.Uint64Column:
+		return query.ColumnTypeNumeric
+	case *columns.Float64Column:
+		return query.ColumnTypeNumeric
 	case *columns.BoolColumn:
 		return query.ColumnTypeBool
 	case *columns.DatetimeColumn:
@@ -1096,6 +1102,8 @@ func (tv *TableView) GetColumnType(colName string) query.ColumnType {
 		return query.ColumnTypeNumeric
 	case interface{ GetValue(uint32) (int64, error) }:
 		return query.ColumnTypeNumeric
+	case interface{ GetValue(uint32) (uint64, error) }:
+		return query.ColumnTypeNumeric
 	case interface{ GetValue(uint32) (float64, error) }:
 		return query.ColumnTypeNumeric
 	case interface{ GetValue(uint32) (bool, error) }:
@@ -1118,6 +1126,10 @@ func (tv *TableView) GetColumnTypeName(colName string) string {
 	switch col.(type) {
 	case *columns.Uint32Column:
 		return "Uint32Column"
+	case *columns.Int64Column:
+		return "Int64Column"
+	case *columns.Uint64Column:
+		return "Uint64Column"
 	case *columns.BoolColumn:
 		return "BoolColumn"
 	case *columns.DatetimeColumn:
