@@ -74,6 +74,37 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	fmt.Println("=== Performance Tables Created ===")
 	fmt.Println()
 
+	// Create Google infrastructure tables
+	fmt.Println("=== Creating Google Infrastructure Tables ===")
+	googleRegionsTable := CreateGoogleRegionsTable()
+	googleZonesTable := CreateGoogleZonesTable()
+	googleClustersTable := CreateGoogleClustersTable()
+	googleRacksTable := CreateGoogleRacksTable()
+	googleMachinesTable := CreateGoogleMachinesTable()
+	googleCellsTable := CreateGoogleCellsTable()
+	googleJobsTable := CreateGoogleJobsTable()
+	googleTasksTable := CreateGoogleTasksTable(googleJobsTable)
+	googleAllocsTable := CreateGoogleAllocsTable(googleTasksTable)
+
+	dataModel.AddTable("google_regions", googleRegionsTable)
+	dataModel.AddTable("google_zones", googleZonesTable)
+	dataModel.AddTable("google_clusters", googleClustersTable)
+	dataModel.AddTable("google_racks", googleRacksTable)
+	dataModel.AddTable("google_machines", googleMachinesTable)
+	dataModel.AddTable("google_cells", googleCellsTable)
+	dataModel.AddTable("google_jobs", googleJobsTable)
+	dataModel.AddTable("google_tasks", googleTasksTable)
+	dataModel.AddTable("google_allocs", googleAllocsTable)
+
+	fmt.Printf("Created Google tables: regions=%d, zones=%d, clusters=%d, racks=%d, machines=%d\n",
+		googleRegionsTable.Length(), googleZonesTable.Length(), googleClustersTable.Length(),
+		googleRacksTable.Length(), googleMachinesTable.Length())
+	fmt.Printf("Created Google tables: cells=%d, jobs=%d, tasks=%d, allocs=%d\n",
+		googleCellsTable.Length(), googleJobsTable.Length(), googleTasksTable.Length(),
+		googleAllocsTable.Length())
+	fmt.Println("=== Google Infrastructure Tables Created ===")
+	fmt.Println()
+
 	// Load protobuf tables using datasources.Manager
 	// This demonstrates the 3-phase loading architecture:
 	// 1. Schema Discovery: loader.DiscoverSchema() discovers column names/types from data source
@@ -298,6 +329,97 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 			DefaultColumns: "5 columns",
 			Categories:     "System, Metadata",
 			Domains:        []string{"demo", "sales", "inventory"},
+		},
+		// Google Infrastructure Tables
+		{
+			Name:           "Google: Regions",
+			Description:    "Geographic regions containing data centers. Top of the physical hierarchy.",
+			URL:            "table?table=google_regions&limit=25",
+			RecordCount:    8,
+			ColumnCount:    6,
+			DefaultColumns: "6 columns",
+			Categories:     "Google, Infrastructure",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Zones",
+			Description:    "Data center zones within regions. Contains clusters of machines.",
+			URL:            "table?table=google_zones&limit=25",
+			RecordCount:    24,
+			ColumnCount:    8,
+			DefaultColumns: "6 columns",
+			Categories:     "Google, Infrastructure",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Clusters",
+			Description:    "Machine clusters within zones. Grouped by purpose (serving, batch, storage, ml).",
+			URL:            "table?table=google_clusters&limit=50",
+			RecordCount:    120,
+			ColumnCount:    8,
+			DefaultColumns: "6 columns",
+			Categories:     "Google, Infrastructure",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Racks",
+			Description:    "Physical server racks within clusters. Contains 4-6 machines each.",
+			URL:            "table?table=google_racks&limit=100",
+			RecordCount:    2400,
+			ColumnCount:    8,
+			DefaultColumns: "6 columns",
+			Categories:     "Google, Infrastructure",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Machines",
+			Description:    "Physical servers with CPU, memory, disk, and GPU resources. Shows health status and utilization.",
+			URL:            "table?table=google_machines&limit=100",
+			RecordCount:    12000,
+			ColumnCount:    13,
+			DefaultColumns: "8 columns",
+			Categories:     "Google, Infrastructure",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Cells",
+			Description:    "Borg cells that manage workloads. One cell per cluster.",
+			URL:            "table?table=google_cells&limit=50",
+			RecordCount:    120,
+			ColumnCount:    9,
+			DefaultColumns: "6 columns",
+			Categories:     "Google, Workloads",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Jobs",
+			Description:    "Workload definitions running in cells. Has priority (production, batch, best-effort).",
+			URL:            "table?table=google_jobs&limit=100",
+			RecordCount:    5000,
+			ColumnCount:    12,
+			DefaultColumns: "8 columns",
+			Categories:     "Google, Workloads",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Tasks",
+			Description:    "Running task instances. Links jobs to machines. Shows CPU/memory usage.",
+			URL:            "table?table=google_tasks&limit=100",
+			RecordCount:    50000,
+			ColumnCount:    12,
+			DefaultColumns: "8 columns",
+			Categories:     "Google, Workloads",
+			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Google: Allocs",
+			Description:    "Resource allocations (CPU, memory, disk) for tasks. Shows requested vs used.",
+			URL:            "table?table=google_allocs&limit=100",
+			RecordCount:    150000,
+			ColumnCount:    9,
+			DefaultColumns: "7 columns",
+			Categories:     "Google, Workloads",
+			Domains:        []string{"google"},
 		},
 	})
 

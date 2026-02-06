@@ -175,8 +175,13 @@ func (dm *DataModel) GetJoins() []*Join {
 }
 
 // GetJoin returns a specific join by its key
+// Returns nil if the join doesn't exist (not a typed nil)
 func (dm *DataModel) GetJoin(key string) interface{} {
-	return dm.joins[key]
+	join, exists := dm.joins[key]
+	if !exists {
+		return nil
+	}
+	return join
 }
 
 // GetJoinsForTable returns all joins that involve the specified table

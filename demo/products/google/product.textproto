@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Google Infrastructure product configuration
+
+name: "google"
+title: "Google Infrastructure"
+subtitle: "Borg-style datacenter infrastructure: regions, zones, clusters, racks, machines, cells, jobs, tasks, and allocations"
+
+domains: "google"
+
+# Physical hierarchy tables
+default_columns { table_name: "google_regions" columns: "region" columns: "name" columns: "continent" columns: "zone_count" columns: "total_machines" columns: "network_capacity_tbps" }
+default_columns { table_name: "google_zones" columns: "zone" columns: "region" columns: "status" columns: "cluster_count" columns: "total_machines" columns: "pue" }
+default_columns { table_name: "google_clusters" columns: "cluster" columns: "zone" columns: "purpose" columns: "generation" columns: "status" columns: "rack_count" }
+default_columns { table_name: "google_racks" columns: "rack" columns: "cluster" columns: "position" columns: "machine_count" columns: "power_draw_kw" columns: "status" }
+default_columns { table_name: "google_machines" columns: "machine" columns: "rack" columns: "cluster" columns: "cpu_cores" columns: "memory_gb" columns: "gpu_count" columns: "status" columns: "cpu_free_cores" }
+
+# Workload hierarchy tables
+default_columns { table_name: "google_cells" columns: "cell" columns: "cluster" columns: "version" columns: "job_count" columns: "task_count" columns: "utilization_pct" }
+default_columns { table_name: "google_jobs" columns: "job" columns: "cell" columns: "owner" columns: "priority" columns: "state" columns: "task_count" columns: "cpu_request" }
+default_columns { table_name: "google_tasks" columns: "task" columns: "job" columns: "machine" columns: "state" columns: "cpu_usage" columns: "memory_usage_gb" columns: "restarts" }
+default_columns { table_name: "google_allocs" columns: "alloc" columns: "task" columns: "resource_type" columns: "requested" columns: "limit" columns: "used" columns: "unit" }
