@@ -1207,6 +1207,19 @@
             margin-bottom: 20px;
         }
 
+        .table-primary-key {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: normal;
+            color: #2980b9;
+            background-color: #e8f4fc;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-left: 12px;
+            vertical-align: middle;
+            border: 1px solid #c5dff0;
+        }
+
         h2 {
             margin-bottom: 15px;
         }
@@ -1474,6 +1487,19 @@
             margin-bottom: 4px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+
+        .detail-field-entity-type {
+            display: inline-block;
+            font-size: 9px;
+            color: #2980b9;
+            background-color: #e8f4fc;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-left: 6px;
+            text-transform: none;
+            letter-spacing: normal;
+            vertical-align: middle;
         }
 
         .detail-field-value {
@@ -2196,7 +2222,7 @@
                 </div>
             </div>
 
-            <h1>{{.Title}}</h1>
+            <h1>{{.Title}}{{if .PrimaryKeyEntityType}}<span class="table-primary-key" title="{{.PrimaryKeyEntityType}}">{{if .PrimaryKeyDescription}}{{.PrimaryKeyDescription}}{{else}}{{.PrimaryKeyEntityType}}{{end}}</span>{{end}}</h1>
 
             {{/* Detail panel for selected row - above pagination bar */}}
             {{if .SelectedRowData}}
@@ -2208,7 +2234,7 @@
                 <div class="detail-panel-content">
                     {{range .SelectedRowData}}
                     <div class="detail-field{{if .EntityType}} has-entity-type{{end}}">
-                        <div class="detail-field-name">{{.DisplayName}}</div>
+                        <div class="detail-field-name">{{.DisplayName}}{{if .EntityType}}<span class="detail-field-entity-type">{{.EntityType}}</span>{{end}}</div>
                         <div class="detail-field-value">{{.Value}}</div>
                         {{if .EntityURLs}}
                         <div class="detail-field-links">

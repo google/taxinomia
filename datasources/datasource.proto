@@ -67,6 +67,11 @@ message DataSource {
   // Type-specific configuration as key-value pairs.
   // Each loader defines its own required/optional config keys.
   map<string, string> config = 5;
+
+  // The entity type that serves as this table's primary key.
+  // This identifies the main entity type that this table is about.
+  // For example: "region" for a regions table, "customer_id" for a customers table.
+  string primary_key_entity_type = 6;
 }
 
 // URLTemplate defines a single URL template with a display name.

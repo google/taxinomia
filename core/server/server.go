@@ -47,19 +47,27 @@ type ProductConfig interface {
 	GetDefaultColumns(tableName string) []string
 }
 
+// PrimaryKeyResolver is a function that returns the primary key entity type for a table.
+type PrimaryKeyResolver func(tableName string) string
+
+// EntityTypeDescriptionResolver is a function that returns the description for an entity type.
+type EntityTypeDescriptionResolver func(entityType string) string
+
 // Server represents the application server with all its dependencies
 type Server struct {
-	dataModel      *models.DataModel
-	renderer       *rendering.TableRenderer
-	tableViewCache map[string]*tables.TableView
-	userStore      users.UserStore
-	urlResolver    views.URLResolver     // Optional resolver for entity type URLs
-	allURLsResolver views.AllURLsResolver // Optional resolver for all entity type URLs (for detail panel)
+	dataModel          *models.DataModel
+	renderer           *rendering.TableRenderer
+	tableViewCache     map[string]*tables.TableView
+	userStore          users.UserStore
+	urlResolver               views.URLResolver              // Optional resolver for entity type URLs
+	allURLsResolver           views.AllURLsResolver          // Optional resolver for all entity type URLs (for detail panel)
+	primaryKeyResolver        PrimaryKeyResolver             // Optional resolver for table primary key entity types
+	entityTypeDescResolver    EntityTypeDescriptionResolver  // Optional resolver for entity type descriptions
 
 	// Caches for computed columns
-	exprCache        map[string]*expr.Expression          // expression string -> compiled expression
-	computedColState map[string]map[string]string         // cacheKey -> columnName -> expression
-	computedColErrors map[string]map[string]string        // cacheKey -> columnName -> error message (empty if no error)
+	exprCache         map[string]*expr.Expression   // expression string -> compiled expression
+	computedColState  map[string]map[string]string  // cacheKey -> columnName -> expression
+	computedColErrors map[string]map[string]string  // cacheKey -> columnName -> error message (empty if no error)
 }
 
 // NewServer creates a new server with the given data model
@@ -92,6 +100,16 @@ func (s *Server) SetURLResolver(resolver views.URLResolver) {
 // SetAllURLsResolver sets the resolver for all entity type URLs (used in detail panel)
 func (s *Server) SetAllURLsResolver(resolver views.AllURLsResolver) {
 	s.allURLsResolver = resolver
+}
+
+// SetPrimaryKeyResolver sets the resolver for table primary key entity types
+func (s *Server) SetPrimaryKeyResolver(resolver PrimaryKeyResolver) {
+	s.primaryKeyResolver = resolver
+}
+
+// SetEntityTypeDescriptionResolver sets the resolver for entity type descriptions
+func (s *Server) SetEntityTypeDescriptionResolver(resolver EntityTypeDescriptionResolver) {
+	s.entityTypeDescResolver = resolver
 }
 
 // makeCacheKey creates a cache key combining user and table name
@@ -277,7 +295,15 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	// Build the view model from the table view
 	vmStart := time.Now()
 	title := strings.Title(q.Table)
-	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver)
+	var primaryKeyEntityType string
+	if s.primaryKeyResolver != nil {
+		primaryKeyEntityType = s.primaryKeyResolver(q.Table)
+	}
+	var entityTypeDescResolver views.EntityTypeDescriptionResolver
+	if s.entityTypeDescResolver != nil {
+		entityTypeDescResolver = views.EntityTypeDescriptionResolver(s.entityTypeDescResolver)
+	}
+	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver, primaryKeyEntityType, entityTypeDescResolver)
 	timing.Record("Build ViewModel", time.Since(vmStart))
 
 	// Set timing information

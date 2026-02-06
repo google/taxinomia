@@ -411,6 +411,28 @@ type ResolvedURL struct {
 	URL  string // The resolved URL
 }
 
+// GetPrimaryKeyEntityType returns the primary key entity type for a source.
+// Returns empty string if the source doesn't exist or has no primary key defined.
+func (m *Manager) GetPrimaryKeyEntityType(sourceName string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if source, ok := m.sources[sourceName]; ok {
+		return source.GetPrimaryKeyEntityType()
+	}
+	return ""
+}
+
+// GetEntityTypeDescription returns the description for an entity type.
+// Returns empty string if the entity type doesn't exist or has no description.
+func (m *Manager) GetEntityTypeDescription(entityType string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if et, ok := m.entityTypes[entityType]; ok {
+		return et.GetDescription()
+	}
+	return ""
+}
+
 // GetAllURLs returns all resolved URLs for a given entity type and value.
 // Returns an empty slice if the entity type has no URL templates.
 func (m *Manager) GetAllURLs(entityType, value string) []ResolvedURL {

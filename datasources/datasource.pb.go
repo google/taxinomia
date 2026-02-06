@@ -178,9 +178,13 @@ type DataSource struct {
 	SourceType string `protobuf:"bytes,4,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
 	// Type-specific configuration as key-value pairs.
 	// Each loader defines its own required/optional config keys.
-	Config        map[string]string `protobuf:"bytes,5,rep,name=config,proto3" json:"config,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Config map[string]string `protobuf:"bytes,5,rep,name=config,proto3" json:"config,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The entity type that serves as this table's primary key.
+	// This identifies the main entity type that this table is about.
+	// For example: "region" for a regions table, "customer_id" for a customers table.
+	PrimaryKeyEntityType string `protobuf:"bytes,6,opt,name=primary_key_entity_type,json=primaryKeyEntityType,proto3" json:"primary_key_entity_type,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *DataSource) Reset() {
@@ -246,6 +250,13 @@ func (x *DataSource) GetConfig() map[string]string {
 		return x.Config
 	}
 	return nil
+}
+
+func (x *DataSource) GetPrimaryKeyEntityType() string {
+	if x != nil {
+		return x.PrimaryKeyEntityType
+	}
+	return ""
 }
 
 // URLTemplate defines a single URL template with a display name.
@@ -458,7 +469,7 @@ const file_datasource_proto_rawDesc = "" +
 	"entityType\"}\n" +
 	"\x11ColumnAnnotations\x12%\n" +
 	"\x0eannotations_id\x18\x01 \x01(\tR\rannotationsId\x12A\n" +
-	"\acolumns\x18\x02 \x03(\v2'.taxinomia.datasources.ColumnAnnotationR\acolumns\"\x84\x02\n" +
+	"\acolumns\x18\x02 \x03(\v2'.taxinomia.datasources.ColumnAnnotationR\acolumns\"\xbb\x02\n" +
 	"\n" +
 	"DataSource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12%\n" +
@@ -466,7 +477,8 @@ const file_datasource_proto_rawDesc = "" +
 	"\adomains\x18\x03 \x03(\tR\adomains\x12\x1f\n" +
 	"\vsource_type\x18\x04 \x01(\tR\n" +
 	"sourceType\x12E\n" +
-	"\x06config\x18\x05 \x03(\v2-.taxinomia.datasources.DataSource.ConfigEntryR\x06config\x1a9\n" +
+	"\x06config\x18\x05 \x03(\v2-.taxinomia.datasources.DataSource.ConfigEntryR\x06config\x125\n" +
+	"\x17primary_key_entity_type\x18\x06 \x01(\tR\x14primaryKeyEntityType\x1a9\n" +
 	"\vConfigEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\\\n" +

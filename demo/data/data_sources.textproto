@@ -34,6 +34,7 @@ sources {
   config { key: "proto_file"     value: "customer_orders.textproto" }
   config { key: "message_type"   value: "taxinomia.demo.CustomerOrders" }
   config { key: "format"         value: "textproto" }
+  primary_key_entity_type: "demo.order_id"
 }
 
 sources {
@@ -45,6 +46,7 @@ sources {
   config { key: "proto_file"     value: "customer_orders.binpb" }
   config { key: "message_type"   value: "taxinomia.demo.CustomerOrders" }
   config { key: "format"         value: "binary" }
+  primary_key_entity_type: "demo.order_id"
 }
 
 # Entity type definitions with URL templates
@@ -79,4 +81,40 @@ entity_types {
   name: "demo.discount_code"
   description: "Promotional discount code"
   urls { name: "View Discounts"    template: "table?table=customer_orders&filter=discount_code:{value}" is_default: true }
+}
+
+# Entity types for demo CSV tables (orders, regions, capitals, items)
+entity_types {
+  name: "region"
+  description: "Geographic region"
+  urls { name: "View Region"        template: "table?table=regions&filter=region:{value}" is_default: true }
+  urls { name: "Orders by Region"   template: "table?table=orders&filter=region:{value}" }
+  urls { name: "Capitals in Region" template: "table?table=capitals&filter=region:{value}" }
+}
+
+entity_types {
+  name: "capital"
+  description: "Capital city"
+  urls { name: "View Capital"       template: "table?table=capitals&filter=capital:{value}" is_default: true }
+  urls { name: "Region Details"     template: "table?table=regions&filter=capital:{value}" }
+}
+
+entity_types {
+  name: "status"
+  description: "Order status"
+  urls { name: "Filter by Status"   template: "table?table=orders&filter=status:{value}" is_default: true }
+  urls { name: "Group by Status"    template: "table?table=orders&groupon=status" }
+}
+
+entity_types {
+  name: "category"
+  description: "Product category"
+  urls { name: "Items in Category"  template: "table?table=items&filter=category:{value}" is_default: true }
+  urls { name: "Orders by Category" template: "table?table=orders&filter=category:{value}" }
+}
+
+entity_types {
+  name: "item_id"
+  description: "Item identifier"
+  urls { name: "View Item"          template: "table?table=items&filter=item_id:{value}" is_default: true }
 }

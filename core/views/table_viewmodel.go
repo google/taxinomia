@@ -34,8 +34,10 @@ import (
 
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
-	Title           string
-	Headers         []string               // Column display names
+	Title                     string
+	PrimaryKeyEntityType      string // The entity type that serves as primary key for this table
+	PrimaryKeyDescription     string // Description of the primary key entity type
+	Headers              []string           // Column display names
 	Columns         []string               // Column names (for data access)
 	ColumnWidths    map[string]int         // Column widths in pixels (from URL)
 	Rows            []map[string]string    // Each row is a map of column name to value (flat table, ungrouped)
@@ -107,6 +109,9 @@ type URLResolver func(entityType, value string) string
 // AllURLsResolver is a function that resolves all available URLs for a given entity type and value.
 // Returns a slice of EntityURL with name and resolved URL for each available URL template.
 type AllURLsResolver func(entityType, value string) []EntityURL
+
+// EntityTypeDescriptionResolver is a function that returns the description for an entity type.
+type EntityTypeDescriptionResolver func(entityType string) string
 
 // TimingEntry represents a single timing measurement
 type TimingEntry struct {
@@ -441,13 +446,23 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 // computedColErrors and filterErrors are maps of column/filter names to error messages
 // urlResolver is an optional function to resolve entity type URLs (can be nil)
 // allURLsResolver is an optional function to resolve all URLs for an entity type (for detail panel)
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver) TableViewModel {
+// primaryKeyEntityType is the entity type that serves as the table's primary key (can be empty)
+// entityTypeDescResolver is an optional function to resolve entity type descriptions (can be nil)
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver, primaryKeyEntityType string, entityTypeDescResolver EntityTypeDescriptionResolver) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
+	// Resolve primary key description if we have a resolver and entity type
+	var primaryKeyDescription string
+	if primaryKeyEntityType != "" && entityTypeDescResolver != nil {
+		primaryKeyDescription = entityTypeDescResolver(primaryKeyEntityType)
+	}
+
 	vm := TableViewModel{
-		Title:                title,
-		Headers:              []string{},
+		Title:                     title,
+		PrimaryKeyEntityType:      primaryKeyEntityType,
+		PrimaryKeyDescription:     primaryKeyDescription,
+		Headers:                   []string{},
 		Columns:              []string{},
 		ColumnWidths:         make(map[string]int),
 		Rows:                 []map[string]string{},

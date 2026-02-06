@@ -146,6 +146,12 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 		return result
 	})
 
+	// Set up primary key resolver for table metadata
+	srv.SetPrimaryKeyResolver(dsManager.GetPrimaryKeyEntityType)
+
+	// Set up entity type description resolver
+	srv.SetEntityTypeDescriptionResolver(dsManager.GetEntityTypeDescription)
+
 	// Load user profiles
 	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
 	userStore := NewUserStore()
