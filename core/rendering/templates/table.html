@@ -1398,6 +1398,125 @@
         .value-sorted {
             font-weight: bold;
         }
+
+        /* Selected row highlighting */
+        tr.selected-row {
+            background-color: #e3f2fd !important;
+        }
+
+        tr.selected-row td {
+            background-color: #e3f2fd !important;
+        }
+
+        tbody tr:not(.truncation-row):hover {
+            background-color: #f5f5f5;
+            cursor: pointer;
+        }
+
+        /* Detail panel styles */
+        .detail-panel {
+            background-color: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .detail-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .detail-panel-title {
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .detail-panel-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #666;
+            cursor: pointer;
+            padding: 2px 8px;
+            margin-right: 10px;
+            border-radius: 3px;
+            text-decoration: none;
+        }
+
+        .detail-panel-close:hover {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+
+        .detail-panel-content {
+            padding: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
+
+        .detail-field {
+            background-color: #fff;
+            padding: 10px 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 3px;
+        }
+
+        .detail-field-name {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-field-value {
+            font-size: 14px;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .detail-field-value a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        .detail-field-value a:hover {
+            text-decoration: underline;
+        }
+
+        .detail-field.has-entity-type {
+            border-left: 3px solid #3498db;
+        }
+
+        .detail-field-links {
+            margin-top: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .detail-field-links a {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 11px;
+            background-color: #e8f4fc;
+            color: #2980b9;
+            border-radius: 3px;
+            text-decoration: none;
+            border: 1px solid #c5dff0;
+        }
+
+        .detail-field-links a:hover {
+            background-color: #d0e8f8;
+            border-color: #a8d4f0;
+        }
     </style>
     <script>
         // Toggle sidebar visibility
@@ -2078,6 +2197,32 @@
             </div>
 
             <h1>{{.Title}}</h1>
+
+            {{/* Detail panel for selected row - above pagination bar */}}
+            {{if .SelectedRowData}}
+            <div class="detail-panel" id="detail-panel">
+                <div class="detail-panel-header">
+                    <a href="javascript:void(0)" class="detail-panel-close" onclick="deselectRow()" title="Close">&times;</a>
+                    <span class="detail-panel-title">Row {{.SelectedRowIndex}} Details</span>
+                </div>
+                <div class="detail-panel-content">
+                    {{range .SelectedRowData}}
+                    <div class="detail-field{{if .EntityType}} has-entity-type{{end}}">
+                        <div class="detail-field-name">{{.DisplayName}}</div>
+                        <div class="detail-field-value">{{.Value}}</div>
+                        {{if .EntityURLs}}
+                        <div class="detail-field-links">
+                            {{range .EntityURLs}}
+                            <a href="{{.URL}}">{{.Name}}</a>
+                            {{end}}
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+
             {{if gt .TotalRows 0}}
             <div class="pagination-info">
                 {{if .HasMoreRows}}
@@ -2111,6 +2256,7 @@
                 {{end}}
             </div>
             {{end}}
+
             <table id="data-table" data-total-rows="{{.TotalRows}}" data-displayed-rows="{{.DisplayedRows}}">
         <thead>
             <tr>
@@ -2263,7 +2409,8 @@ Use &quot;quotes&quot; for exact match">
             {{else}}
                 {{/* Render flat rows (ungrouped) */}}
                 {{range $rowIdx, $row := .Rows}}
-                <tr>
+                {{$rowNum := add $rowIdx 1}}
+                <tr data-row-idx="{{$rowNum}}"{{if eq $rowNum $.SelectedRowIndex}} class="selected-row"{{end}}>
                     {{range $colName := $.Columns}}
                     {{$url := ""}}{{if $.RowURLs}}{{with index $.RowURLs $rowIdx}}{{$url = index . $colName}}{{end}}{{end}}
                     <td>{{if $url}}<a href="{{$url}}" class="entity-link">{{index $row $colName}}</a>{{else}}{{index $row $colName}}{{end}}</td>
@@ -2281,6 +2428,7 @@ Use &quot;quotes&quot; for exact match">
             {{end}}
         </tbody>
     </table>
+
         </main>
     </div>
 
@@ -2538,6 +2686,40 @@ Use &quot;quotes&quot; for exact match">
                 const columnName = e.target.dataset.columnName;
                 if (columnName) {
                     removeComputedColumn(columnName);
+                }
+            }
+        });
+
+        // Row selection handling
+        function selectRow(rowIdx) {
+            const url = new URL(window.location);
+            url.searchParams.set('row', rowIdx.toString());
+            window.location.href = url.toString();
+        }
+
+        function deselectRow() {
+            const url = new URL(window.location);
+            url.searchParams.delete('row');
+            window.location.href = url.toString();
+        }
+
+        // Handle row clicks for selection (flat rows only)
+        document.addEventListener('click', function(e) {
+            // Find the clicked row - must be in tbody and have data-row-idx
+            const row = e.target.closest('tbody tr[data-row-idx]');
+            if (!row) return;
+
+            // Don't select if clicking on a link, button, input, or interactive elements
+            if (e.target.closest('a, button, input, .filter-link, .entity-link, .multiselect-checkbox')) return;
+
+            const rowIdx = parseInt(row.dataset.rowIdx, 10);
+            if (rowIdx > 0) {
+                // If already selected, deselect; otherwise select
+                const currentRow = parseInt(new URL(window.location).searchParams.get('row'), 10) || 0;
+                if (currentRow === rowIdx) {
+                    deselectRow();
+                } else {
+                    selectRow(rowIdx);
                 }
             }
         });

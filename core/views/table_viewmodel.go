@@ -78,11 +78,35 @@ type TableViewModel struct {
 
 	// Entity type info for URL resolution
 	ColumnEntityTypes map[string]string // Column entity types (columnName -> entityType)
+
+	// Row selection state
+	SelectedRowIndex int                 // 1-based index of selected row (0 = no selection)
+	SelectedRowData  []SelectedRowField  // Fields of the selected row for detail panel
+}
+
+// SelectedRowField represents a single field in the selected row for the detail panel
+type SelectedRowField struct {
+	ColumnName  string      // Internal column name
+	DisplayName string      // Display name for the column
+	Value       string      // The cell value
+	ValueURL    string      // URL for the value (if entity type has default URL)
+	EntityType  string      // Entity type (if any) for showing related actions
+	EntityURLs  []EntityURL // All available URLs for the entity type
+}
+
+// EntityURL represents a named URL for an entity type
+type EntityURL struct {
+	Name string // Display name for the URL (e.g., "View Orders", "Orders by Status")
+	URL  string // The resolved URL
 }
 
 // URLResolver is a function that resolves a URL for a given entity type and value.
 // Returns an empty string if no URL is available.
 type URLResolver func(entityType, value string) string
+
+// AllURLsResolver is a function that resolves all available URLs for a given entity type and value.
+// Returns a slice of EntityURL with name and resolved URL for each available URL template.
+type AllURLsResolver func(entityType, value string) []EntityURL
 
 // TimingEntry represents a single timing measurement
 type TimingEntry struct {
@@ -416,7 +440,8 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 // BuildViewModel creates a ViewModel from a TableView using the specified View
 // computedColErrors and filterErrors are maps of column/filter names to error messages
 // urlResolver is an optional function to resolve entity type URLs (can be nil)
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver) TableViewModel {
+// allURLsResolver is an optional function to resolve all URLs for an entity type (for detail panel)
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
@@ -784,6 +809,48 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			if len(rowURLs) > 0 {
 				vm.RowURLs[i] = rowURLs
 			}
+		}
+	}
+
+	// Build selected row data for detail panel (flat rows only)
+	if q.SelectedRow > 0 && q.SelectedRow <= len(vm.Rows) {
+		vm.SelectedRowIndex = q.SelectedRow
+		selectedRow := vm.Rows[q.SelectedRow-1] // Convert to 0-based index
+		vm.SelectedRowData = make([]SelectedRowField, 0, len(view.Columns))
+
+		// Build column name to display name map
+		colDisplayNames := make(map[string]string)
+		for _, col := range tableView.GetColumnNames() {
+			if c := tableView.GetColumn(col); c != nil {
+				colDisplayNames[col] = c.ColumnDef().DisplayName()
+			}
+		}
+
+		for _, colName := range view.Columns {
+			displayName := colDisplayNames[colName]
+			if displayName == "" {
+				displayName = colName
+			}
+			value := selectedRow[colName]
+			entityType := vm.ColumnEntityTypes[colName]
+			var valueURL string
+			var entityURLs []EntityURL
+			if entityType != "" && value != "" {
+				if urlResolver != nil {
+					valueURL = urlResolver(entityType, value)
+				}
+				if allURLsResolver != nil {
+					entityURLs = allURLsResolver(entityType, value)
+				}
+			}
+			vm.SelectedRowData = append(vm.SelectedRowData, SelectedRowField{
+				ColumnName:  colName,
+				DisplayName: displayName,
+				Value:       value,
+				ValueURL:    valueURL,
+				EntityType:  entityType,
+				EntityURLs:  entityURLs,
+			})
 		}
 	}
 

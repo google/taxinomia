@@ -39,8 +39,13 @@ type TableRenderer struct {
 func NewTableRenderer() (*TableRenderer, error) {
 	trustedFS := template.TrustedFSFromEmbed(templateFS)
 
+	// Define custom template functions
+	funcs := template.FuncMap{
+		"add": func(a, b int) int { return a + b },
+	}
+
 	// Parse the table template
-	tableTemplate, err := template.New("table.html").ParseFS(trustedFS, "templates/table.html")
+	tableTemplate, err := template.New("table.html").Funcs(funcs).ParseFS(trustedFS, "templates/table.html")
 	if err != nil {
 		return nil, err
 	}

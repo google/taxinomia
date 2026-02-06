@@ -198,6 +198,7 @@ type Query struct {
 	ShowInfoPane   bool   // Whether the info pane is visible (default: true)
 	InfoPaneTab    string // Active tab in info pane ("url" or "perf")
 	AnimatedColumn string // Column to animate (e.g., just grouped) - transient, not persisted in subsequent URLs
+	SelectedRow    int    // Index of the selected row (0 = no selection, 1-based when selected)
 }
 
 // NewQuery creates a Query from a URL
@@ -321,6 +322,14 @@ func NewQuery(u *url.URL) *Query {
 
 	// Extract animation parameter (transient - column that was just grouped)
 	state.AnimatedColumn = q.Get("_anim")
+
+	// Extract selected row parameter (1-based row index)
+	selectedRowStr := q.Get("row")
+	if selectedRowStr != "" {
+		if row, err := strconv.Atoi(selectedRowStr); err == nil && row > 0 {
+			state.SelectedRow = row
+		}
+	}
 
 	// Reorder columns: filtered columns first, then grouped columns, then others
 	state.reorderColumns()
@@ -465,6 +474,7 @@ func (s *Query) Clone() *Query {
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
 		ShowInfoPane:        s.ShowInfoPane,
 		InfoPaneTab:         s.InfoPaneTab,
+		SelectedRow:         s.SelectedRow,
 	}
 
 	// Deep copy columns
@@ -766,6 +776,11 @@ func (s *Query) ToURL() string {
 	}
 	if s.InfoPaneTab != "" && s.InfoPaneTab != "url" {
 		q.Set("infotab", s.InfoPaneTab)
+	}
+
+	// Add selected row parameter
+	if s.SelectedRow > 0 {
+		q.Set("row", strconv.Itoa(s.SelectedRow))
 	}
 
 	u.RawQuery = q.Encode()
@@ -1112,5 +1127,13 @@ func (s *Query) WithGroupAggSortDirectionToggled(groupedColumn string) safehtml.
 		aggSort.Descending = !aggSort.Descending
 	}
 
+	return newState.ToSafeURL()
+}
+
+// WithSelectedRow returns a URL with the specified row selected.
+// Row is 1-based. Use 0 to deselect.
+func (s *Query) WithSelectedRow(row int) safehtml.URL {
+	newState := s.Clone()
+	newState.SelectedRow = row
 	return newState.ToSafeURL()
 }

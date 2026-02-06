@@ -53,7 +53,8 @@ type Server struct {
 	renderer       *rendering.TableRenderer
 	tableViewCache map[string]*tables.TableView
 	userStore      users.UserStore
-	urlResolver    views.URLResolver // Optional resolver for entity type URLs
+	urlResolver    views.URLResolver     // Optional resolver for entity type URLs
+	allURLsResolver views.AllURLsResolver // Optional resolver for all entity type URLs (for detail panel)
 
 	// Caches for computed columns
 	exprCache        map[string]*expr.Expression          // expression string -> compiled expression
@@ -86,6 +87,11 @@ func (s *Server) SetUserStore(store users.UserStore) {
 // SetURLResolver sets the URL resolver for entity type links
 func (s *Server) SetURLResolver(resolver views.URLResolver) {
 	s.urlResolver = resolver
+}
+
+// SetAllURLsResolver sets the resolver for all entity type URLs (used in detail panel)
+func (s *Server) SetAllURLsResolver(resolver views.AllURLsResolver) {
+	s.allURLsResolver = resolver
 }
 
 // makeCacheKey creates a cache key combining user and table name
@@ -271,7 +277,7 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	// Build the view model from the table view
 	vmStart := time.Now()
 	title := strings.Title(q.Table)
-	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver)
+	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver)
 	timing.Record("Build ViewModel", time.Since(vmStart))
 
 	// Set timing information

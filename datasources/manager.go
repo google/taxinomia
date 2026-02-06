@@ -405,6 +405,34 @@ func (m *Manager) ResolveDefaultURL(entityType, value string) string {
 	return m.ResolveURL(entityType, value, "")
 }
 
+// ResolvedURL represents a resolved URL with its name.
+type ResolvedURL struct {
+	Name string // Display name for the URL
+	URL  string // The resolved URL
+}
+
+// GetAllURLs returns all resolved URLs for a given entity type and value.
+// Returns an empty slice if the entity type has no URL templates.
+func (m *Manager) GetAllURLs(entityType, value string) []ResolvedURL {
+	m.mu.RLock()
+	et := m.entityTypes[entityType]
+	m.mu.RUnlock()
+
+	if et == nil || len(et.GetUrls()) == 0 {
+		return nil
+	}
+
+	result := make([]ResolvedURL, 0, len(et.GetUrls()))
+	for _, u := range et.GetUrls() {
+		resolvedURL := replacePlaceholders(u.GetTemplate(), value, entityType)
+		result = append(result, ResolvedURL{
+			Name: u.GetName(),
+			URL:  resolvedURL,
+		})
+	}
+	return result
+}
+
 // getDefaultTemplate returns the template marked as default, or the first template.
 func getDefaultTemplate(urls []*URLTemplate) string {
 	if len(urls) == 0 {

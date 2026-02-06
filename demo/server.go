@@ -133,6 +133,19 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// Set up URL resolver for entity type links
 	srv.SetURLResolver(dsManager.ResolveDefaultURL)
 
+	// Set up all URLs resolver for detail panel
+	srv.SetAllURLsResolver(func(entityType, value string) []views.EntityURL {
+		resolved := dsManager.GetAllURLs(entityType, value)
+		if len(resolved) == 0 {
+			return nil
+		}
+		result := make([]views.EntityURL, len(resolved))
+		for i, r := range resolved {
+			result[i] = views.EntityURL{Name: r.Name, URL: r.URL}
+		}
+		return result
+	})
+
 	// Load user profiles
 	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
 	userStore := NewUserStore()
