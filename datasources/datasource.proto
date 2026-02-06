@@ -69,6 +69,35 @@ message DataSource {
   map<string, string> config = 5;
 }
 
+// URLTemplate defines a single URL template with a display name.
+// Templates can use placeholders like {value}, {column}, {table}.
+message URLTemplate {
+  // Display name shown in the UI (e.g., "View Product", "Filter by Customer").
+  string name = 1;
+
+  // URL template with placeholders (e.g., "/table?table=orders&filter=customer_id:{value}").
+  string template = 2;
+
+  // If true, this URL is used as the default link for cell values.
+  // Only one URL per entity type should be marked as default.
+  // If no URL is marked as default, the first URL is used.
+  bool is_default = 3;
+}
+
+// EntityTypeDefinition defines metadata for an entity type.
+// Entity types enable joins between columns and can have associated URL templates.
+message EntityTypeDefinition {
+  // The entity type name (e.g., "demo.customer_id", "meta.table_name").
+  string name = 1;
+
+  // Human-readable description of this entity type.
+  string description = 2;
+
+  // URL templates for navigating to related views.
+  // Multiple templates allow different actions (view, edit, filter, etc.).
+  repeated URLTemplate urls = 3;
+}
+
 // DataSourcesConfig is the top-level configuration for data sources.
 message DataSourcesConfig {
   // Column annotations - loaded eagerly at startup.
@@ -77,4 +106,7 @@ message DataSourcesConfig {
 
   // Data sources - metadata only, data loaded lazily on demand.
   repeated DataSource sources = 2;
+
+  // Entity type definitions with descriptions and URL templates.
+  repeated EntityTypeDefinition entity_types = 3;
 }

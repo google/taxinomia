@@ -39,6 +39,7 @@ type TableViewModel struct {
 	Columns         []string               // Column names (for data access)
 	ColumnWidths    map[string]int         // Column widths in pixels (from URL)
 	Rows            []map[string]string    // Each row is a map of column name to value (flat table, ungrouped)
+	RowURLs         []map[string]string    // URLs for each cell in flat rows (parallel to Rows)
 	GroupedRows     []GroupedRow           // Hierarchical rows for grouped display
 	IsGrouped       bool                   // Whether the table is currently grouped
 	AllColumns      []ColumnInfo           // All available columns with metadata
@@ -74,7 +75,14 @@ type TableViewModel struct {
 	// Column types display (controlled via URL)
 	ShowColumnTypes bool              // Whether to show the column types row
 	ColumnTypes     map[string]string // Column internal types (columnName -> type string)
+
+	// Entity type info for URL resolution
+	ColumnEntityTypes map[string]string // Column entity types (columnName -> entityType)
 }
+
+// URLResolver is a function that resolves a URL for a given entity type and value.
+// Returns an empty string if no URL is available.
+type URLResolver func(entityType, value string) string
 
 // TimingEntry represents a single timing measurement
 type TimingEntry struct {
@@ -105,6 +113,7 @@ type GroupedRow struct {
 // Rowspan indicates how many rows this cell spans (1 = no span, >1 = spans multiple rows)
 type GroupedCell struct {
 	Value                 string       // Display value for the cell
+	ValueURL              string       // URL for the cell value (if entity type has default URL)
 	NumRows               int          // Number of rows in this group (for display in brackets)
 	NumSubgroups          int          // Number of subgroups (0 if leaf group)
 	Rowspan               int
@@ -406,7 +415,8 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 
 // BuildViewModel creates a ViewModel from a TableView using the specified View
 // computedColErrors and filterErrors are maps of column/filter names to error messages
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string) TableViewModel {
+// urlResolver is an optional function to resolve entity type URLs (can be nil)
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
@@ -416,6 +426,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		Columns:              []string{},
 		ColumnWidths:         make(map[string]int),
 		Rows:                 []map[string]string{},
+		RowURLs:              []map[string]string{},
 		AllColumns:           []ColumnInfo{},
 		CurrentURL:           currentURL,
 		ColumnFilters:        make(map[string]string),
@@ -424,6 +435,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		ComputedColumnErrors: make(map[string]ValidationError),
 		FilterErrors:         make(map[string]ValidationError),
 		ColumnTypes:          make(map[string]string),
+		ColumnEntityTypes:    make(map[string]string),
 	}
 
 	// Convert error strings to ValidationError structs
@@ -485,7 +497,11 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		col := tableView.GetColumn(colName)
 		if col != nil {
 			// Check if column has an entity type
-			hasEntityType := col.ColumnDef().EntityType() != ""
+			entityType := col.ColumnDef().EntityType()
+			hasEntityType := entityType != ""
+			if hasEntityType {
+				vm.ColumnEntityTypes[colName] = entityType
+			}
 
 			// Use the column's IsKey property
 			isKey := col.IsKey()
@@ -753,6 +769,24 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	vm.CurrentLimit = q.Limit
 	vm.HasMoreRows = q.Limit > 0 && totalRows > q.Limit
 
+	// Build RowURLs for flat rows if URL resolver is provided
+	if urlResolver != nil && len(vm.ColumnEntityTypes) > 0 {
+		vm.RowURLs = make([]map[string]string, len(vm.Rows))
+		for i, row := range vm.Rows {
+			rowURLs := make(map[string]string)
+			for colName, entityType := range vm.ColumnEntityTypes {
+				if value, ok := row[colName]; ok && value != "" {
+					if url := urlResolver(entityType, value); url != "" {
+						rowURLs[colName] = url
+					}
+				}
+			}
+			if len(rowURLs) > 0 {
+				vm.RowURLs[i] = rowURLs
+			}
+		}
+	}
+
 	// Check if table is grouped and build grouped rows if needed
 	if tableView.IsGrouped() {
 		vm.IsGrouped = true
@@ -761,7 +795,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			tableView.SortGroupsByAggregate(q.GroupAggregateSorts)
 		}
 		// Build grouped rows with limit - stops early and marks incomplete groups
-		groupResult := buildGroupedRows(tableView, view.Columns, q, q.Limit)
+		groupResult := buildGroupedRows(tableView, view.Columns, q, q.Limit, vm.ColumnEntityTypes, urlResolver)
 		vm.GroupedRows = groupResult.Rows
 
 		// Update pagination info for grouped views
@@ -1032,7 +1066,7 @@ type GroupBuildResult struct {
 // buildGroupedRows converts the hierarchical grouping structure into rows with rowspan
 // It walks the group hierarchy recursively, using group.Height() for rowspan
 // If limit > 0, stops after limit display rows and marks incomplete groups
-func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *query.Query, limit int) GroupBuildResult {
+func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *query.Query, limit int, columnEntityTypes map[string]string, urlResolver URLResolver) GroupBuildResult {
 	firstBlock := tableView.GetFirstBlock()
 	if firstBlock == nil {
 		return GroupBuildResult{}
@@ -1046,7 +1080,7 @@ func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *q
 
 	var rows []GroupedRow = []GroupedRow{{Cells: []GroupedCell{}}}
 	rowCount := 0
-	truncated := walkGroupHierarchy(tableView, firstBlock, &rows, 0, q, limit, &rowCount)
+	truncated := walkGroupHierarchy(tableView, firstBlock, &rows, 0, q, limit, &rowCount, columnEntityTypes, urlResolver)
 
 	// Remove trailing empty row if present
 	if len(rows) > 0 && len(rows[len(rows)-1].Cells) == 0 {
@@ -1090,8 +1124,10 @@ func fixRowspans(rows []GroupedRow) {
 // walkGroupHierarchy recursively walks the group hierarchy and builds rows
 // level indicates the depth in the grouping hierarchy (0 = first grouped column)
 // limit is the max display rows (0 = unlimited), rowCount tracks current count
+// columnEntityTypes maps column names to their entity types for URL resolution
+// urlResolver resolves entity type URLs (can be nil)
 // Returns true if truncated due to limit
-func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *query.Query, limit int, rowCount *int) bool {
+func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *query.Query, limit int, rowCount *int, columnEntityTypes map[string]string, urlResolver URLResolver) bool {
 	if block == nil {
 		return false
 	}
@@ -1149,8 +1185,18 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		// Check if sorting by row count or subgroup count
 		isRowCountSorted := aggSort != nil && aggSort.AggType == query.AggRowCount
 		isSubgroupCountSorted := aggSort != nil && aggSort.AggType == query.AggSubgroupCount
+
+		// Resolve URL for the cell value if entity type is defined
+		var valueURL string
+		if urlResolver != nil && rawValue != "" {
+			if entityType, ok := columnEntityTypes[colName]; ok {
+				valueURL = urlResolver(entityType, rawValue)
+			}
+		}
+
 		groupedCell := GroupedCell{
 			Value:                 rawValue,
+			ValueURL:              valueURL,
 			NumRows:               numRows,
 			NumSubgroups:          numSubgroups,
 			Rowspan:               group.Height(),
@@ -1242,7 +1288,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
 		} else {
 			// Non-leaf group - recurse into child blocks
-			truncated := walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1, q, limit, rowCount)
+			truncated := walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1, q, limit, rowCount, columnEntityTypes, urlResolver)
 			if truncated {
 				return true
 			}

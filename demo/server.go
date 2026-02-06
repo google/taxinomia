@@ -130,6 +130,9 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 		return nil, nil, err
 	}
 
+	// Set up URL resolver for entity type links
+	srv.SetURLResolver(dsManager.ResolveDefaultURL)
+
 	// Load user profiles
 	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
 	userStore := NewUserStore()

@@ -975,6 +975,15 @@
             border-color: #2980b9;
         }
 
+        .entity-link {
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        .entity-link:hover {
+            text-decoration: underline;
+        }
+
         /* Stats row styles */
         .stats-row {
             background-color: #e8f4f8;
@@ -2231,7 +2240,7 @@ Use &quot;quotes&quot; for exact match">
                     {{range $cell := $row.Cells}}
                         {{if gt $cell.Rowspan 1}}
                             <td rowspan="{{$cell.Rowspan}}" title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}"{{if $cell.IsIncomplete}} class="incomplete-group"{{end}}>
-                                {{if $cell.IsGroupedColumn}}{{if $cell.IsValueSorted}}<b>{{$cell.Value}}</b>{{else}}{{$cell.Value}}{{end}} [{{if gt $cell.NumSubgroups 0}}{{if $cell.IsSubgroupCountSorted}}<b>{{$cell.NumSubgroups}}</b>{{else}}{{$cell.NumSubgroups}}{{end}}/{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{else}}{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{end}}] <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{else}}{{$cell.Value}}{{end}}
+                                {{if $cell.IsGroupedColumn}}{{if $cell.ValueURL}}<a href="{{$cell.ValueURL}}" class="entity-link">{{end}}{{if $cell.IsValueSorted}}<b>{{$cell.Value}}</b>{{else}}{{$cell.Value}}{{end}}{{if $cell.ValueURL}}</a>{{end}} [{{if gt $cell.NumSubgroups 0}}{{if $cell.IsSubgroupCountSorted}}<b>{{$cell.NumSubgroups}}</b>{{else}}{{$cell.NumSubgroups}}{{end}}/{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{else}}{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{end}}] <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{else}}{{if $cell.ValueURL}}<a href="{{$cell.ValueURL}}" class="entity-link">{{$cell.Value}}</a>{{else}}{{$cell.Value}}{{end}}{{end}}
                                 {{if $cell.ColumnAggregates}}
                                 <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
                                 <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{if $agg.IsSorted}}<span class="agg-sorted">{{$agg.Symbol}}{{$agg.Value}}</span>{{else}}{{$agg.Symbol}}{{$agg.Value}}{{end}} {{end}}{{end}}</div>
@@ -2240,7 +2249,7 @@ Use &quot;quotes&quot; for exact match">
                             </td>
                         {{else}}
                             <td title="{{$cell.Title}}" data-column="{{$cell.ColumnName}}"{{if $cell.IsIncomplete}} class="incomplete-group"{{end}}>
-                                {{if $cell.IsGroupedColumn}}{{if $cell.IsValueSorted}}<b>{{$cell.Value}}</b>{{else}}{{$cell.Value}}{{end}} [{{if gt $cell.NumSubgroups 0}}{{if $cell.IsSubgroupCountSorted}}<b>{{$cell.NumSubgroups}}</b>{{else}}{{$cell.NumSubgroups}}{{end}}/{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{else}}{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{end}}] <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{else}}{{$cell.Value}}{{end}}
+                                {{if $cell.IsGroupedColumn}}{{if $cell.ValueURL}}<a href="{{$cell.ValueURL}}" class="entity-link">{{end}}{{if $cell.IsValueSorted}}<b>{{$cell.Value}}</b>{{else}}{{$cell.Value}}{{end}}{{if $cell.ValueURL}}</a>{{end}} [{{if gt $cell.NumSubgroups 0}}{{if $cell.IsSubgroupCountSorted}}<b>{{$cell.NumSubgroups}}</b>{{else}}{{$cell.NumSubgroups}}{{end}}/{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{else}}{{if $cell.IsRowCountSorted}}<b>{{$cell.NumRows}}</b>{{else}}{{$cell.NumRows}}{{end}}{{end}}] <a href="{{$cell.FilterURL}}" class="filter-link" title="Filter to this value">F</a><input type="checkbox" class="multiselect-checkbox" data-column="{{$cell.ColumnName}}" data-value="{{$cell.RawValue}}">{{else}}{{if $cell.ValueURL}}<a href="{{$cell.ValueURL}}" class="entity-link">{{$cell.Value}}</a>{{else}}{{$cell.Value}}{{end}}{{end}}
                                 {{if $cell.ColumnAggregates}}
                                 <div class="leaf-agg-text">{{if $cell.IsGroupedColumn}}{{range $colAgg := $cell.ColumnAggregates}}
                                 <div>{{$colAgg.ColumnName}}: {{range $agg := $colAgg.Aggregates}}{{if ne $agg.Symbol "#"}}{{if $agg.IsSorted}}<span class="agg-sorted">{{$agg.Symbol}}{{$agg.Value}}</span>{{else}}{{$agg.Symbol}}{{$agg.Value}}{{end}} {{end}}{{end}}</div>
@@ -2253,10 +2262,11 @@ Use &quot;quotes&quot; for exact match">
                 {{end}}
             {{else}}
                 {{/* Render flat rows (ungrouped) */}}
-                {{range $row := .Rows}}
+                {{range $rowIdx, $row := .Rows}}
                 <tr>
                     {{range $colName := $.Columns}}
-                    <td>{{index $row $colName}}</td>
+                    {{$url := ""}}{{if $.RowURLs}}{{with index $.RowURLs $rowIdx}}{{$url = index . $colName}}{{end}}{{end}}
+                    <td>{{if $url}}<a href="{{$url}}" class="entity-link">{{index $row $colName}}</a>{{else}}{{index $row $colName}}{{end}}</td>
                     {{end}}
                 </tr>
                 {{end}}

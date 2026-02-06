@@ -44,11 +44,12 @@ const (
 //   - position: uint32 - Column index within the table
 func BuildColumnsTable(dm *DataModel) *tables.DataTable {
 	// Create columns for the _columns table
-	tableNameCol := columns.NewStringColumn(columns.NewColumnDef("table_name", "Table", ""))
-	columnNameCol := columns.NewStringColumn(columns.NewColumnDef("column_name", "Column", ""))
+	// Entity types use "meta." prefix to scope them to the metadata domain
+	tableNameCol := columns.NewStringColumn(columns.NewColumnDef("table_name", "Table", "meta.table_name"))
+	columnNameCol := columns.NewStringColumn(columns.NewColumnDef("column_name", "Column", "meta.column_name"))
 	displayNameCol := columns.NewStringColumn(columns.NewColumnDef("display_name", "Display Name", ""))
-	dataTypeCol := columns.NewStringColumn(columns.NewColumnDef("data_type", "Data Type", ""))
-	entityTypeCol := columns.NewStringColumn(columns.NewColumnDef("entity_type", "Entity Type", ""))
+	dataTypeCol := columns.NewStringColumn(columns.NewColumnDef("data_type", "Data Type", "meta.data_type"))
+	entityTypeCol := columns.NewStringColumn(columns.NewColumnDef("entity_type", "Entity Type", "meta.entity_type"))
 	isKeyCol := columns.NewStringColumn(columns.NewColumnDef("is_key", "Is Key", ""))
 	rowCountCol := columns.NewUint32Column(columns.NewColumnDef("row_count", "Row Count", ""))
 	positionCol := columns.NewUint32Column(columns.NewColumnDef("position", "Position", ""))

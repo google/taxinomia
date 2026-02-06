@@ -18,7 +18,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: datasources/datasource.proto
+// source: datasource.proto
 
 package datasources
 
@@ -55,7 +55,7 @@ type ColumnAnnotation struct {
 
 func (x *ColumnAnnotation) Reset() {
 	*x = ColumnAnnotation{}
-	mi := &file_datasources_datasource_proto_msgTypes[0]
+	mi := &file_datasource_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -67,7 +67,7 @@ func (x *ColumnAnnotation) String() string {
 func (*ColumnAnnotation) ProtoMessage() {}
 
 func (x *ColumnAnnotation) ProtoReflect() protoreflect.Message {
-	mi := &file_datasources_datasource_proto_msgTypes[0]
+	mi := &file_datasource_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -80,7 +80,7 @@ func (x *ColumnAnnotation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ColumnAnnotation.ProtoReflect.Descriptor instead.
 func (*ColumnAnnotation) Descriptor() ([]byte, []int) {
-	return file_datasources_datasource_proto_rawDescGZIP(), []int{0}
+	return file_datasource_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ColumnAnnotation) GetName() string {
@@ -120,7 +120,7 @@ type ColumnAnnotations struct {
 
 func (x *ColumnAnnotations) Reset() {
 	*x = ColumnAnnotations{}
-	mi := &file_datasources_datasource_proto_msgTypes[1]
+	mi := &file_datasource_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -132,7 +132,7 @@ func (x *ColumnAnnotations) String() string {
 func (*ColumnAnnotations) ProtoMessage() {}
 
 func (x *ColumnAnnotations) ProtoReflect() protoreflect.Message {
-	mi := &file_datasources_datasource_proto_msgTypes[1]
+	mi := &file_datasource_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -145,7 +145,7 @@ func (x *ColumnAnnotations) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ColumnAnnotations.ProtoReflect.Descriptor instead.
 func (*ColumnAnnotations) Descriptor() ([]byte, []int) {
-	return file_datasources_datasource_proto_rawDescGZIP(), []int{1}
+	return file_datasource_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ColumnAnnotations) GetAnnotationsId() string {
@@ -185,7 +185,7 @@ type DataSource struct {
 
 func (x *DataSource) Reset() {
 	*x = DataSource{}
-	mi := &file_datasources_datasource_proto_msgTypes[2]
+	mi := &file_datasource_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -197,7 +197,7 @@ func (x *DataSource) String() string {
 func (*DataSource) ProtoMessage() {}
 
 func (x *DataSource) ProtoReflect() protoreflect.Message {
-	mi := &file_datasources_datasource_proto_msgTypes[2]
+	mi := &file_datasource_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -210,7 +210,7 @@ func (x *DataSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataSource.ProtoReflect.Descriptor instead.
 func (*DataSource) Descriptor() ([]byte, []int) {
-	return file_datasources_datasource_proto_rawDescGZIP(), []int{2}
+	return file_datasource_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DataSource) GetName() string {
@@ -248,6 +248,139 @@ func (x *DataSource) GetConfig() map[string]string {
 	return nil
 }
 
+// URLTemplate defines a single URL template with a display name.
+// Templates can use placeholders like {value}, {column}, {table}.
+type URLTemplate struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Display name shown in the UI (e.g., "View Product", "Filter by Customer").
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// URL template with placeholders (e.g., "/table?table=orders&filter=customer_id:{value}").
+	Template string `protobuf:"bytes,2,opt,name=template,proto3" json:"template,omitempty"`
+	// If true, this URL is used as the default link for cell values.
+	// Only one URL per entity type should be marked as default.
+	// If no URL is marked as default, the first URL is used.
+	IsDefault     bool `protobuf:"varint,3,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *URLTemplate) Reset() {
+	*x = URLTemplate{}
+	mi := &file_datasource_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *URLTemplate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*URLTemplate) ProtoMessage() {}
+
+func (x *URLTemplate) ProtoReflect() protoreflect.Message {
+	mi := &file_datasource_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use URLTemplate.ProtoReflect.Descriptor instead.
+func (*URLTemplate) Descriptor() ([]byte, []int) {
+	return file_datasource_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *URLTemplate) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *URLTemplate) GetTemplate() string {
+	if x != nil {
+		return x.Template
+	}
+	return ""
+}
+
+func (x *URLTemplate) GetIsDefault() bool {
+	if x != nil {
+		return x.IsDefault
+	}
+	return false
+}
+
+// EntityTypeDefinition defines metadata for an entity type.
+// Entity types enable joins between columns and can have associated URL templates.
+type EntityTypeDefinition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The entity type name (e.g., "demo.customer_id", "meta.table_name").
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Human-readable description of this entity type.
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// URL templates for navigating to related views.
+	// Multiple templates allow different actions (view, edit, filter, etc.).
+	Urls          []*URLTemplate `protobuf:"bytes,3,rep,name=urls,proto3" json:"urls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EntityTypeDefinition) Reset() {
+	*x = EntityTypeDefinition{}
+	mi := &file_datasource_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EntityTypeDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntityTypeDefinition) ProtoMessage() {}
+
+func (x *EntityTypeDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_datasource_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntityTypeDefinition.ProtoReflect.Descriptor instead.
+func (*EntityTypeDefinition) Descriptor() ([]byte, []int) {
+	return file_datasource_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *EntityTypeDefinition) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *EntityTypeDefinition) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *EntityTypeDefinition) GetUrls() []*URLTemplate {
+	if x != nil {
+		return x.Urls
+	}
+	return nil
+}
+
 // DataSourcesConfig is the top-level configuration for data sources.
 type DataSourcesConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -255,14 +388,16 @@ type DataSourcesConfig struct {
 	// The actual schema is discovered when loading each data source.
 	Annotations []*ColumnAnnotations `protobuf:"bytes,1,rep,name=annotations,proto3" json:"annotations,omitempty"`
 	// Data sources - metadata only, data loaded lazily on demand.
-	Sources       []*DataSource `protobuf:"bytes,2,rep,name=sources,proto3" json:"sources,omitempty"`
+	Sources []*DataSource `protobuf:"bytes,2,rep,name=sources,proto3" json:"sources,omitempty"`
+	// Entity type definitions with descriptions and URL templates.
+	EntityTypes   []*EntityTypeDefinition `protobuf:"bytes,3,rep,name=entity_types,json=entityTypes,proto3" json:"entity_types,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DataSourcesConfig) Reset() {
 	*x = DataSourcesConfig{}
-	mi := &file_datasources_datasource_proto_msgTypes[3]
+	mi := &file_datasource_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -274,7 +409,7 @@ func (x *DataSourcesConfig) String() string {
 func (*DataSourcesConfig) ProtoMessage() {}
 
 func (x *DataSourcesConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_datasources_datasource_proto_msgTypes[3]
+	mi := &file_datasource_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -287,7 +422,7 @@ func (x *DataSourcesConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataSourcesConfig.ProtoReflect.Descriptor instead.
 func (*DataSourcesConfig) Descriptor() ([]byte, []int) {
-	return file_datasources_datasource_proto_rawDescGZIP(), []int{3}
+	return file_datasource_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DataSourcesConfig) GetAnnotations() []*ColumnAnnotations {
@@ -304,11 +439,18 @@ func (x *DataSourcesConfig) GetSources() []*DataSource {
 	return nil
 }
 
-var File_datasources_datasource_proto protoreflect.FileDescriptor
+func (x *DataSourcesConfig) GetEntityTypes() []*EntityTypeDefinition {
+	if x != nil {
+		return x.EntityTypes
+	}
+	return nil
+}
 
-const file_datasources_datasource_proto_rawDesc = "" +
+var File_datasource_proto protoreflect.FileDescriptor
+
+const file_datasource_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdatasources/datasource.proto\x12\x15taxinomia.datasources\"j\n" +
+	"\x10datasource.proto\x12\x15taxinomia.datasources\"j\n" +
 	"\x10ColumnAnnotation\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1f\n" +
@@ -327,63 +469,77 @@ const file_datasources_datasource_proto_rawDesc = "" +
 	"\x06config\x18\x05 \x03(\v2-.taxinomia.datasources.DataSource.ConfigEntryR\x06config\x1a9\n" +
 	"\vConfigEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9c\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\\\n" +
+	"\vURLTemplate\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
+	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x1d\n" +
+	"\n" +
+	"is_default\x18\x03 \x01(\bR\tisDefault\"\x84\x01\n" +
+	"\x14EntityTypeDefinition\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x126\n" +
+	"\x04urls\x18\x03 \x03(\v2\".taxinomia.datasources.URLTemplateR\x04urls\"\xec\x01\n" +
 	"\x11DataSourcesConfig\x12J\n" +
 	"\vannotations\x18\x01 \x03(\v2(.taxinomia.datasources.ColumnAnnotationsR\vannotations\x12;\n" +
-	"\asources\x18\x02 \x03(\v2!.taxinomia.datasources.DataSourceR\asourcesB)Z'github.com/google/taxinomia/datasourcesb\x06proto3"
+	"\asources\x18\x02 \x03(\v2!.taxinomia.datasources.DataSourceR\asources\x12N\n" +
+	"\fentity_types\x18\x03 \x03(\v2+.taxinomia.datasources.EntityTypeDefinitionR\ventityTypesB)Z'github.com/google/taxinomia/datasourcesb\x06proto3"
 
 var (
-	file_datasources_datasource_proto_rawDescOnce sync.Once
-	file_datasources_datasource_proto_rawDescData []byte
+	file_datasource_proto_rawDescOnce sync.Once
+	file_datasource_proto_rawDescData []byte
 )
 
-func file_datasources_datasource_proto_rawDescGZIP() []byte {
-	file_datasources_datasource_proto_rawDescOnce.Do(func() {
-		file_datasources_datasource_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datasources_datasource_proto_rawDesc), len(file_datasources_datasource_proto_rawDesc)))
+func file_datasource_proto_rawDescGZIP() []byte {
+	file_datasource_proto_rawDescOnce.Do(func() {
+		file_datasource_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datasource_proto_rawDesc), len(file_datasource_proto_rawDesc)))
 	})
-	return file_datasources_datasource_proto_rawDescData
+	return file_datasource_proto_rawDescData
 }
 
-var file_datasources_datasource_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
-var file_datasources_datasource_proto_goTypes = []any{
-	(*ColumnAnnotation)(nil),  // 0: taxinomia.datasources.ColumnAnnotation
-	(*ColumnAnnotations)(nil), // 1: taxinomia.datasources.ColumnAnnotations
-	(*DataSource)(nil),        // 2: taxinomia.datasources.DataSource
-	(*DataSourcesConfig)(nil), // 3: taxinomia.datasources.DataSourcesConfig
-	nil,                       // 4: taxinomia.datasources.DataSource.ConfigEntry
+var file_datasource_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_datasource_proto_goTypes = []any{
+	(*ColumnAnnotation)(nil),     // 0: taxinomia.datasources.ColumnAnnotation
+	(*ColumnAnnotations)(nil),    // 1: taxinomia.datasources.ColumnAnnotations
+	(*DataSource)(nil),           // 2: taxinomia.datasources.DataSource
+	(*URLTemplate)(nil),          // 3: taxinomia.datasources.URLTemplate
+	(*EntityTypeDefinition)(nil), // 4: taxinomia.datasources.EntityTypeDefinition
+	(*DataSourcesConfig)(nil),    // 5: taxinomia.datasources.DataSourcesConfig
+	nil,                          // 6: taxinomia.datasources.DataSource.ConfigEntry
 }
-var file_datasources_datasource_proto_depIdxs = []int32{
+var file_datasource_proto_depIdxs = []int32{
 	0, // 0: taxinomia.datasources.ColumnAnnotations.columns:type_name -> taxinomia.datasources.ColumnAnnotation
-	4, // 1: taxinomia.datasources.DataSource.config:type_name -> taxinomia.datasources.DataSource.ConfigEntry
-	1, // 2: taxinomia.datasources.DataSourcesConfig.annotations:type_name -> taxinomia.datasources.ColumnAnnotations
-	2, // 3: taxinomia.datasources.DataSourcesConfig.sources:type_name -> taxinomia.datasources.DataSource
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	6, // 1: taxinomia.datasources.DataSource.config:type_name -> taxinomia.datasources.DataSource.ConfigEntry
+	3, // 2: taxinomia.datasources.EntityTypeDefinition.urls:type_name -> taxinomia.datasources.URLTemplate
+	1, // 3: taxinomia.datasources.DataSourcesConfig.annotations:type_name -> taxinomia.datasources.ColumnAnnotations
+	2, // 4: taxinomia.datasources.DataSourcesConfig.sources:type_name -> taxinomia.datasources.DataSource
+	4, // 5: taxinomia.datasources.DataSourcesConfig.entity_types:type_name -> taxinomia.datasources.EntityTypeDefinition
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
-func init() { file_datasources_datasource_proto_init() }
-func file_datasources_datasource_proto_init() {
-	if File_datasources_datasource_proto != nil {
+func init() { file_datasource_proto_init() }
+func file_datasource_proto_init() {
+	if File_datasource_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datasources_datasource_proto_rawDesc), len(file_datasources_datasource_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datasource_proto_rawDesc), len(file_datasource_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_datasources_datasource_proto_goTypes,
-		DependencyIndexes: file_datasources_datasource_proto_depIdxs,
-		MessageInfos:      file_datasources_datasource_proto_msgTypes,
+		GoTypes:           file_datasource_proto_goTypes,
+		DependencyIndexes: file_datasource_proto_depIdxs,
+		MessageInfos:      file_datasource_proto_msgTypes,
 	}.Build()
-	File_datasources_datasource_proto = out.File
-	file_datasources_datasource_proto_goTypes = nil
-	file_datasources_datasource_proto_depIdxs = nil
+	File_datasource_proto = out.File
+	file_datasource_proto_goTypes = nil
+	file_datasource_proto_depIdxs = nil
 }

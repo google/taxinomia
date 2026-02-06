@@ -46,3 +46,37 @@ sources {
   config { key: "message_type"   value: "taxinomia.demo.CustomerOrders" }
   config { key: "format"         value: "binary" }
 }
+
+# Entity type definitions with URL templates
+# The first URL or one marked with is_default:true is used for cell links
+entity_types {
+  name: "demo.customer_id"
+  description: "Unique identifier for a customer in the demo dataset"
+  urls { name: "View Orders"       template: "table?table=customer_orders&filter=customer_id:{value}" is_default: true }
+  urls { name: "Orders by Status"  template: "table?table=customer_orders&groupon=status&filter=customer_id:{value}" }
+}
+
+entity_types {
+  name: "demo.order_id"
+  description: "Unique identifier for an order"
+  urls { name: "View Order"        template: "table?table=customer_orders&filter=order_id:{value}" is_default: true }
+}
+
+entity_types {
+  name: "demo.product_id"
+  description: "Unique identifier for a product in the demo catalog"
+  urls { name: "View Product"      template: "table?table=customer_orders&filter=product_id:{value}" is_default: true }
+}
+
+entity_types {
+  name: "demo.order_status"
+  description: "Order fulfillment status"
+  urls { name: "Filter by Status"  template: "table?table=customer_orders&filter=status:{value}" is_default: true }
+  urls { name: "Group by Status"   template: "table?table=customer_orders&groupon=status:{value}" }
+}
+
+entity_types {
+  name: "demo.discount_code"
+  description: "Promotional discount code"
+  urls { name: "View Discounts"    template: "table?table=customer_orders&filter=discount_code:{value}" is_default: true }
+}

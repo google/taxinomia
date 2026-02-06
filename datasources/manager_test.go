@@ -204,6 +204,67 @@ Charlie,35,true`
 	}
 }
 
+func TestEntityTypes(t *testing.T) {
+	// Get the path to the demo data directory
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("failed to get current file path")
+	}
+	demoDataDir := filepath.Join(filepath.Dir(currentFile), "..", "demo", "data")
+
+	// Create manager and register proto loader
+	manager := NewManager()
+	manager.RegisterLoader(NewProtoLoader())
+
+	// Load config
+	configPath := filepath.Join(demoDataDir, "data_sources.textproto")
+	if err := manager.LoadConfig(configPath); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	// Verify entity types were loaded
+	entityTypeNames := manager.GetEntityTypeNames()
+	if len(entityTypeNames) < 3 {
+		t.Errorf("expected at least 3 entity types, got %d", len(entityTypeNames))
+	}
+
+	// Verify specific entity type
+	customerET := manager.GetEntityType("demo.customer_id")
+	if customerET == nil {
+		t.Fatal("demo.customer_id entity type not found")
+	}
+
+	if customerET.GetDescription() == "" {
+		t.Error("expected non-empty description")
+	}
+
+	urls := customerET.GetUrls()
+	if len(urls) < 1 {
+		t.Errorf("expected at least 1 URL template, got %d", len(urls))
+	}
+
+	// Test URL resolution
+	resolvedURL := manager.ResolveURL("demo.customer_id", "CUST001", "")
+	if resolvedURL == "" {
+		t.Error("expected non-empty resolved URL")
+	}
+	if resolvedURL != "table?table=customer_orders&filter=customer_id:CUST001" {
+		t.Errorf("unexpected resolved URL: %s", resolvedURL)
+	}
+
+	// Test URL resolution by name
+	resolvedURL2 := manager.ResolveURL("demo.customer_id", "CUST001", "Orders by Status")
+	if resolvedURL2 == "" {
+		t.Error("expected non-empty resolved URL for 'Orders by Status'")
+	}
+
+	// Test non-existent entity type
+	noURL := manager.ResolveURL("nonexistent.type", "value", "")
+	if noURL != "" {
+		t.Error("expected empty URL for non-existent entity type")
+	}
+}
+
 func TestCsvLoaderTyped(t *testing.T) {
 	// Create a temporary CSV file
 	tmpDir := t.TempDir()
