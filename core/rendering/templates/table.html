@@ -644,6 +644,31 @@
             box-shadow: 0 0 0 2px rgba(155, 89, 182, 0.2);
         }
 
+        .th-remove-btn {
+            position: absolute;
+            top: 4px;
+            right: 14px;
+            width: 16px;
+            height: 16px;
+            line-height: 14px;
+            text-align: center;
+            font-size: 14px;
+            color: #999;
+            text-decoration: none;
+            border-radius: 3px;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        th:hover .th-remove-btn {
+            opacity: 1;
+        }
+
+        .th-remove-btn:hover {
+            color: #e74c3c;
+            background-color: rgba(231, 76, 60, 0.1);
+        }
+
         td {
             padding: 8px;
             border: 1px solid #ccc;
@@ -2298,6 +2323,7 @@
                     <span class="th-content">{{$header}}</span>
                     <span class="th-internal-name">{{$colName}}</span>
                     {{end}}
+                    {{range $.AllColumns}}{{if eq .Name $colName}}<a href="{{.ToggleColumnURL}}" class="th-remove-btn" title="Remove column from view">×</a>{{end}}{{end}}
                     <div class="resize-handle"></div>
                 </th>
                 {{end}}
