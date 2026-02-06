@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+# Data sources configuration using the unified datasources system.
+#
+# Annotations are loaded eagerly at startup.
+# Data is loaded lazily on demand.
+
+# Column annotations (loaded eagerly)
+# Note: Entity types use "demo." prefix to scope them to this demo domain,
+# distinguishing them from similarly-named columns in other domains (e.g., perf tables).
+annotations {
+  annotations_id: "taxinomia.demo.CustomerOrders"
+  columns { name: "customer_id"      display_name: "Customer ID"      entity_type: "demo.customer_id" }
+  columns { name: "customer_name"    display_name: "Customer Name" }
+  columns { name: "customer_email"   display_name: "Email" }
+  columns { name: "order_id"         display_name: "Order ID"         entity_type: "demo.order_id" }
+  columns { name: "order_date"       display_name: "Order Date" }
+  columns { name: "status"           display_name: "Status"           entity_type: "demo.order_status" }
+  columns { name: "product_id"       display_name: "Product ID"       entity_type: "demo.product_id" }
+  columns { name: "product_name"     display_name: "Product Name" }
+  columns { name: "quantity"         display_name: "Quantity" }
+  columns { name: "unit_price"       display_name: "Unit Price" }
+  columns { name: "discount_code"    display_name: "Discount Code"    entity_type: "demo.discount_code" }
+  columns { name: "discount_percent" display_name: "Discount %" }
+  columns { name: "reason"           display_name: "Discount Reason" }
+}
+
+# Data sources (data loaded on demand)
+sources {
+  name: "customer_orders"
+  annotations_id: "taxinomia.demo.CustomerOrders"
+  domains: "demo"
+  source_type: "proto"
+  config { key: "descriptor_set" value: "../customer_orders.pb" }
+  config { key: "proto_file"     value: "customer_orders.textproto" }
+  config { key: "message_type"   value: "taxinomia.demo.CustomerOrders" }
+  config { key: "format"         value: "textproto" }
+}
+
+sources {
+  name: "customer_orders_binary"
+  annotations_id: "taxinomia.demo.CustomerOrders"
+  domains: "demo"
+  source_type: "proto"
+  config { key: "descriptor_set" value: "../customer_orders.pb" }
+  config { key: "proto_file"     value: "customer_orders.binpb" }
+  config { key: "message_type"   value: "taxinomia.demo.CustomerOrders" }
+  config { key: "format"         value: "binary" }
+}

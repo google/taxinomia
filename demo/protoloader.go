@@ -178,3 +178,21 @@ func (l *ProtoTableLoader) LoadTextprotosFromDirectory(dirPath string, messageNa
 func (l *ProtoTableLoader) GetRegisteredMessages() []string {
 	return l.loader.GetRegisteredMessages()
 }
+
+// LoadTextprotoAsTableWithMetadata loads a textproto file with custom column metadata.
+func (l *ProtoTableLoader) LoadTextprotoAsTableWithMetadata(textprotoPath, messageName string, columnMeta map[string]*protoloader.ColumnMetadata) (*tables.DataTable, error) {
+	data, err := os.ReadFile(textprotoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read textproto file: %w", err)
+	}
+	return l.loader.LoadTextprotoAsTableWithMetadata(data, messageName, columnMeta)
+}
+
+// LoadBinaryProtoAsTableWithMetadata loads a binary protobuf file with custom column metadata.
+func (l *ProtoTableLoader) LoadBinaryProtoAsTableWithMetadata(protoPath, messageName string, columnMeta map[string]*protoloader.ColumnMetadata) (*tables.DataTable, error) {
+	data, err := os.ReadFile(protoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read binary protobuf file: %w", err)
+	}
+	return l.loader.LoadBinaryProtoAsTableWithMetadata(data, messageName, columnMeta)
+}

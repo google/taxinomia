@@ -262,26 +262,48 @@ func (dm *DataModel) discoverJoins() {
 					dm,
 				)
 
-				// Add the join to our registry
-				dm.joins[join.Key] = join
+				// Only add the join if a joiner could be created (same column types)
+				if join.Joiner != nil {
+					dm.joins[join.Key] = join
+				}
 			}
 		}
 	}
 }
 
 func (dm *DataModel) createJoiner(fromColumn columns.IDataColumn, toColumn columns.IDataColumn) columns.IJoiner {
-	switch fromColumn.(type) {
+	// Both columns must be the same type to create a joiner
+	switch from := fromColumn.(type) {
 	case *columns.StringColumn:
-		return &columns.Joiner[string]{
-			FromColumn: fromColumn.(*columns.StringColumn),
-			ToColumn:   toColumn.(*columns.StringColumn),
+		if to, ok := toColumn.(*columns.StringColumn); ok {
+			return &columns.Joiner[string]{
+				FromColumn: from,
+				ToColumn:   to,
+			}
 		}
 	case *columns.Uint32Column:
-		return &columns.Joiner[uint32]{
-			FromColumn: fromColumn.(*columns.Uint32Column),
-			ToColumn:   toColumn.(*columns.Uint32Column),
+		if to, ok := toColumn.(*columns.Uint32Column); ok {
+			return &columns.Joiner[uint32]{
+				FromColumn: from,
+				ToColumn:   to,
+			}
+		}
+	case *columns.Uint64Column:
+		if to, ok := toColumn.(*columns.Uint64Column); ok {
+			return &columns.Joiner[uint64]{
+				FromColumn: from,
+				ToColumn:   to,
+			}
+		}
+	case *columns.Int64Column:
+		if to, ok := toColumn.(*columns.Int64Column); ok {
+			return &columns.Joiner[int64]{
+				FromColumn: from,
+				ToColumn:   to,
+			}
 		}
 	}
+	// Type mismatch or unsupported type - cannot create joiner
 	return nil
 }
 

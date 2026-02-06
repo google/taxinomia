@@ -40,6 +40,14 @@ type Loader struct {
 	registry *protoregistry.Files
 }
 
+// ColumnMetadata defines metadata for a single column.
+// Used to override display name and entity type when creating DataTables.
+type ColumnMetadata struct {
+	Name        string // Column name (for matching)
+	DisplayName string // Display name shown in UI
+	EntityType  string // Entity type for join support
+}
+
 // NewLoader creates a new Loader with the given proto registry.
 // The registry should be pre-populated with all required message descriptors.
 func NewLoader(registry *protoregistry.Files) *Loader {
@@ -181,6 +189,21 @@ type RowBuilder struct {
 	rows           [][]any                        // All extracted rows (typed values)
 	current        map[string]any                 // Current row being built (typed values)
 	columnsByLevel [][]string                     // Column names grouped by hierarchy level
+}
+
+// Rows returns all extracted rows.
+func (rb *RowBuilder) Rows() [][]any {
+	return rb.rows
+}
+
+// ColumnNames returns column names in order.
+func (rb *RowBuilder) ColumnNames() []string {
+	return rb.columns
+}
+
+// FieldDescs returns field descriptors for each column.
+func (rb *RowBuilder) FieldDescs() []protoreflect.FieldDescriptor {
+	return rb.fieldDescs
 }
 
 // newRowBuilder creates a new RowBuilder with columns derived from hierarchy levels.
@@ -334,12 +357,28 @@ func isTimestampField(fd protoreflect.FieldDescriptor) bool {
 // CreateDataTable creates a DataTable from extracted rows.
 // Creates typed columns based on protobuf field types.
 func (l *Loader) CreateDataTable(rb *RowBuilder) *tables.DataTable {
+	return l.CreateDataTableWithMetadata(rb, nil)
+}
+
+// CreateDataTableWithMetadata creates a DataTable from extracted rows with custom column metadata.
+// The columnMeta map is keyed by column name and provides display name and entity type overrides.
+func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[string]*ColumnMetadata) *tables.DataTable {
 	table := tables.NewDataTable()
 
 	// Create appropriately typed columns based on field descriptors
 	for i, colName := range rb.columns {
 		fd := rb.fieldDescs[i]
-		colDef := columns.NewColumnDef(colName, colName, "")
+
+		// Get display name and entity type from metadata, or use defaults
+		displayName := colName
+		entityType := ""
+		if meta, ok := columnMeta[colName]; ok && meta != nil {
+			if meta.DisplayName != "" {
+				displayName = meta.DisplayName
+			}
+			entityType = meta.EntityType
+		}
+		colDef := columns.NewColumnDef(colName, displayName, entityType)
 
 		switch fd.Kind() {
 		case protoreflect.BoolKind:
@@ -452,6 +491,11 @@ func (l *Loader) CreateDataTable(rb *RowBuilder) *tables.DataTable {
 // LoadTextprotoAsTable loads textproto content from bytes and returns a denormalized DataTable.
 // The messageName should be the fully qualified protobuf message name (e.g., "mypackage.Customer").
 func (l *Loader) LoadTextprotoAsTable(data []byte, messageName string) (*tables.DataTable, error) {
+	return l.LoadTextprotoAsTableWithMetadata(data, messageName, nil)
+}
+
+// LoadTextprotoAsTableWithMetadata loads textproto content with custom column metadata.
+func (l *Loader) LoadTextprotoAsTableWithMetadata(data []byte, messageName string, columnMeta map[string]*ColumnMetadata) (*tables.DataTable, error) {
 	msg, err := l.ParseTextproto(data, messageName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse textproto: %w", err)
@@ -464,12 +508,17 @@ func (l *Loader) LoadTextprotoAsTable(data []byte, messageName string) (*tables.
 		return nil, fmt.Errorf("no rows extracted from textproto")
 	}
 
-	return l.CreateDataTable(rb), nil
+	return l.CreateDataTableWithMetadata(rb, columnMeta), nil
 }
 
 // LoadBinaryProtoAsTable loads binary protobuf content from bytes and returns a denormalized DataTable.
 // The messageName should be the fully qualified protobuf message name (e.g., "mypackage.Customer").
 func (l *Loader) LoadBinaryProtoAsTable(data []byte, messageName string) (*tables.DataTable, error) {
+	return l.LoadBinaryProtoAsTableWithMetadata(data, messageName, nil)
+}
+
+// LoadBinaryProtoAsTableWithMetadata loads binary protobuf content with custom column metadata.
+func (l *Loader) LoadBinaryProtoAsTableWithMetadata(data []byte, messageName string, columnMeta map[string]*ColumnMetadata) (*tables.DataTable, error) {
 	msg, err := l.ParseBinaryProto(data, messageName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse binary protobuf: %w", err)
@@ -482,7 +531,7 @@ func (l *Loader) LoadBinaryProtoAsTable(data []byte, messageName string) (*table
 		return nil, fmt.Errorf("no rows extracted from binary protobuf")
 	}
 
-	return l.CreateDataTable(rb), nil
+	return l.CreateDataTableWithMetadata(rb, columnMeta), nil
 }
 
 // GetRegisteredMessages returns all message names registered in the loader.
@@ -496,4 +545,78 @@ func (l *Loader) GetRegisteredMessages() []string {
 		return true
 	})
 	return messages
+}
+
+// ColumnType represents the data type of a column discovered from proto.
+type ColumnType int
+
+const (
+	ColTypeString ColumnType = iota
+	ColTypeInt64
+	ColTypeUint32
+	ColTypeUint64
+	ColTypeFloat64
+	ColTypeBool
+	ColTypeDatetime
+)
+
+// DiscoveredColumn represents a column discovered from a proto schema.
+type DiscoveredColumn struct {
+	Name string
+	Type ColumnType
+}
+
+// DiscoverSchema discovers the table schema from a proto message descriptor.
+// Returns column names and types without loading any data.
+func (l *Loader) DiscoverSchema(messageName string) ([]DiscoveredColumn, error) {
+	// Find the message descriptor in the registry
+	desc, err := l.registry.FindDescriptorByName(protoreflect.FullName(messageName))
+	if err != nil {
+		return nil, fmt.Errorf("message %q not found in registry: %w", messageName, err)
+	}
+
+	msgDesc, ok := desc.(protoreflect.MessageDescriptor)
+	if !ok {
+		return nil, fmt.Errorf("%q is not a message type", messageName)
+	}
+
+	// Find the hierarchy and collect columns
+	hierarchy := l.FindLinearHierarchy(msgDesc)
+
+	var columns []DiscoveredColumn
+	for _, level := range hierarchy {
+		for _, fd := range level.ScalarFields {
+			col := DiscoveredColumn{
+				Name: string(fd.Name()),
+				Type: fieldDescToColumnType(fd),
+			}
+			columns = append(columns, col)
+		}
+	}
+
+	return columns, nil
+}
+
+// fieldDescToColumnType maps a protobuf field descriptor to a column type.
+func fieldDescToColumnType(fd protoreflect.FieldDescriptor) ColumnType {
+	switch fd.Kind() {
+	case protoreflect.BoolKind:
+		return ColTypeBool
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind,
+		protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
+		return ColTypeInt64
+	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
+		return ColTypeUint32
+	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
+		return ColTypeUint64
+	case protoreflect.FloatKind, protoreflect.DoubleKind:
+		return ColTypeFloat64
+	case protoreflect.MessageKind:
+		if isTimestampField(fd) {
+			return ColTypeDatetime
+		}
+		return ColTypeString
+	default:
+		return ColTypeString
+	}
 }

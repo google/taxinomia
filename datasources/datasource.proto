@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright 2024 The Taxinomia Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package taxinomia.datasources;
+
+option go_package = "github.com/google/taxinomia/datasources";
+
+// ColumnAnnotation defines UI and join metadata for a column.
+// This is NOT the column schema (name, type) - that comes from the data source itself
+// (proto descriptor, database schema, CSV header, etc.).
+message ColumnAnnotation {
+  // The column name (must match the actual column name from the data source).
+  string name = 1;
+
+  // Display name shown in the UI. If empty, uses the column name.
+  string display_name = 2;
+
+  // Entity type for join support (e.g., "customer_id", "order_id").
+  // Columns with matching entity types across tables can be joined.
+  string entity_type = 3;
+}
+
+// ColumnAnnotations defines annotations for columns in a data source.
+// The actual column schema (names, types) is discovered from the data source;
+// these annotations add display names and entity types on top.
+message ColumnAnnotations {
+  // Unique identifier for this annotation set (e.g., proto message type, table name).
+  string annotations_id = 1;
+
+  // Column annotations. Only columns listed here have their metadata overridden;
+  // unlisted columns use defaults (column name as display name, no entity type).
+  repeated ColumnAnnotation columns = 2;
+}
+
+// DataSource defines a single data source.
+message DataSource {
+  // Name of the table in the data model.
+  string name = 1;
+
+  // References a ColumnAnnotations by annotations_id.
+  // The actual schema comes from the data source (descriptor, database, etc.).
+  string annotations_id = 2;
+
+  // Domains group related tables together (e.g., "demo", "sales").
+  repeated string domains = 3;
+
+  // Source type identifier - looked up in the loader registry.
+  // Built-in types: "proto", "csv"
+  // Users can register custom types: "postgres", "bigquery", etc.
+  string source_type = 4;
+
+  // Type-specific configuration as key-value pairs.
+  // Each loader defines its own required/optional config keys.
+  map<string, string> config = 5;
+}
+
+// DataSourcesConfig is the top-level configuration for data sources.
+message DataSourcesConfig {
+  // Column annotations - loaded eagerly at startup.
+  // The actual schema is discovered when loading each data source.
+  repeated ColumnAnnotations annotations = 1;
+
+  // Data sources - metadata only, data loaded lazily on demand.
+  repeated DataSource sources = 2;
+}

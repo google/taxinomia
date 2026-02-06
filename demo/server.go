@@ -26,6 +26,7 @@ import (
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/server"
 	"github.com/google/taxinomia/core/views"
+	"github.com/google/taxinomia/datasources"
 )
 
 // SetupDemoServer creates and configures a server with demo data
@@ -73,27 +74,39 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	fmt.Println("=== Performance Tables Created ===")
 	fmt.Println()
 
-	// Load protobuf tables using protoloader
-	fmt.Println("=== Loading Protobuf Tables ===")
+	// Load protobuf tables using datasources.Manager
+	// This demonstrates the 3-phase loading architecture:
+	// 1. Schema Discovery: loader.DiscoverSchema() discovers column names/types from data source
+	// 2. Schema Enrichment: manager applies annotations (display names, entity types)
+	// 3. Data Loading: loader.Load() creates table with enriched schema
+	fmt.Println("=== Loading Protobuf Tables via DataSources Manager ===")
 	_, currentFile, _, _ := runtime.Caller(0)
-	protoLoader := NewProtoTableLoader()
-	descriptorPath := filepath.Join(filepath.Dir(currentFile), "customer_orders.pb")
-	if err := protoLoader.LoadDescriptorSet(descriptorPath); err != nil {
-		fmt.Printf("Warning: Failed to load proto descriptors: %v\n", err)
+
+	// Create manager and register the proto loader
+	dsManager := datasources.NewManager()
+	dsManager.RegisterLoader(datasources.NewProtoLoader())
+
+	// Load configuration from data_sources.textproto
+	// - Annotations are loaded eagerly (display names, entity types)
+	// - Source metadata is registered (data loaded lazily)
+	configPath := filepath.Join(filepath.Dir(currentFile), "data", "data_sources.textproto")
+	if err := dsManager.LoadConfig(configPath); err != nil {
+		fmt.Printf("Warning: Failed to load data sources config: %v\n", err)
 	} else {
-		// Load textproto version
-		textprotoPath := filepath.Join(filepath.Dir(currentFile), "data", "customer_orders.textproto")
-		if customerOrdersTable, err := protoLoader.LoadTextprotoAsTable(textprotoPath, "taxinomia.demo.CustomerOrders"); err != nil {
-			fmt.Printf("Warning: Failed to load customer_orders.textproto: %v\n", err)
+		fmt.Printf("Loaded annotations: %v\n", dsManager.GetAnnotationIDs())
+		fmt.Printf("Registered sources: %v\n", dsManager.GetSourceNames())
+
+		// Load data on demand - this triggers the 3-phase process
+		if customerOrdersTable, err := dsManager.LoadData("customer_orders"); err != nil {
+			fmt.Printf("Warning: Failed to load customer_orders: %v\n", err)
 		} else {
 			dataModel.AddTable("customer_orders", customerOrdersTable)
 			fmt.Printf("Loaded customer_orders (textproto) with %d rows\n", customerOrdersTable.Length())
 		}
 
-		// Load binary proto version
-		binaryPath := filepath.Join(filepath.Dir(currentFile), "data", "customer_orders.binpb")
-		if customerOrdersBinaryTable, err := protoLoader.LoadBinaryProtoAsTable(binaryPath, "taxinomia.demo.CustomerOrders"); err != nil {
-			fmt.Printf("Warning: Failed to load customer_orders.binpb: %v\n", err)
+		// Load binary proto version - uses same annotations, different source
+		if customerOrdersBinaryTable, err := dsManager.LoadData("customer_orders_binary"); err != nil {
+			fmt.Printf("Warning: Failed to load customer_orders_binary: %v\n", err)
 		} else {
 			dataModel.AddTable("customer_orders_binary", customerOrdersBinaryTable)
 			fmt.Printf("Loaded customer_orders_binary (binary proto) with %d rows\n", customerOrdersBinaryTable.Length())
