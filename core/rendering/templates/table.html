@@ -2826,18 +2826,29 @@ Use &quot;quotes&quot; for exact match">
             }
         });
 
-        // Row selection handling
+        // Row selection handling - preserves scroll position
         function selectRow(rowId) {
+            sessionStorage.setItem('scrollPosition', window.scrollY);
             const url = new URL(window.location);
             url.searchParams.set('row', rowId);
             window.location.href = url.toString();
         }
 
         function deselectRow() {
+            sessionStorage.setItem('scrollPosition', window.scrollY);
             const url = new URL(window.location);
             url.searchParams.delete('row');
             window.location.href = url.toString();
         }
+
+        // Restore scroll position after row selection
+        (function() {
+            const savedPosition = sessionStorage.getItem('scrollPosition');
+            if (savedPosition !== null) {
+                sessionStorage.removeItem('scrollPosition');
+                window.scrollTo(0, parseInt(savedPosition, 10));
+            }
+        })();
 
         // Handle row clicks for selection (flat rows only)
         document.addEventListener('click', function(e) {
