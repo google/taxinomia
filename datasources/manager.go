@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
+	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/tables"
 	"google.golang.org/protobuf/encoding/prototext"
 )
@@ -42,8 +44,18 @@ type Manager struct {
 	// Entity type definitions indexed by name - loaded eagerly
 	entityTypes map[string]*EntityTypeDefinition
 
+	// Hierarchies indexed by name - loaded eagerly
+	hierarchies map[string]*Hierarchy
+
+	// Entity type to hierarchies mapping (which hierarchies include each entity type)
+	entityTypeHierarchies map[string][]*Hierarchy
+
 	// Cached tables indexed by source name - populated lazily
 	tables map[string]*tables.DataTable
+
+	// Programmatically registered tables (not from datasources config)
+	// These are indexed by table name and used for hierarchy lookups
+	registeredTables map[string]*tables.DataTable
 
 	// Registered loaders indexed by source_type
 	loaders map[string]DataSourceLoader
@@ -55,11 +67,14 @@ type Manager struct {
 // NewManager creates a new data source manager.
 func NewManager() *Manager {
 	return &Manager{
-		annotations: make(map[string]*ColumnAnnotations),
-		sources:     make(map[string]*DataSource),
-		entityTypes: make(map[string]*EntityTypeDefinition),
-		tables:      make(map[string]*tables.DataTable),
-		loaders:     make(map[string]DataSourceLoader),
+		annotations:           make(map[string]*ColumnAnnotations),
+		sources:               make(map[string]*DataSource),
+		entityTypes:           make(map[string]*EntityTypeDefinition),
+		hierarchies:           make(map[string]*Hierarchy),
+		entityTypeHierarchies: make(map[string][]*Hierarchy),
+		tables:                make(map[string]*tables.DataTable),
+		registeredTables:      make(map[string]*tables.DataTable),
+		loaders:               make(map[string]DataSourceLoader),
 	}
 }
 
@@ -108,6 +123,15 @@ func (m *Manager) LoadConfigFromProto(config *DataSourcesConfig) error {
 	// Load entity type definitions (eager)
 	for _, et := range config.GetEntityTypes() {
 		m.entityTypes[et.GetName()] = et
+	}
+
+	// Load hierarchies and build entity type mapping (eager)
+	for _, h := range config.GetHierarchies() {
+		m.hierarchies[h.GetName()] = h
+		// Map each entity type in this hierarchy to the hierarchy
+		for _, level := range h.GetLevels() {
+			m.entityTypeHierarchies[level] = append(m.entityTypeHierarchies[level], h)
+		}
 	}
 
 	return nil
@@ -433,6 +457,22 @@ func (m *Manager) GetEntityTypeDescription(entityType string) string {
 	return ""
 }
 
+// GetHierarchiesForEntityType returns all hierarchies that include the given entity type.
+// Returns nil if the entity type is not part of any hierarchy.
+func (m *Manager) GetHierarchiesForEntityType(entityType string) []*Hierarchy {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.entityTypeHierarchies[entityType]
+}
+
+// GetHierarchy returns a hierarchy by name.
+// Returns nil if the hierarchy doesn't exist.
+func (m *Manager) GetHierarchy(name string) *Hierarchy {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.hierarchies[name]
+}
+
 // GetAllURLs returns all resolved URLs for a given entity type and value.
 // Returns an empty slice if the entity type has no URL templates.
 func (m *Manager) GetAllURLs(entityType, value string) []ResolvedURL {
@@ -498,4 +538,326 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// RegisterTable registers a programmatically created table for hierarchy joins.
+// This is used for tables that are not loaded from datasources config (e.g., the Google demo tables).
+// The table name should match the name used elsewhere (e.g., "google_machines").
+func (m *Manager) RegisterTable(name string, table *tables.DataTable) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.registeredTables[name] = table
+}
+
+// HierarchyAncestorColumnPrefix is the prefix used for hierarchy ancestor column names
+// when there's a naming collision with an existing column.
+const HierarchyAncestorColumnPrefix = "§"
+
+// AddHierarchyAncestorColumns adds joined columns for ancestor entity types
+// in hierarchies that include the given entity type. This enables filtering/grouping
+// by ancestor values even when the table doesn't have a direct column for them.
+//
+// Columns are only added for ancestor entity types that don't already have a
+// column in the table. For example, if racks table already has a "zone" column
+// with entity type "google.zone", no zone column will be added.
+//
+// For example, if a machines table has primary key entity type "google.machine" and
+// is part of the "google" hierarchy, this will add columns like:
+//   - region (joined through zones table)
+//
+// Column naming:
+//   - Uses simple name derived from entity type (e.g., "google.region" -> "region")
+//   - Only uses §-prefix if there's a naming collision with an existing column
+//
+// These are implemented as joined columns using the existing join infrastructure,
+// chaining through intermediate tables as needed.
+func (m *Manager) AddHierarchyAncestorColumns(table *tables.DataTable, primaryKeyEntityType string) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Find hierarchies that include this entity type
+	hierarchies := m.entityTypeHierarchies[primaryKeyEntityType]
+	if len(hierarchies) == 0 {
+		return
+	}
+
+	// Build maps of entity type -> column and column name -> exists for this table
+	entityTypeToColumn := make(map[string]columns.IDataColumn)
+	existingColumnNames := make(map[string]bool)
+	for _, colName := range table.GetColumnNames() {
+		existingColumnNames[colName] = true
+		col := table.GetColumn(colName)
+		if col == nil {
+			continue
+		}
+		et := col.ColumnDef().EntityType()
+		if et != "" {
+			entityTypeToColumn[et] = col
+		}
+	}
+
+	// For each hierarchy, add columns for all ancestor entity types
+	for _, h := range hierarchies {
+		levels := h.GetLevels()
+
+		// Find the position of this entity type in the hierarchy
+		myLevel := -1
+		for i, level := range levels {
+			if level == primaryKeyEntityType {
+				myLevel = i
+				break
+			}
+		}
+
+		if myLevel <= 0 {
+			// Not found or already at the top - no ancestors
+			continue
+		}
+
+		// Add columns for ancestors that aren't already in the table
+		for targetLevel := myLevel - 1; targetLevel >= 0; targetLevel-- {
+			ancestorEntityType := levels[targetLevel]
+
+			// Skip if table already has a column with this entity type
+			if _, exists := entityTypeToColumn[ancestorEntityType]; exists {
+				continue
+			}
+
+			// Find the nearest ancestor that IS in the table
+			// This will be our starting point for the join chain
+			startLevel := -1
+			for j := targetLevel + 1; j < myLevel; j++ {
+				if _, exists := entityTypeToColumn[levels[j]]; exists {
+					startLevel = j
+					break
+				}
+			}
+
+			if startLevel == -1 {
+				// No intermediate ancestor found, use the immediate parent of target
+				startLevel = targetLevel + 1
+			}
+
+			// Build a chain of joiners from startLevel down to targetLevel
+			joinedColumn := m.buildHierarchyJoinedColumn(table, entityTypeToColumn, existingColumnNames, levels, startLevel, targetLevel)
+			if joinedColumn != nil {
+				table.AddColumn(joinedColumn)
+				// Track the new column name to avoid collisions with subsequent columns
+				existingColumnNames[joinedColumn.ColumnDef().Name()] = true
+			}
+		}
+	}
+}
+
+// buildHierarchyJoinedColumn creates a joined column by chaining through the hierarchy.
+// It starts from startLevel (which should have a column in the source table) and
+// chains through tables until it reaches targetLevel.
+func (m *Manager) buildHierarchyJoinedColumn(
+	sourceTable *tables.DataTable,
+	entityTypeToColumn map[string]columns.IDataColumn,
+	existingColumnNames map[string]bool,
+	levels []string,
+	startLevel, targetLevel int,
+) columns.IDataColumn {
+	if startLevel <= targetLevel {
+		return nil
+	}
+
+	ancestorEntityType := levels[targetLevel]
+
+	// Create column name from entity type (e.g., "google.region" -> "region")
+	// Use §-prefix only if there's a naming collision
+	columnName := ancestorEntityType
+	if lastDot := strings.LastIndex(ancestorEntityType, "."); lastDot >= 0 {
+		columnName = ancestorEntityType[lastDot+1:]
+	}
+	if existingColumnNames[columnName] {
+		// Collision - use the §-prefixed name
+		columnName = HierarchyAncestorColumnPrefix + ancestorEntityType
+	}
+
+	// Create display name (e.g., "region" -> "Region")
+	displayName := columnName
+	if strings.HasPrefix(displayName, HierarchyAncestorColumnPrefix) {
+		displayName = displayName[len(HierarchyAncestorColumnPrefix):]
+	}
+	if lastDot := strings.LastIndex(displayName, "."); lastDot >= 0 {
+		displayName = displayName[lastDot+1:]
+	}
+	if len(displayName) > 0 {
+		displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+	}
+
+	// Build joiners from startLevel down to targetLevel
+	var joiners []columns.IJoiner
+	currentLevel := startLevel
+
+	for currentLevel > targetLevel {
+		currentEntityType := levels[currentLevel]
+		parentEntityType := levels[currentLevel-1]
+
+		// Find the table for current level's entity type
+		currentTable := m.findTableByEntityType(currentEntityType)
+		if currentTable == nil {
+			fmt.Printf("Warning: could not find table for entity type %s\n", currentEntityType)
+			return nil
+		}
+
+		// Find the column in current table that links to parent entity type
+		var parentColumn columns.IDataColumn
+		for _, colName := range currentTable.GetColumnNames() {
+			col := currentTable.GetColumn(colName)
+			if col != nil && col.ColumnDef().EntityType() == parentEntityType {
+				parentColumn = col
+				break
+			}
+		}
+
+		if parentColumn == nil {
+			fmt.Printf("Warning: could not find column with entity type %s in table\n", parentEntityType)
+			return nil
+		}
+
+		// For the first joiner, use the source table's column to join to currentTable's PK
+		if len(joiners) == 0 {
+			// Find source table's column with currentEntityType
+			fromCol, exists := entityTypeToColumn[currentEntityType]
+			if !exists {
+				fmt.Printf("Warning: source table doesn't have column with entity type %s\n", currentEntityType)
+				return nil
+			}
+
+			// Find currentTable's PK column (same entity type)
+			var toCol columns.IDataColumn
+			for _, colName := range currentTable.GetColumnNames() {
+				col := currentTable.GetColumn(colName)
+				if col != nil && col.ColumnDef().EntityType() == currentEntityType && col.IsKey() {
+					toCol = col
+					break
+				}
+			}
+
+			if toCol == nil {
+				fmt.Printf("Warning: could not find PK column with entity type %s\n", currentEntityType)
+				return nil
+			}
+
+			// Create joiner from source to currentTable
+			fromStrCol, ok1 := fromCol.(columns.IDataColumnT[string])
+			toStrCol, ok2 := toCol.(columns.IDataColumnT[string])
+			if !ok1 || !ok2 {
+				fmt.Printf("Warning: columns are not string type for join\n")
+				return nil
+			}
+
+			joiners = append(joiners, &columns.Joiner[string]{
+				FromColumn: fromStrCol,
+				ToColumn:   toStrCol,
+			})
+		}
+
+		// If we're not at the target yet, add joiner to next level's table
+		if currentLevel-1 > targetLevel {
+			nextEntityType := parentEntityType
+			nextTable := m.findTableByEntityType(nextEntityType)
+			if nextTable == nil {
+				fmt.Printf("Warning: could not find table for entity type %s\n", nextEntityType)
+				return nil
+			}
+
+			// Find next table's PK column
+			var nextPKCol columns.IDataColumn
+			for _, colName := range nextTable.GetColumnNames() {
+				col := nextTable.GetColumn(colName)
+				if col != nil && col.ColumnDef().EntityType() == nextEntityType && col.IsKey() {
+					nextPKCol = col
+					break
+				}
+			}
+
+			if nextPKCol == nil {
+				fmt.Printf("Warning: could not find PK column with entity type %s\n", nextEntityType)
+				return nil
+			}
+
+			// Create joiner from parentColumn to nextTable's PK
+			fromStrCol, ok1 := parentColumn.(columns.IDataColumnT[string])
+			toStrCol, ok2 := nextPKCol.(columns.IDataColumnT[string])
+			if !ok1 || !ok2 {
+				fmt.Printf("Warning: columns are not string type for join\n")
+				return nil
+			}
+
+			joiners = append(joiners, &columns.Joiner[string]{
+				FromColumn: fromStrCol,
+				ToColumn:   toStrCol,
+			})
+		}
+
+		currentLevel--
+	}
+
+	// Get the final target column (ancestor value from the last joined table)
+	targetTable := m.findTableByEntityType(levels[targetLevel+1])
+	if targetTable == nil {
+		fmt.Printf("Warning: could not find table for entity type %s\n", levels[targetLevel+1])
+		return nil
+	}
+
+	var targetColumn columns.IDataColumn
+	for _, colName := range targetTable.GetColumnNames() {
+		col := targetTable.GetColumn(colName)
+		if col != nil && col.ColumnDef().EntityType() == ancestorEntityType {
+			targetColumn = col
+			break
+		}
+	}
+
+	if targetColumn == nil {
+		fmt.Printf("Warning: could not find column with entity type %s in target table\n", ancestorEntityType)
+		return nil
+	}
+
+	// Create the joined column
+	colDef := columns.NewColumnDef(
+		columnName,
+		displayName,
+		ancestorEntityType,
+	)
+
+	var joiner columns.IJoiner
+	if len(joiners) == 1 {
+		joiner = joiners[0]
+	} else if len(joiners) > 1 {
+		joiner = columns.NewChainedJoiner(joiners...)
+	} else {
+		return nil
+	}
+
+	return targetColumn.CreateJoinedColumn(colDef, joiner)
+}
+
+// findTableByEntityType finds a registered table whose primary key has the given entity type.
+func (m *Manager) findTableByEntityType(entityType string) *tables.DataTable {
+	// Look through registered tables
+	for _, table := range m.registeredTables {
+		for _, colName := range table.GetColumnNames() {
+			col := table.GetColumn(colName)
+			if col != nil && col.ColumnDef().EntityType() == entityType && col.IsKey() {
+				return table
+			}
+		}
+	}
+
+	// Also check loaded tables
+	for _, table := range m.tables {
+		for _, colName := range table.GetColumnNames() {
+			col := table.GetColumn(colName)
+			if col != nil && col.ColumnDef().EntityType() == entityType && col.IsKey() {
+				return table
+			}
+		}
+	}
+
+	return nil
 }

@@ -1568,6 +1568,64 @@
             background-color: #d0e8f8;
             border-color: #a8d4f0;
         }
+
+        /* Hierarchy navigation styles - simple text list */
+        .hierarchy-list {
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 12px 15px;
+            min-width: 200px;
+        }
+
+        .hierarchy-list-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .hierarchy-items {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .hierarchy-item {
+            padding: 4px 0;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .hierarchy-label {
+            color: #666;
+            margin-right: 6px;
+        }
+
+        .hierarchy-item.current .hierarchy-label {
+            color: #333;
+        }
+
+        .hierarchy-item.current .hierarchy-value {
+            color: #1976d2;
+        }
+
+        .hierarchy-item a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        .hierarchy-item a:hover {
+            text-decoration: underline;
+        }
+
+        .hierarchy-item .no-value {
+            color: #bbb;
+        }
     </style>
     <script>
         // Toggle sidebar visibility
@@ -2254,9 +2312,34 @@
             <div class="detail-panel" id="detail-panel">
                 <div class="detail-panel-header">
                     <a href="javascript:void(0)" class="detail-panel-close" onclick="deselectRow()" title="Close">&times;</a>
-                    <span class="detail-panel-title">Row {{.SelectedRowIndex}} Details</span>
+                    <span class="detail-panel-title">{{.SelectedRowID}}</span>
                 </div>
                 <div class="detail-panel-content">
+                    {{if .SelectedItemHierarchies}}
+                    {{/* Display hierarchy navigation as simple text list */}}
+                    {{range .SelectedItemHierarchies}}
+                    {{$currentValue := .Current.Value}}
+                    <div class="hierarchy-list">
+                        <div class="hierarchy-list-title">{{.HierarchyName}}</div>
+                        <ul class="hierarchy-items">
+                            {{range .Ancestors}}
+                            <li class="hierarchy-item ancestor">
+                                In {{.DisplayName}} {{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else if .Value}}{{.Value}}{{else}}<span class="no-value">—</span>{{end}}
+                            </li>
+                            {{end}}
+                            <li class="hierarchy-item current">
+                                <span class="hierarchy-label">{{.Current.DisplayName}}:</span> <strong class="hierarchy-value">{{.Current.Value}}</strong>
+                            </li>
+                            {{range .Descendants}}
+                            <li class="hierarchy-item descendant">
+                                {{if .ListURL}}<a href="{{.ListURL}}">{{.DisplayName}}</a>{{else}}{{.DisplayName}}{{end}} in {{$currentValue}}
+                            </li>
+                            {{end}}
+                        </ul>
+                    </div>
+                    {{end}}
+                    {{else}}
+                    {{/* Fallback to column data if no hierarchies */}}
                     {{range .SelectedRowData}}
                     <div class="detail-field{{if .EntityType}} has-entity-type{{end}}">
                         <div class="detail-field-name">{{.DisplayName}}{{if .EntityType}}<span class="detail-field-entity-type">{{.EntityType}}</span>{{end}}</div>
@@ -2269,6 +2352,7 @@
                         </div>
                         {{end}}
                     </div>
+                    {{end}}
                     {{end}}
                 </div>
             </div>
@@ -2461,8 +2545,8 @@ Use &quot;quotes&quot; for exact match">
             {{else}}
                 {{/* Render flat rows (ungrouped) */}}
                 {{range $rowIdx, $row := .Rows}}
-                {{$rowNum := add $rowIdx 1}}
-                <tr data-row-idx="{{$rowNum}}"{{if eq $rowNum $.SelectedRowIndex}} class="selected-row"{{end}}>
+                {{$rowID := ""}}{{if $.RowIDs}}{{$rowID = index $.RowIDs $rowIdx}}{{end}}
+                <tr data-row-id="{{$rowID}}"{{if eq $rowID $.SelectedRowID}} class="selected-row"{{end}}>
                     {{range $colName := $.Columns}}
                     {{$url := ""}}{{if $.RowURLs}}{{with index $.RowURLs $rowIdx}}{{$url = index . $colName}}{{end}}{{end}}
                     <td>{{if $url}}<a href="{{$url}}" class="entity-link">{{index $row $colName}}</a>{{else}}{{index $row $colName}}{{end}}</td>
@@ -2743,9 +2827,9 @@ Use &quot;quotes&quot; for exact match">
         });
 
         // Row selection handling
-        function selectRow(rowIdx) {
+        function selectRow(rowId) {
             const url = new URL(window.location);
-            url.searchParams.set('row', rowIdx.toString());
+            url.searchParams.set('row', rowId);
             window.location.href = url.toString();
         }
 
@@ -2757,21 +2841,21 @@ Use &quot;quotes&quot; for exact match">
 
         // Handle row clicks for selection (flat rows only)
         document.addEventListener('click', function(e) {
-            // Find the clicked row - must be in tbody and have data-row-idx
-            const row = e.target.closest('tbody tr[data-row-idx]');
+            // Find the clicked row - must be in tbody and have data-row-id
+            const row = e.target.closest('tbody tr[data-row-id]');
             if (!row) return;
 
             // Don't select if clicking on a link, button, input, or interactive elements
             if (e.target.closest('a, button, input, .filter-link, .entity-link, .multiselect-checkbox')) return;
 
-            const rowIdx = parseInt(row.dataset.rowIdx, 10);
-            if (rowIdx > 0) {
+            const rowId = row.dataset.rowId;
+            if (rowId) {
                 // If already selected, deselect; otherwise select
-                const currentRow = parseInt(new URL(window.location).searchParams.get('row'), 10) || 0;
-                if (currentRow === rowIdx) {
+                const currentRowId = new URL(window.location).searchParams.get('row') || '';
+                if (currentRowId === rowId) {
                     deselectRow();
                 } else {
-                    selectRow(rowIdx);
+                    selectRow(rowId);
                 }
             }
         });

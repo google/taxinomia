@@ -198,7 +198,7 @@ type Query struct {
 	ShowInfoPane   bool   // Whether the info pane is visible (default: true)
 	InfoPaneTab    string // Active tab in info pane ("url" or "perf")
 	AnimatedColumn string // Column to animate (e.g., just grouped) - transient, not persisted in subsequent URLs
-	SelectedRow    int    // Index of the selected row (0 = no selection, 1-based when selected)
+	SelectedRowID  string // Primary key value of the selected row (empty = no selection)
 }
 
 // NewQuery creates a Query from a URL
@@ -323,13 +323,8 @@ func NewQuery(u *url.URL) *Query {
 	// Extract animation parameter (transient - column that was just grouped)
 	state.AnimatedColumn = q.Get("_anim")
 
-	// Extract selected row parameter (1-based row index)
-	selectedRowStr := q.Get("row")
-	if selectedRowStr != "" {
-		if row, err := strconv.Atoi(selectedRowStr); err == nil && row > 0 {
-			state.SelectedRow = row
-		}
-	}
+	// Extract selected row parameter (primary key value)
+	state.SelectedRowID = q.Get("row")
 
 	// Reorder columns: filtered columns first, then grouped columns, then others
 	state.reorderColumns()
@@ -474,7 +469,7 @@ func (s *Query) Clone() *Query {
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
 		ShowInfoPane:        s.ShowInfoPane,
 		InfoPaneTab:         s.InfoPaneTab,
-		SelectedRow:         s.SelectedRow,
+		SelectedRowID:       s.SelectedRowID,
 	}
 
 	// Deep copy columns
@@ -520,6 +515,22 @@ func (s *Query) Clone() *Query {
 	}
 
 	return clone
+}
+
+// ClearTableSpecificState resets all table-specific query state while preserving
+// non-table-specific settings (limit, info pane, etc.). Use this when navigating
+// to a different table to keep user preferences but start with a fresh table view.
+func (s *Query) ClearTableSpecificState() {
+	s.Columns = nil
+	s.ColumnWidths = make(map[string]int)
+	s.Expanded = nil
+	s.GroupedColumns = nil
+	s.Filters = make(map[string]string)
+	s.ComputedColumns = nil
+	s.SortOrder = nil
+	s.AggregateSettings = make(map[string][]AggregateType)
+	s.GroupAggregateSorts = make(map[string]*GroupAggSort)
+	s.SelectedRowID = ""
 }
 
 // reorderColumns reorders the Columns slice to maintain:
@@ -779,8 +790,8 @@ func (s *Query) ToURL() string {
 	}
 
 	// Add selected row parameter
-	if s.SelectedRow > 0 {
-		q.Set("row", strconv.Itoa(s.SelectedRow))
+	if s.SelectedRowID != "" {
+		q.Set("row", s.SelectedRowID)
 	}
 
 	u.RawQuery = q.Encode()
@@ -1130,10 +1141,10 @@ func (s *Query) WithGroupAggSortDirectionToggled(groupedColumn string) safehtml.
 	return newState.ToSafeURL()
 }
 
-// WithSelectedRow returns a URL with the specified row selected.
-// Row is 1-based. Use 0 to deselect.
-func (s *Query) WithSelectedRow(row int) safehtml.URL {
+// WithSelectedRowID returns a URL with the specified row selected by its primary key ID.
+// Use empty string to deselect.
+func (s *Query) WithSelectedRowID(id string) safehtml.URL {
 	newState := s.Clone()
-	newState.SelectedRow = row
+	newState.SelectedRowID = id
 	return newState.ToSafeURL()
 }

@@ -54,144 +54,153 @@ sources {
 entity_types {
   name: "demo.customer_id"
   description: "Unique identifier for a customer in the demo dataset"
-  urls { name: "View Orders"       template: "table?table=customer_orders&filter=customer_id:{value}" is_default: true }
-  urls { name: "Orders by Status"  template: "table?table=customer_orders&groupon=status&filter=customer_id:{value}" }
+  urls { name: "CRM Profile"       template: "https://crm.example.com/customers/{value}" is_default: true }
+  urls { name: "Support Tickets"   template: "https://support.example.com/tickets?customer={value}" }
 }
 
 entity_types {
   name: "demo.order_id"
   description: "Unique identifier for an order"
-  urls { name: "View Order"        template: "table?table=customer_orders&filter=order_id:{value}" is_default: true }
+  urls { name: "Order Details"     template: "https://orders.example.com/orders/{value}" is_default: true }
+  urls { name: "Shipping Status"   template: "https://shipping.example.com/track/{value}" }
 }
 
 entity_types {
   name: "demo.product_id"
   description: "Unique identifier for a product in the demo catalog"
-  urls { name: "View Product"      template: "table?table=customer_orders&filter=product_id:{value}" is_default: true }
+  urls { name: "Product Page"      template: "https://catalog.example.com/products/{value}" is_default: true }
+  urls { name: "Inventory"         template: "https://warehouse.example.com/stock/{value}" }
 }
 
 entity_types {
   name: "demo.order_status"
   description: "Order fulfillment status"
-  urls { name: "Filter by Status"  template: "table?table=customer_orders&filter=status:{value}" is_default: true }
-  urls { name: "Group by Status"   template: "table?table=customer_orders&groupon=status:{value}" }
+  urls { name: "Status Dashboard"  template: "https://ops.example.com/status/{value}" is_default: true }
 }
 
 entity_types {
   name: "demo.discount_code"
   description: "Promotional discount code"
-  urls { name: "View Discounts"    template: "table?table=customer_orders&filter=discount_code:{value}" is_default: true }
+  urls { name: "Promo Details"     template: "https://marketing.example.com/promos/{value}" is_default: true }
 }
 
 # Entity types for demo CSV tables (orders, regions, capitals, items)
 entity_types {
   name: "region"
   description: "Geographic region"
-  urls { name: "View Region"        template: "table?table=regions&filter=region:{value}" is_default: true }
-  urls { name: "Orders by Region"   template: "table?table=orders&filter=region:{value}" }
-  urls { name: "Capitals in Region" template: "table?table=capitals&filter=region:{value}" }
+  urls { name: "Wikipedia"          template: "https://en.wikipedia.org/wiki/{value}" is_default: true }
+  urls { name: "Weather"            template: "https://weather.example.com/regions/{value}" }
 }
 
 entity_types {
   name: "capital"
   description: "Capital city"
-  urls { name: "View Capital"       template: "table?table=capitals&filter=capital:{value}" is_default: true }
-  urls { name: "Region Details"     template: "table?table=regions&filter=capital:{value}" }
+  urls { name: "Wikipedia"          template: "https://en.wikipedia.org/wiki/{value}" is_default: true }
+  urls { name: "Travel Guide"       template: "https://travel.example.com/cities/{value}" }
 }
 
 entity_types {
   name: "status"
   description: "Order status"
-  urls { name: "Filter by Status"   template: "table?table=orders&filter=status:{value}" is_default: true }
-  urls { name: "Group by Status"    template: "table?table=orders&groupon=status" }
+  urls { name: "Status Wiki"        template: "https://wiki.example.com/order-status/{value}" is_default: true }
 }
 
 entity_types {
   name: "category"
   description: "Product category"
-  urls { name: "Items in Category"  template: "table?table=items&filter=category:{value}" is_default: true }
-  urls { name: "Orders by Category" template: "table?table=orders&filter=category:{value}" }
+  urls { name: "Category Info"      template: "https://catalog.example.com/categories/{value}" is_default: true }
 }
 
 entity_types {
   name: "item_id"
   description: "Item identifier"
-  urls { name: "View Item"          template: "table?table=items&filter=item_id:{value}" is_default: true }
+  urls { name: "Product Page"       template: "https://shop.example.com/items/{value}" is_default: true }
 }
 
 # Google Infrastructure entity types
 # Physical hierarchy: region -> zone -> cluster -> rack -> machine
 # Workload hierarchy: cell -> job -> task -> alloc
 
+# Entity type hierarchies
+hierarchies {
+  name: "google.infrastructure"
+  description: "Physical infrastructure hierarchy from region down to individual machines"
+  levels: "google.region"
+  levels: "google.zone"
+  levels: "google.cluster"
+  levels: "google.rack"
+  levels: "google.machine"
+}
+
+hierarchies {
+  name: "google.workload"
+  description: "Workload scheduling hierarchy from cell down to individual allocations"
+  levels: "google.cell"
+  levels: "google.job"
+  levels: "google.task"
+  levels: "google.alloc"
+}
+
 entity_types {
   name: "google.region"
   description: "Geographic region"
-  urls { name: "View Region"           template: "table?table=google_regions&filter=region:{value}" is_default: true }
-  urls { name: "Zones in Region"       template: "table?table=google_zones&filter=region:{value}" }
-  urls { name: "Clusters in Region"    template: "table?table=google_clusters&filter=region:{value}" }
-  urls { name: "Machines in Region"    template: "table?table=google_machines&filter=zone:{value}*" }
+  urls { name: "Region Dashboard"      template: "https://monitoring.corp.example.com/regions/{value}" is_default: true }
+  urls { name: "Capacity Planning"     template: "https://capacity.corp.example.com/regions/{value}/forecast" }
 }
 
 entity_types {
   name: "google.zone"
   description: "Data center zone"
-  urls { name: "View Zone"             template: "table?table=google_zones&filter=zone:{value}" is_default: true }
-  urls { name: "Clusters in Zone"      template: "table?table=google_clusters&filter=zone:{value}" }
-  urls { name: "Racks in Zone"         template: "table?table=google_racks&filter=zone:{value}" }
-  urls { name: "Machines in Zone"      template: "table?table=google_machines&filter=zone:{value}" }
+  urls { name: "Zone Dashboard"        template: "https://monitoring.corp.example.com/zones/{value}" is_default: true }
+  urls { name: "Power & Cooling"       template: "https://facilities.corp.example.com/zones/{value}" }
 }
 
 entity_types {
   name: "google.cluster"
   description: "Machine cluster"
-  urls { name: "View Cluster"          template: "table?table=google_clusters&filter=cluster:{value}" is_default: true }
-  urls { name: "Racks in Cluster"      template: "table?table=google_racks&filter=cluster:{value}" }
-  urls { name: "Machines in Cluster"   template: "table?table=google_machines&filter=cluster:{value}" }
-  urls { name: "Cell for Cluster"      template: "table?table=google_cells&filter=cluster:{value}" }
-  urls { name: "Jobs in Cluster"       template: "table?table=google_jobs&filter=cluster:{value}" }
+  urls { name: "Cluster Dashboard"     template: "https://monitoring.corp.example.com/clusters/{value}" is_default: true }
+  urls { name: "Network Topology"      template: "https://netops.corp.example.com/clusters/{value}/topology" }
 }
 
 entity_types {
   name: "google.rack"
   description: "Server rack"
-  urls { name: "View Rack"             template: "table?table=google_racks&filter=rack:{value}" is_default: true }
-  urls { name: "Machines in Rack"      template: "table?table=google_machines&filter=rack:{value}" }
-  urls { name: "Tasks on Rack"         template: "table?table=google_tasks&filter=rack:{value}" }
+  urls { name: "Rack Dashboard"        template: "https://monitoring.corp.example.com/racks/{value}" is_default: true }
+  urls { name: "Hardware Inventory"    template: "https://inventory.corp.example.com/racks/{value}" }
 }
 
 entity_types {
   name: "google.machine"
   description: "Physical server"
-  urls { name: "View Machine"          template: "table?table=google_machines&filter=machine:{value}" is_default: true }
-  urls { name: "Tasks on Machine"      template: "table?table=google_tasks&filter=machine:{value}" }
-  urls { name: "Allocs on Machine"     template: "table?table=google_allocs&filter=machine:{value}" }
+  urls { name: "Machine Dashboard"     template: "https://monitoring.corp.example.com/machines/{value}" is_default: true }
+  urls { name: "System Logs"           template: "https://logs.corp.example.com/machines/{value}" }
+  urls { name: "Hardware Specs"        template: "https://inventory.corp.example.com/machines/{value}" }
 }
 
 entity_types {
   name: "google.cell"
   description: "Borg cell (workload manager)"
-  urls { name: "View Cell"             template: "table?table=google_cells&filter=cell:{value}" is_default: true }
-  urls { name: "Jobs in Cell"          template: "table?table=google_jobs&filter=cell:{value}" }
-  urls { name: "Tasks in Cell"         template: "table?table=google_tasks&filter=cell:{value}" }
+  urls { name: "Cell Dashboard"        template: "https://borg.corp.example.com/cells/{value}" is_default: true }
+  urls { name: "Scheduler Metrics"     template: "https://borg.corp.example.com/cells/{value}/scheduler" }
 }
 
 entity_types {
   name: "google.job"
   description: "Workload definition"
-  urls { name: "View Job"              template: "table?table=google_jobs&filter=job:{value}" is_default: true }
-  urls { name: "Tasks in Job"          template: "table?table=google_tasks&filter=job:{value}" }
-  urls { name: "Allocs for Job"        template: "table?table=google_allocs&filter=job:{value}" }
+  urls { name: "Job Dashboard"         template: "https://borg.corp.example.com/jobs/{value}" is_default: true }
+  urls { name: "Job Logs"              template: "https://logs.corp.example.com/jobs/{value}" }
+  urls { name: "Resource Usage"        template: "https://borg.corp.example.com/jobs/{value}/resources" }
 }
 
 entity_types {
   name: "google.task"
   description: "Running task instance"
-  urls { name: "View Task"             template: "table?table=google_tasks&filter=task:{value}" is_default: true }
-  urls { name: "Task Allocations"      template: "table?table=google_allocs&filter=task:{value}" }
+  urls { name: "Task Dashboard"        template: "https://borg.corp.example.com/tasks/{value}" is_default: true }
+  urls { name: "Task Logs"             template: "https://logs.corp.example.com/tasks/{value}" }
 }
 
 entity_types {
   name: "google.alloc"
   description: "Resource allocation"
-  urls { name: "View Allocation"       template: "table?table=google_allocs&filter=alloc:{value}" is_default: true }
+  urls { name: "Allocation Details"    template: "https://borg.corp.example.com/allocs/{value}" is_default: true }
 }

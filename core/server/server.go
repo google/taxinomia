@@ -59,10 +59,11 @@ type Server struct {
 	renderer           *rendering.TableRenderer
 	tableViewCache     map[string]*tables.TableView
 	userStore          users.UserStore
-	urlResolver               views.URLResolver              // Optional resolver for entity type URLs
-	allURLsResolver           views.AllURLsResolver          // Optional resolver for all entity type URLs (for detail panel)
-	primaryKeyResolver        PrimaryKeyResolver             // Optional resolver for table primary key entity types
-	entityTypeDescResolver    EntityTypeDescriptionResolver  // Optional resolver for entity type descriptions
+	urlResolver               views.URLResolver                // Optional resolver for entity type URLs
+	allURLsResolver           views.AllURLsResolver            // Optional resolver for all entity type URLs (for detail panel)
+	primaryKeyResolver        PrimaryKeyResolver               // Optional resolver for table primary key entity types
+	entityTypeDescResolver    EntityTypeDescriptionResolver    // Optional resolver for entity type descriptions
+	hierarchyContextBuilder   views.HierarchyContextBuilder    // Optional builder for hierarchy contexts in detail panel
 
 	// Caches for computed columns
 	exprCache         map[string]*expr.Expression   // expression string -> compiled expression
@@ -110,6 +111,11 @@ func (s *Server) SetPrimaryKeyResolver(resolver PrimaryKeyResolver) {
 // SetEntityTypeDescriptionResolver sets the resolver for entity type descriptions
 func (s *Server) SetEntityTypeDescriptionResolver(resolver EntityTypeDescriptionResolver) {
 	s.entityTypeDescResolver = resolver
+}
+
+// SetHierarchyContextBuilder sets the builder for hierarchy contexts in the detail panel
+func (s *Server) SetHierarchyContextBuilder(builder views.HierarchyContextBuilder) {
+	s.hierarchyContextBuilder = builder
 }
 
 // makeCacheKey creates a cache key combining user and table name
@@ -303,7 +309,7 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	if s.entityTypeDescResolver != nil {
 		entityTypeDescResolver = views.EntityTypeDescriptionResolver(s.entityTypeDescResolver)
 	}
-	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver, primaryKeyEntityType, entityTypeDescResolver)
+	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, s.hierarchyContextBuilder)
 	timing.Record("Build ViewModel", time.Since(vmStart))
 
 	// Set timing information

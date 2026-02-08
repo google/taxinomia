@@ -392,6 +392,81 @@ func (x *EntityTypeDefinition) GetUrls() []*URLTemplate {
 	return nil
 }
 
+// Hierarchy defines an ordered sequence of entity types representing a
+// containment or parent-child relationship.
+//
+// Hierarchies enable:
+// - Drill-down navigation (click a zone to see its machines)
+// - Roll-up aggregation (sum machine CPU by rack, then by cluster)
+// - Contextual filtering (show only entities within a parent)
+//
+// Example: Physical infrastructure hierarchy
+//
+//	region → zone → cluster → rack → machine
+type Hierarchy struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unique name for this hierarchy (e.g., "google.infrastructure").
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Human-readable description.
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// Entity types ordered from root (broadest) to leaf (most specific).
+	// Example: ["google.region", "google.zone", "google.cluster", "google.rack", "google.machine"]
+	Levels        []string `protobuf:"bytes,3,rep,name=levels,proto3" json:"levels,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Hierarchy) Reset() {
+	*x = Hierarchy{}
+	mi := &file_datasource_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Hierarchy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Hierarchy) ProtoMessage() {}
+
+func (x *Hierarchy) ProtoReflect() protoreflect.Message {
+	mi := &file_datasource_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Hierarchy.ProtoReflect.Descriptor instead.
+func (*Hierarchy) Descriptor() ([]byte, []int) {
+	return file_datasource_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Hierarchy) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Hierarchy) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *Hierarchy) GetLevels() []string {
+	if x != nil {
+		return x.Levels
+	}
+	return nil
+}
+
 // DataSourcesConfig is the top-level configuration for data sources.
 type DataSourcesConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -401,14 +476,17 @@ type DataSourcesConfig struct {
 	// Data sources - metadata only, data loaded lazily on demand.
 	Sources []*DataSource `protobuf:"bytes,2,rep,name=sources,proto3" json:"sources,omitempty"`
 	// Entity type definitions with descriptions and URL templates.
-	EntityTypes   []*EntityTypeDefinition `protobuf:"bytes,3,rep,name=entity_types,json=entityTypes,proto3" json:"entity_types,omitempty"`
+	EntityTypes []*EntityTypeDefinition `protobuf:"bytes,3,rep,name=entity_types,json=entityTypes,proto3" json:"entity_types,omitempty"`
+	// Entity type hierarchies defining containment relationships.
+	// Example: region → zone → cluster → rack → machine
+	Hierarchies   []*Hierarchy `protobuf:"bytes,4,rep,name=hierarchies,proto3" json:"hierarchies,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DataSourcesConfig) Reset() {
 	*x = DataSourcesConfig{}
-	mi := &file_datasource_proto_msgTypes[5]
+	mi := &file_datasource_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -420,7 +498,7 @@ func (x *DataSourcesConfig) String() string {
 func (*DataSourcesConfig) ProtoMessage() {}
 
 func (x *DataSourcesConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_datasource_proto_msgTypes[5]
+	mi := &file_datasource_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -433,7 +511,7 @@ func (x *DataSourcesConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataSourcesConfig.ProtoReflect.Descriptor instead.
 func (*DataSourcesConfig) Descriptor() ([]byte, []int) {
-	return file_datasource_proto_rawDescGZIP(), []int{5}
+	return file_datasource_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DataSourcesConfig) GetAnnotations() []*ColumnAnnotations {
@@ -453,6 +531,13 @@ func (x *DataSourcesConfig) GetSources() []*DataSource {
 func (x *DataSourcesConfig) GetEntityTypes() []*EntityTypeDefinition {
 	if x != nil {
 		return x.EntityTypes
+	}
+	return nil
+}
+
+func (x *DataSourcesConfig) GetHierarchies() []*Hierarchy {
+	if x != nil {
+		return x.Hierarchies
 	}
 	return nil
 }
@@ -490,11 +575,16 @@ const file_datasource_proto_rawDesc = "" +
 	"\x14EntityTypeDefinition\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x126\n" +
-	"\x04urls\x18\x03 \x03(\v2\".taxinomia.datasources.URLTemplateR\x04urls\"\xec\x01\n" +
+	"\x04urls\x18\x03 \x03(\v2\".taxinomia.datasources.URLTemplateR\x04urls\"Y\n" +
+	"\tHierarchy\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x16\n" +
+	"\x06levels\x18\x03 \x03(\tR\x06levels\"\xb0\x02\n" +
 	"\x11DataSourcesConfig\x12J\n" +
 	"\vannotations\x18\x01 \x03(\v2(.taxinomia.datasources.ColumnAnnotationsR\vannotations\x12;\n" +
 	"\asources\x18\x02 \x03(\v2!.taxinomia.datasources.DataSourceR\asources\x12N\n" +
-	"\fentity_types\x18\x03 \x03(\v2+.taxinomia.datasources.EntityTypeDefinitionR\ventityTypesB)Z'github.com/google/taxinomia/datasourcesb\x06proto3"
+	"\fentity_types\x18\x03 \x03(\v2+.taxinomia.datasources.EntityTypeDefinitionR\ventityTypes\x12B\n" +
+	"\vhierarchies\x18\x04 \x03(\v2 .taxinomia.datasources.HierarchyR\vhierarchiesB)Z'github.com/google/taxinomia/datasourcesb\x06proto3"
 
 var (
 	file_datasource_proto_rawDescOnce sync.Once
@@ -508,28 +598,30 @@ func file_datasource_proto_rawDescGZIP() []byte {
 	return file_datasource_proto_rawDescData
 }
 
-var file_datasource_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_datasource_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_datasource_proto_goTypes = []any{
 	(*ColumnAnnotation)(nil),     // 0: taxinomia.datasources.ColumnAnnotation
 	(*ColumnAnnotations)(nil),    // 1: taxinomia.datasources.ColumnAnnotations
 	(*DataSource)(nil),           // 2: taxinomia.datasources.DataSource
 	(*URLTemplate)(nil),          // 3: taxinomia.datasources.URLTemplate
 	(*EntityTypeDefinition)(nil), // 4: taxinomia.datasources.EntityTypeDefinition
-	(*DataSourcesConfig)(nil),    // 5: taxinomia.datasources.DataSourcesConfig
-	nil,                          // 6: taxinomia.datasources.DataSource.ConfigEntry
+	(*Hierarchy)(nil),            // 5: taxinomia.datasources.Hierarchy
+	(*DataSourcesConfig)(nil),    // 6: taxinomia.datasources.DataSourcesConfig
+	nil,                          // 7: taxinomia.datasources.DataSource.ConfigEntry
 }
 var file_datasource_proto_depIdxs = []int32{
 	0, // 0: taxinomia.datasources.ColumnAnnotations.columns:type_name -> taxinomia.datasources.ColumnAnnotation
-	6, // 1: taxinomia.datasources.DataSource.config:type_name -> taxinomia.datasources.DataSource.ConfigEntry
+	7, // 1: taxinomia.datasources.DataSource.config:type_name -> taxinomia.datasources.DataSource.ConfigEntry
 	3, // 2: taxinomia.datasources.EntityTypeDefinition.urls:type_name -> taxinomia.datasources.URLTemplate
 	1, // 3: taxinomia.datasources.DataSourcesConfig.annotations:type_name -> taxinomia.datasources.ColumnAnnotations
 	2, // 4: taxinomia.datasources.DataSourcesConfig.sources:type_name -> taxinomia.datasources.DataSource
 	4, // 5: taxinomia.datasources.DataSourcesConfig.entity_types:type_name -> taxinomia.datasources.EntityTypeDefinition
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	5, // 6: taxinomia.datasources.DataSourcesConfig.hierarchies:type_name -> taxinomia.datasources.Hierarchy
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_datasource_proto_init() }
@@ -543,7 +635,7 @@ func file_datasource_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datasource_proto_rawDesc), len(file_datasource_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

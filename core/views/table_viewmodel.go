@@ -81,9 +81,14 @@ type TableViewModel struct {
 	// Entity type info for URL resolution
 	ColumnEntityTypes map[string]string // Column entity types (columnName -> entityType)
 
+	// Row identification
+	PrimaryKeyColumn string   // Column name containing the primary key values
+	RowIDs           []string // Primary key value for each row (parallel to Rows)
+
 	// Row selection state
-	SelectedRowIndex int                 // 1-based index of selected row (0 = no selection)
-	SelectedRowData  []SelectedRowField  // Fields of the selected row for detail panel
+	SelectedRowID           string               // Primary key value of selected row (empty = no selection)
+	SelectedRowData         []SelectedRowField   // Fields of the selected row for detail panel
+	SelectedItemHierarchies []HierarchyContext   // Hierarchy contexts for the selected item's primary key
 }
 
 // SelectedRowField represents a single field in the selected row for the detail panel
@@ -101,6 +106,36 @@ type EntityURL struct {
 	Name string // Display name for the URL (e.g., "View Orders", "Orders by Status")
 	URL  string // The resolved URL
 }
+
+// HierarchyContext represents the item's position within a hierarchy
+type HierarchyContext struct {
+	HierarchyName string           // e.g., "google.infrastructure"
+	Description   string           // e.g., "Physical infrastructure hierarchy"
+	Ancestors     []HierarchyLevel // Levels above the current item (root first)
+	Current       HierarchyLevel   // The current item's level
+	Descendants   []HierarchyLevel // Levels below the current item (immediate child first)
+}
+
+// HierarchyLevel represents one level in a hierarchy
+type HierarchyLevel struct {
+	EntityType  string // e.g., "google.cluster"
+	DisplayName string // e.g., "Cluster" (derived from entity type)
+	Value       string // e.g., "cluster-us-east1-a-001" (empty for descendants)
+	ValueURL    string // URL to view this specific item (empty for descendants)
+	ListURL     string // URL to list items at this level filtered by parent
+	Description string // Entity type description
+}
+
+// HierarchyContextBuilder builds hierarchy contexts for a selected item.
+// It takes the current query (to preserve non-table-specific state), primary key entity type,
+// value, row data, and column entity types to build the full hierarchy context.
+type HierarchyContextBuilder func(
+	currentQuery *query.Query,
+	primaryKeyEntityType string,
+	primaryKeyValue string,
+	rowData map[string]string,
+	columnEntityTypes map[string]string,
+) []HierarchyContext
 
 // URLResolver is a function that resolves a URL for a given entity type and value.
 // Returns an empty string if no URL is available.
@@ -448,7 +483,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 // allURLsResolver is an optional function to resolve all URLs for an entity type (for detail panel)
 // primaryKeyEntityType is the entity type that serves as the table's primary key (can be empty)
 // entityTypeDescResolver is an optional function to resolve entity type descriptions (can be nil)
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver, primaryKeyEntityType string, entityTypeDescResolver EntityTypeDescriptionResolver) TableViewModel {
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver, primaryKeyEntityType string, entityTypeDescResolver EntityTypeDescriptionResolver, hierarchyContextBuilder HierarchyContextBuilder) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
@@ -541,6 +576,10 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			hasEntityType := entityType != ""
 			if hasEntityType {
 				vm.ColumnEntityTypes[colName] = entityType
+				// Track the primary key column
+				if entityType == primaryKeyEntityType {
+					vm.PrimaryKeyColumn = colName
+				}
 			}
 
 			// Use the column's IsKey property
@@ -809,6 +848,14 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	vm.CurrentLimit = q.Limit
 	vm.HasMoreRows = q.Limit > 0 && totalRows > q.Limit
 
+	// Build RowIDs for each row (primary key values for stable selection)
+	if vm.PrimaryKeyColumn != "" {
+		vm.RowIDs = make([]string, len(vm.Rows))
+		for i, row := range vm.Rows {
+			vm.RowIDs[i] = row[vm.PrimaryKeyColumn]
+		}
+	}
+
 	// Build RowURLs for flat rows if URL resolver is provided
 	if urlResolver != nil && len(vm.ColumnEntityTypes) > 0 {
 		vm.RowURLs = make([]map[string]string, len(vm.Rows))
@@ -828,44 +875,98 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	}
 
 	// Build selected row data for detail panel (flat rows only)
-	if q.SelectedRow > 0 && q.SelectedRow <= len(vm.Rows) {
-		vm.SelectedRowIndex = q.SelectedRow
-		selectedRow := vm.Rows[q.SelectedRow-1] // Convert to 0-based index
-		vm.SelectedRowData = make([]SelectedRowField, 0, len(view.Columns))
-
-		// Build column name to display name map
-		colDisplayNames := make(map[string]string)
-		for _, col := range tableView.GetColumnNames() {
-			if c := tableView.GetColumn(col); c != nil {
-				colDisplayNames[col] = c.ColumnDef().DisplayName()
+	// Find the row by matching the primary key ID
+	if q.SelectedRowID != "" && len(vm.RowIDs) > 0 {
+		// Find the row with the matching ID
+		var selectedRow map[string]string
+		for i, rowID := range vm.RowIDs {
+			if rowID == q.SelectedRowID {
+				selectedRow = vm.Rows[i]
+				break
 			}
 		}
 
-		for _, colName := range view.Columns {
-			displayName := colDisplayNames[colName]
-			if displayName == "" {
-				displayName = colName
-			}
-			value := selectedRow[colName]
-			entityType := vm.ColumnEntityTypes[colName]
-			var valueURL string
-			var entityURLs []EntityURL
-			if entityType != "" && value != "" {
-				if urlResolver != nil {
-					valueURL = urlResolver(entityType, value)
-				}
-				if allURLsResolver != nil {
-					entityURLs = allURLsResolver(entityType, value)
+		if selectedRow != nil {
+			vm.SelectedRowID = q.SelectedRowID
+			vm.SelectedRowData = make([]SelectedRowField, 0, len(view.Columns))
+
+			// Build column name to display name map
+			colDisplayNames := make(map[string]string)
+			for _, col := range tableView.GetColumnNames() {
+				if c := tableView.GetColumn(col); c != nil {
+					colDisplayNames[col] = c.ColumnDef().DisplayName()
 				}
 			}
-			vm.SelectedRowData = append(vm.SelectedRowData, SelectedRowField{
-				ColumnName:  colName,
-				DisplayName: displayName,
-				Value:       value,
-				ValueURL:    valueURL,
-				EntityType:  entityType,
-				EntityURLs:  entityURLs,
-			})
+
+			for _, colName := range view.Columns {
+				displayName := colDisplayNames[colName]
+				if displayName == "" {
+					displayName = colName
+				}
+				value := selectedRow[colName]
+				entityType := vm.ColumnEntityTypes[colName]
+				var valueURL string
+				var entityURLs []EntityURL
+				if entityType != "" && value != "" {
+					if urlResolver != nil {
+						valueURL = urlResolver(entityType, value)
+					}
+					if allURLsResolver != nil {
+						entityURLs = allURLsResolver(entityType, value)
+					}
+				}
+				vm.SelectedRowData = append(vm.SelectedRowData, SelectedRowField{
+					ColumnName:  colName,
+					DisplayName: displayName,
+					Value:       value,
+					ValueURL:    valueURL,
+					EntityType:  entityType,
+					EntityURLs:  entityURLs,
+				})
+			}
+
+			// Build hierarchy contexts for the selected item
+			// The primary key value is the SelectedRowID itself
+			if hierarchyContextBuilder != nil && primaryKeyEntityType != "" {
+				// Build a complete row data map that includes ALL columns with entity types,
+				// not just visible columns. This is needed because hierarchy ancestors might
+				// be in columns that aren't currently displayed.
+				fullRowData := make(map[string]string)
+				// Start with visible columns
+				for k, v := range selectedRow {
+					fullRowData[k] = v
+				}
+				// Add all entity type columns by looking up the actual row
+				if vm.PrimaryKeyColumn != "" {
+					pkCol := tableView.GetColumn(vm.PrimaryKeyColumn)
+					if pkCol != nil {
+						// Find the row index by scanning the primary key column
+						for rowIdx := 0; rowIdx < pkCol.Length(); rowIdx++ {
+							if val, err := pkCol.GetString(uint32(rowIdx)); err == nil && val == q.SelectedRowID {
+								// Found the row - get all entity type column values
+								for colName := range vm.ColumnEntityTypes {
+									if _, exists := fullRowData[colName]; !exists {
+										if col := tableView.GetColumn(colName); col != nil {
+											if val, err := col.GetString(uint32(rowIdx)); err == nil {
+												fullRowData[colName] = val
+											}
+										}
+									}
+								}
+								break
+							}
+						}
+					}
+				}
+
+				vm.SelectedItemHierarchies = hierarchyContextBuilder(
+					q,
+					primaryKeyEntityType,
+					q.SelectedRowID,
+					fullRowData,
+					vm.ColumnEntityTypes,
+				)
+			}
 		}
 	}
 

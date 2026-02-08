@@ -103,6 +103,28 @@ message EntityTypeDefinition {
   repeated URLTemplate urls = 3;
 }
 
+// Hierarchy defines an ordered sequence of entity types representing a
+// containment or parent-child relationship.
+//
+// Hierarchies enable:
+// - Drill-down navigation (click a zone to see its machines)
+// - Roll-up aggregation (sum machine CPU by rack, then by cluster)
+// - Contextual filtering (show only entities within a parent)
+//
+// Example: Physical infrastructure hierarchy
+//   region → zone → cluster → rack → machine
+message Hierarchy {
+  // Unique name for this hierarchy (e.g., "google.infrastructure").
+  string name = 1;
+
+  // Human-readable description.
+  string description = 2;
+
+  // Entity types ordered from root (broadest) to leaf (most specific).
+  // Example: ["google.region", "google.zone", "google.cluster", "google.rack", "google.machine"]
+  repeated string levels = 3;
+}
+
 // DataSourcesConfig is the top-level configuration for data sources.
 message DataSourcesConfig {
   // Column annotations - loaded eagerly at startup.
@@ -114,4 +136,8 @@ message DataSourcesConfig {
 
   // Entity type definitions with descriptions and URL templates.
   repeated EntityTypeDefinition entity_types = 3;
+
+  // Entity type hierarchies defining containment relationships.
+  // Example: region → zone → cluster → rack → machine
+  repeated Hierarchy hierarchies = 4;
 }

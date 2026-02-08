@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/google/taxinomia/core/models"
+	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/server"
 	"github.com/google/taxinomia/core/views"
 	"github.com/google/taxinomia/datasources"
@@ -105,6 +107,22 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	fmt.Println("=== Google Infrastructure Tables Created ===")
 	fmt.Println()
 
+	// Create manager early so we can register programmatic tables for hierarchy lookups
+	dsManager := datasources.NewManager()
+	dsManager.RegisterLoader(datasources.NewProtoLoader())
+
+	// Register Google tables with dsManager for hierarchy lookups
+	// This allows BuildHierarchyLookups to scan them for parent-child relationships
+	dsManager.RegisterTable("google_regions", googleRegionsTable)
+	dsManager.RegisterTable("google_zones", googleZonesTable)
+	dsManager.RegisterTable("google_clusters", googleClustersTable)
+	dsManager.RegisterTable("google_racks", googleRacksTable)
+	dsManager.RegisterTable("google_machines", googleMachinesTable)
+	dsManager.RegisterTable("google_cells", googleCellsTable)
+	dsManager.RegisterTable("google_jobs", googleJobsTable)
+	dsManager.RegisterTable("google_tasks", googleTasksTable)
+	dsManager.RegisterTable("google_allocs", googleAllocsTable)
+
 	// Load protobuf tables using datasources.Manager
 	// This demonstrates the 3-phase loading architecture:
 	// 1. Schema Discovery: loader.DiscoverSchema() discovers column names/types from data source
@@ -112,10 +130,6 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// 3. Data Loading: loader.Load() creates table with enriched schema
 	fmt.Println("=== Loading Protobuf Tables via DataSources Manager ===")
 	_, currentFile, _, _ := runtime.Caller(0)
-
-	// Create manager and register the proto loader
-	dsManager := datasources.NewManager()
-	dsManager.RegisterLoader(datasources.NewProtoLoader())
 
 	// Load configuration from data_sources.textproto
 	// - Annotations are loaded eagerly (display names, entity types)
@@ -145,6 +159,21 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	}
 	fmt.Println("=== Protobuf Tables Loaded ===")
 	fmt.Println()
+
+	// Add hierarchy ancestor columns to Google tables
+	// This enables filtering/grouping by ancestor entity types (e.g., filter machines by region)
+	// Columns are named with § prefix: §google.region, §google.zone, etc.
+	// Columns are only added if the table doesn't already have a column with that entity type.
+	fmt.Println("\n=== Adding Hierarchy Ancestor Columns ===")
+	dsManager.AddHierarchyAncestorColumns(googleMachinesTable, "google.machine")
+	dsManager.AddHierarchyAncestorColumns(googleRacksTable, "google.rack")
+	dsManager.AddHierarchyAncestorColumns(googleClustersTable, "google.cluster")
+	dsManager.AddHierarchyAncestorColumns(googleZonesTable, "google.zone")
+	dsManager.AddHierarchyAncestorColumns(googleTasksTable, "google.task")
+	dsManager.AddHierarchyAncestorColumns(googleAllocsTable, "google.alloc")
+	dsManager.AddHierarchyAncestorColumns(googleJobsTable, "google.job")
+	dsManager.AddHierarchyAncestorColumns(googleCellsTable, "google.cell")
+	fmt.Println("=== Hierarchy Ancestor Columns Added ===")
 
 	// Print reports
 	printEntityTypeUsageReport(dataModel)
@@ -178,10 +207,133 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	})
 
 	// Set up primary key resolver for table metadata
-	srv.SetPrimaryKeyResolver(dsManager.GetPrimaryKeyEntityType)
+	// First try the datasources config, then programmatic tables, then IsKey columns
+	googleTablePrimaryKeys := map[string]string{
+		"google_regions":  "google.region",
+		"google_zones":    "google.zone",
+		"google_clusters": "google.cluster",
+		"google_racks":    "google.rack",
+		"google_machines": "google.machine",
+		"google_cells":    "google.cell",
+		"google_jobs":     "google.job",
+		"google_tasks":    "google.task",
+		"google_allocs":   "google.alloc",
+	}
+	srv.SetPrimaryKeyResolver(func(tableName string) string {
+		// Try datasources config first
+		if pk := dsManager.GetPrimaryKeyEntityType(tableName); pk != "" {
+			return pk
+		}
+		// Try programmatic Google tables
+		if pk, ok := googleTablePrimaryKeys[tableName]; ok {
+			return pk
+		}
+		// Fall back to detecting from IsKey column in the table
+		if table := dataModel.GetTable(tableName); table != nil {
+			for _, colName := range table.GetColumnNames() {
+				if col := table.GetColumn(colName); col != nil && col.IsKey() {
+					if et := col.ColumnDef().EntityType(); et != "" {
+						return et
+					}
+				}
+			}
+		}
+		return ""
+	})
 
 	// Set up entity type description resolver
 	srv.SetEntityTypeDescriptionResolver(dsManager.GetEntityTypeDescription)
+
+	// Set up hierarchy context builder for the detail panel
+	srv.SetHierarchyContextBuilder(func(
+		currentQuery *query.Query,
+		primaryKeyEntityType string,
+		primaryKeyValue string,
+		rowData map[string]string,
+		columnEntityTypes map[string]string,
+	) []views.HierarchyContext {
+		hierarchies := dsManager.GetHierarchiesForEntityType(primaryKeyEntityType)
+		if len(hierarchies) == 0 {
+			return nil
+		}
+
+		// Build reverse map: entity type -> column name
+		entityTypeToColumn := make(map[string]string)
+		for colName, et := range columnEntityTypes {
+			entityTypeToColumn[et] = colName
+		}
+
+		var contexts []views.HierarchyContext
+		for _, h := range hierarchies {
+			levels := h.GetLevels()
+
+			// Find the position of the primary key entity type in this hierarchy
+			currentIdx := -1
+			for i, level := range levels {
+				if level == primaryKeyEntityType {
+					currentIdx = i
+					break
+				}
+			}
+			if currentIdx == -1 {
+				continue // Entity type not found in hierarchy (shouldn't happen)
+			}
+
+			ctx := views.HierarchyContext{
+				HierarchyName: h.GetName(),
+				Description:   h.GetDescription(),
+			}
+
+			// Build ancestors (levels above current)
+			for i := 0; i < currentIdx; i++ {
+				et := levels[i]
+				level := views.HierarchyLevel{
+					EntityType:  et,
+					DisplayName: formatEntityTypeName(et),
+					Description: dsManager.GetEntityTypeDescription(et),
+				}
+
+				// Find the value from row data (ancestor columns are now available as §-prefixed columns)
+				if colName, ok := entityTypeToColumn[et]; ok {
+					if value, ok := rowData[colName]; ok && value != "" {
+						level.Value = value
+						// Generate internal navigation URL to select this ancestor in its table
+						level.ValueURL = generateAncestorURL(currentQuery, et, value)
+					}
+				}
+
+				ctx.Ancestors = append(ctx.Ancestors, level)
+			}
+
+			// Build current level
+			ctx.Current = views.HierarchyLevel{
+				EntityType:  primaryKeyEntityType,
+				DisplayName: formatEntityTypeName(primaryKeyEntityType),
+				Value:       primaryKeyValue,
+				Description: dsManager.GetEntityTypeDescription(primaryKeyEntityType),
+			}
+
+			// Build descendants (levels below current)
+			for i := currentIdx + 1; i < len(levels); i++ {
+				et := levels[i]
+				level := views.HierarchyLevel{
+					EntityType:  et,
+					DisplayName: formatEntityTypeNamePlural(et),
+					Description: dsManager.GetEntityTypeDescription(et),
+				}
+
+				// Generate list URL that filters by the current item
+				// Preserves non-table-specific query state (limit, info pane, etc.)
+				level.ListURL = generateDescendantListURL(currentQuery, et, primaryKeyEntityType, primaryKeyValue)
+
+				ctx.Descendants = append(ctx.Descendants, level)
+			}
+
+			contexts = append(contexts, ctx)
+		}
+
+		return contexts
+	})
 
 	// Load user profiles
 	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
@@ -520,4 +672,91 @@ func printJoinDiscoveryReport(dm *models.DataModel) {
 	}
 
 	fmt.Printf("Auto-discovered %d joins across %d entity types\n", len(allJoins), len(joinsByEntityType))
+}
+
+// formatEntityTypeName extracts a display name from an entity type.
+// For example, "google.cluster" becomes "Cluster", "demo.order_id" becomes "Order Id".
+func formatEntityTypeName(entityType string) string {
+	// Remove prefix (e.g., "google." or "demo.")
+	name := entityType
+	if idx := strings.LastIndex(entityType, "."); idx != -1 {
+		name = entityType[idx+1:]
+	}
+
+	// Convert underscores to spaces and title case
+	name = strings.ReplaceAll(name, "_", " ")
+	return strings.Title(name)
+}
+
+// formatEntityTypeNamePlural extracts a pluralized display name from an entity type.
+// For example, "google.cluster" becomes "Clusters", "google.machine" becomes "Machines".
+func formatEntityTypeNamePlural(entityType string) string {
+	name := formatEntityTypeName(entityType)
+	// Simple pluralization
+	if strings.HasSuffix(name, "s") {
+		return name + "es"
+	}
+	return name + "s"
+}
+
+// generateAncestorURL generates a URL to navigate to an ancestor's table with that row selected.
+// For example, if viewing a machine and clicking on its cluster ancestor,
+// this would generate a URL like "table?table=google_clusters&row=us-east-a-c0"
+func generateAncestorURL(currentQuery *query.Query, entityType, value string) string {
+	q := currentQuery.Clone()
+	q.Path = "table"
+	q.Table = entityTypeToTableName(entityType)
+	q.ClearTableSpecificState()
+	q.SelectedRowID = value
+
+	return q.ToURL()
+}
+
+// generateDescendantListURL generates a URL to list items of a descendant entity type
+// filtered by the current item's value. Preserves non-table-specific query state.
+//
+// Uses the column name derived from the entity type for filtering. Most tables already
+// have columns for their ancestors (e.g., machines has cluster, zone columns).
+// For example, if viewing a cluster (google.cluster) and the descendant is "google.machine",
+// this would generate a URL like "table?table=google_machines&filter:cluster=us-east-a-c0"
+func generateDescendantListURL(currentQuery *query.Query, descendantEntityType, parentEntityType, parentValue string) string {
+	// Clone the current query to preserve non-table-specific state (limit, info pane, etc.)
+	q := currentQuery.Clone()
+	q.Path = "table"
+	q.Table = entityTypeToTableName(descendantEntityType)
+	q.ClearTableSpecificState()
+
+	// Use the column name derived from entity type (e.g., "google.cluster" -> "cluster")
+	// Tables typically have columns named after their ancestors directly
+	columnName := entityTypeToColumnName(parentEntityType)
+	q.Filters[columnName] = `"` + parentValue + `"`
+
+	return q.ToURL()
+}
+
+// entityTypeToTableName converts an entity type to a table name.
+// Convention: "google.cluster" -> "google_clusters", "google.machine" -> "google_machines"
+func entityTypeToTableName(entityType string) string {
+	// Remove prefix and add 's' for plural
+	name := entityType
+	if idx := strings.LastIndex(entityType, "."); idx != -1 {
+		prefix := entityType[:idx]
+		suffix := entityType[idx+1:]
+		// Handle special pluralization
+		if strings.HasSuffix(suffix, "s") {
+			name = prefix + "_" + suffix + "es"
+		} else {
+			name = prefix + "_" + suffix + "s"
+		}
+	}
+	return strings.ReplaceAll(name, ".", "_")
+}
+
+// entityTypeToColumnName extracts a column name from an entity type.
+// Convention: "google.cluster" -> "cluster", "demo.order_id" -> "order_id"
+func entityTypeToColumnName(entityType string) string {
+	if idx := strings.LastIndex(entityType, "."); idx != -1 {
+		return entityType[idx+1:]
+	}
+	return entityType
 }
