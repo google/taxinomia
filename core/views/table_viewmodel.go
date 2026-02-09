@@ -89,6 +89,7 @@ type TableViewModel struct {
 	SelectedRowID           string               // Primary key value of selected row (empty = no selection)
 	SelectedRowData         []SelectedRowField   // Fields of the selected row for detail panel
 	SelectedItemHierarchies []HierarchyContext   // Hierarchy contexts for the selected item's primary key
+	RelatedTables           []RelatedTable       // Tables that can be filtered by the selected item's entity type
 }
 
 // SelectedRowField represents a single field in the selected row for the detail panel
@@ -126,6 +127,18 @@ type HierarchyLevel struct {
 	Description string // Entity type description
 }
 
+// RelatedTable represents a table that can be filtered by the selected item's entity type.
+// This is used to show "Related Tables" in the detail pane - tables that have columns
+// matching the selected item's primary key entity type.
+type RelatedTable struct {
+	TableName        string // e.g., "google_tasks"
+	DisplayName      string // e.g., "Tasks"
+	ColumnName       string // The column in the table that matches the entity type, e.g., "cluster"
+	ColumnEntityType string // e.g., "google.cluster"
+	Description      string // Table description
+	FilterURL        string // URL to view the table filtered by the selected item
+}
+
 // HierarchyContextBuilder builds hierarchy contexts for a selected item.
 // It takes the current query (to preserve non-table-specific state), primary key entity type,
 // value, row data, and column entity types to build the full hierarchy context.
@@ -136,6 +149,16 @@ type HierarchyContextBuilder func(
 	rowData map[string]string,
 	columnEntityTypes map[string]string,
 ) []HierarchyContext
+
+// RelatedTablesResolver finds tables that have columns matching a given entity type.
+// It returns a list of RelatedTable entries for tables that can be filtered by the entity value.
+// Used to populate the "Related Tables" section in the detail pane.
+type RelatedTablesResolver func(
+	currentQuery *query.Query,
+	currentTableName string,
+	primaryKeyEntityType string,
+	primaryKeyValue string,
+) []RelatedTable
 
 // URLResolver is a function that resolves a URL for a given entity type and value.
 // Returns an empty string if no URL is available.
@@ -483,7 +506,9 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 // allURLsResolver is an optional function to resolve all URLs for an entity type (for detail panel)
 // primaryKeyEntityType is the entity type that serves as the table's primary key (can be empty)
 // entityTypeDescResolver is an optional function to resolve entity type descriptions (can be nil)
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver, primaryKeyEntityType string, entityTypeDescResolver EntityTypeDescriptionResolver, hierarchyContextBuilder HierarchyContextBuilder) TableViewModel {
+// hierarchyContextBuilder builds hierarchy contexts for the selected item (can be nil)
+// relatedTablesResolver finds tables that can be filtered by the selected item's entity type (can be nil)
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver, primaryKeyEntityType string, entityTypeDescResolver EntityTypeDescriptionResolver, hierarchyContextBuilder HierarchyContextBuilder, relatedTablesResolver RelatedTablesResolver) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
@@ -965,6 +990,16 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					q.SelectedRowID,
 					fullRowData,
 					vm.ColumnEntityTypes,
+				)
+			}
+
+			// Build related tables list
+			if relatedTablesResolver != nil && primaryKeyEntityType != "" {
+				vm.RelatedTables = relatedTablesResolver(
+					q,
+					tableName,
+					primaryKeyEntityType,
+					q.SelectedRowID,
 				)
 			}
 		}

@@ -46,6 +46,8 @@ type Manager struct {
 
 	// Hierarchies indexed by name - loaded eagerly
 	hierarchies map[string]*Hierarchy
+	// Order of hierarchy names (preserves definition order)
+	hierarchyOrder []string
 
 	// Entity type to hierarchies mapping (which hierarchies include each entity type)
 	entityTypeHierarchies map[string][]*Hierarchy
@@ -126,8 +128,10 @@ func (m *Manager) LoadConfigFromProto(config *DataSourcesConfig) error {
 	}
 
 	// Load hierarchies and build entity type mapping (eager)
+	// Preserve definition order in hierarchyOrder slice
 	for _, h := range config.GetHierarchies() {
 		m.hierarchies[h.GetName()] = h
+		m.hierarchyOrder = append(m.hierarchyOrder, h.GetName())
 		// Map each entity type in this hierarchy to the hierarchy
 		for _, level := range h.GetLevels() {
 			m.entityTypeHierarchies[level] = append(m.entityTypeHierarchies[level], h)
@@ -471,6 +475,19 @@ func (m *Manager) GetHierarchy(name string) *Hierarchy {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.hierarchies[name]
+}
+
+// GetAllHierarchies returns all registered hierarchies in definition order.
+func (m *Manager) GetAllHierarchies() []*Hierarchy {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := make([]*Hierarchy, 0, len(m.hierarchyOrder))
+	for _, name := range m.hierarchyOrder {
+		if h, ok := m.hierarchies[name]; ok {
+			result = append(result, h)
+		}
+	}
+	return result
 }
 
 // GetAllURLs returns all resolved URLs for a given entity type and value.

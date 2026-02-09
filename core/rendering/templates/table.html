@@ -1626,6 +1626,55 @@
         .hierarchy-item .no-value {
             color: #bbb;
         }
+
+        /* Related tables section in detail panel */
+        .related-tables {
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 12px 15px;
+            margin-top: 12px;
+            min-width: 200px;
+        }
+
+        .related-tables-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .related-tables-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .related-table-item {
+            padding: 4px 0;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .related-table-item a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        .related-table-item a:hover {
+            text-decoration: underline;
+        }
+
+        .related-table-column {
+            color: #888;
+            font-size: 11px;
+            margin-left: 4px;
+        }
+
     </style>
     <script>
         // Toggle sidebar visibility
@@ -2315,8 +2364,7 @@
                     <span class="detail-panel-title">{{.SelectedRowID}}</span>
                 </div>
                 <div class="detail-panel-content">
-                    {{if .SelectedItemHierarchies}}
-                    {{/* Display hierarchy navigation as simple text list */}}
+                    {{/* Display hierarchy navigation for all hierarchies */}}
                     {{range .SelectedItemHierarchies}}
                     {{$currentValue := .Current.Value}}
                     <div class="hierarchy-list">
@@ -2327,32 +2375,39 @@
                                 In {{.DisplayName}} {{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else if .Value}}{{.Value}}{{else}}<span class="no-value">—</span>{{end}}
                             </li>
                             {{end}}
+                            {{if .Current.Value}}{{/* Only show current level if it has a value */}}
                             <li class="hierarchy-item current">
-                                <span class="hierarchy-label">{{.Current.DisplayName}}:</span> <strong class="hierarchy-value">{{.Current.Value}}</strong>
+                                <span class="hierarchy-label">{{.Current.DisplayName}}:</span> <strong class="hierarchy-value">{{if .Current.ValueURL}}<a href="{{.Current.ValueURL}}">{{.Current.Value}}</a>{{else}}{{.Current.Value}}{{end}}</strong>
                             </li>
+                            {{end}}
                             {{range .Descendants}}
                             <li class="hierarchy-item descendant">
+                                {{if .Value}}{{/* Has a specific value - show as direct link */}}
+                                Has {{.DisplayName}} {{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else}}{{.Value}}{{end}}
+                                {{else}}{{/* No specific value - show as list link */}}
+                                {{if $currentValue}}{{/* Has a current position in hierarchy */}}
                                 {{if .ListURL}}<a href="{{.ListURL}}">{{.DisplayName}}</a>{{else}}{{.DisplayName}}{{end}} in {{$currentValue}}
+                                {{else}}{{/* No current position - just show as browse link */}}
+                                {{if .ListURL}}<a href="{{.ListURL}}">{{.DisplayName}}</a>{{else}}{{.DisplayName}}{{end}}
+                                {{end}}
+                                {{end}}
                             </li>
                             {{end}}
                         </ul>
                     </div>
                     {{end}}
-                    {{else}}
-                    {{/* Fallback to column data if no hierarchies */}}
-                    {{range .SelectedRowData}}
-                    <div class="detail-field{{if .EntityType}} has-entity-type{{end}}">
-                        <div class="detail-field-name">{{.DisplayName}}{{if .EntityType}}<span class="detail-field-entity-type">{{.EntityType}}</span>{{end}}</div>
-                        <div class="detail-field-value">{{.Value}}</div>
-                        {{if .EntityURLs}}
-                        <div class="detail-field-links">
-                            {{range .EntityURLs}}
-                            <a href="{{.URL}}">{{.Name}}</a>
+                    {{/* Related tables section - tables that can be filtered by this item */}}
+                    {{if .RelatedTables}}
+                    <div class="related-tables">
+                        <div class="related-tables-title">Related Tables</div>
+                        <ul class="related-tables-list">
+                            {{range .RelatedTables}}
+                            <li class="related-table-item">
+                                <a href="{{.FilterURL}}">{{.DisplayName}}</a><span class="related-table-column">({{.ColumnName}})</span>
+                            </li>
                             {{end}}
-                        </div>
-                        {{end}}
+                        </ul>
                     </div>
-                    {{end}}
                     {{end}}
                 </div>
             </div>

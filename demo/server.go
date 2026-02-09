@@ -245,6 +245,8 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	srv.SetEntityTypeDescriptionResolver(dsManager.GetEntityTypeDescription)
 
 	// Set up hierarchy context builder for the detail panel
+	// Shows ALL hierarchies, not just those containing the primary key entity type.
+	// For each hierarchy, finds the deepest level where the item has a column value.
 	srv.SetHierarchyContextBuilder(func(
 		currentQuery *query.Query,
 		primaryKeyEntityType string,
@@ -252,8 +254,9 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 		rowData map[string]string,
 		columnEntityTypes map[string]string,
 	) []views.HierarchyContext {
-		hierarchies := dsManager.GetHierarchiesForEntityType(primaryKeyEntityType)
-		if len(hierarchies) == 0 {
+		// Get ALL hierarchies
+		allHierarchies := dsManager.GetAllHierarchies()
+		if len(allHierarchies) == 0 {
 			return nil
 		}
 
@@ -264,24 +267,72 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 		}
 
 		var contexts []views.HierarchyContext
-		for _, h := range hierarchies {
+		for _, h := range allHierarchies {
 			levels := h.GetLevels()
 
-			// Find the position of the primary key entity type in this hierarchy
+			// Find the deepest level in this hierarchy where the item has a value
+			// This determines the "current" position in the hierarchy
 			currentIdx := -1
+			var currentEntityType string
+			var currentValue string
+
+			// First, check if the primary key entity type is in this hierarchy
 			for i, level := range levels {
 				if level == primaryKeyEntityType {
 					currentIdx = i
+					currentEntityType = primaryKeyEntityType
+					currentValue = primaryKeyValue
 					break
 				}
 			}
+
+			// If primary key isn't in this hierarchy, find the deepest column that is
 			if currentIdx == -1 {
-				continue // Entity type not found in hierarchy (shouldn't happen)
+				for i := len(levels) - 1; i >= 0; i-- {
+					et := levels[i]
+					if colName, ok := entityTypeToColumn[et]; ok {
+						if value, ok := rowData[colName]; ok && value != "" {
+							currentIdx = i
+							currentEntityType = et
+							currentValue = value
+							break
+						}
+					}
+				}
 			}
 
 			ctx := views.HierarchyContext{
 				HierarchyName: h.GetName(),
 				Description:   h.GetDescription(),
+			}
+
+			// Handle case where item has no direct position in this hierarchy
+			// Show all levels as potential navigation (filtered by primary key)
+			// Only show as links if the target table has a column for the primary key entity type
+			if currentIdx == -1 {
+				for _, et := range levels {
+					level := views.HierarchyLevel{
+						EntityType:  et,
+						DisplayName: formatEntityTypeNamePlural(et),
+						Description: dsManager.GetEntityTypeDescription(et),
+					}
+					// Check if the target table has a column with the primary key entity type
+					// Only generate a link if it does (otherwise the filter won't work)
+					targetTableName := entityTypeToTableName(et)
+					if targetTable := dataModel.GetTable(targetTableName); targetTable != nil {
+						for _, colName := range targetTable.GetColumnNames() {
+							col := targetTable.GetColumn(colName)
+							if col != nil && col.ColumnDef().EntityType() == primaryKeyEntityType {
+								// Target table has a column we can filter by
+								level.ListURL = generateDescendantListURL(currentQuery, et, primaryKeyEntityType, primaryKeyValue)
+								break
+							}
+						}
+					}
+					ctx.Descendants = append(ctx.Descendants, level)
+				}
+				contexts = append(contexts, ctx)
+				continue
 			}
 
 			// Build ancestors (levels above current)
@@ -293,7 +344,7 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 					Description: dsManager.GetEntityTypeDescription(et),
 				}
 
-				// Find the value from row data (ancestor columns are now available as §-prefixed columns)
+				// Find the value from row data
 				if colName, ok := entityTypeToColumn[et]; ok {
 					if value, ok := rowData[colName]; ok && value != "" {
 						level.Value = value
@@ -307,10 +358,14 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 
 			// Build current level
 			ctx.Current = views.HierarchyLevel{
-				EntityType:  primaryKeyEntityType,
-				DisplayName: formatEntityTypeName(primaryKeyEntityType),
-				Value:       primaryKeyValue,
-				Description: dsManager.GetEntityTypeDescription(primaryKeyEntityType),
+				EntityType:  currentEntityType,
+				DisplayName: formatEntityTypeName(currentEntityType),
+				Value:       currentValue,
+				Description: dsManager.GetEntityTypeDescription(currentEntityType),
+			}
+			// If current level is not the item's primary key, make it a clickable link
+			if currentEntityType != primaryKeyEntityType {
+				ctx.Current.ValueURL = generateAncestorURL(currentQuery, currentEntityType, currentValue)
 			}
 
 			// Build descendants (levels below current)
@@ -318,13 +373,27 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 				et := levels[i]
 				level := views.HierarchyLevel{
 					EntityType:  et,
-					DisplayName: formatEntityTypeNamePlural(et),
 					Description: dsManager.GetEntityTypeDescription(et),
 				}
 
-				// Generate list URL that filters by the current item
-				// Preserves non-table-specific query state (limit, info pane, etc.)
-				level.ListURL = generateDescendantListURL(currentQuery, et, primaryKeyEntityType, primaryKeyValue)
+				// Check if row has a specific value for this descendant entity type
+				// (e.g., a task row has a machine column)
+				if colName, ok := entityTypeToColumn[et]; ok {
+					if value, ok := rowData[colName]; ok && value != "" {
+						// Row has a specific value - make it a direct link
+						level.DisplayName = formatEntityTypeName(et) // Singular
+						level.Value = value
+						level.ValueURL = generateAncestorURL(currentQuery, et, value)
+					} else {
+						// No specific value - show as list link
+						level.DisplayName = formatEntityTypeNamePlural(et)
+						level.ListURL = generateDescendantListURL(currentQuery, et, currentEntityType, currentValue)
+					}
+				} else {
+					// No column for this entity type - show as list link
+					level.DisplayName = formatEntityTypeNamePlural(et)
+					level.ListURL = generateDescendantListURL(currentQuery, et, currentEntityType, currentValue)
+				}
 
 				ctx.Descendants = append(ctx.Descendants, level)
 			}
@@ -333,6 +402,103 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 		}
 
 		return contexts
+	})
+
+	// Set up related tables resolver for the detail panel
+	// This finds all tables that have a column matching the selected item's primary key entity type
+	// Excludes tables whose primary key is part of a hierarchy (those are shown in hierarchy navigation)
+	srv.SetRelatedTablesResolver(func(
+		currentQuery *query.Query,
+		currentTableName string,
+		primaryKeyEntityType string,
+		primaryKeyValue string,
+	) []views.RelatedTable {
+		var relatedTables []views.RelatedTable
+
+		// Build set of entity types that are part of any hierarchy
+		hierarchyEntityTypes := make(map[string]bool)
+		for _, h := range dsManager.GetAllHierarchies() {
+			for _, level := range h.GetLevels() {
+				hierarchyEntityTypes[level] = true
+			}
+		}
+
+		// Helper to get a table's primary key entity type
+		// Uses the same resolution logic as the primary key resolver
+		getTablePKEntityType := func(tableName string) string {
+			// Try datasources config first
+			if pk := dsManager.GetPrimaryKeyEntityType(tableName); pk != "" {
+				return pk
+			}
+			// Try programmatic Google tables
+			if pk, ok := googleTablePrimaryKeys[tableName]; ok {
+				return pk
+			}
+			// Fall back to detecting from IsKey column
+			if table := dataModel.GetTable(tableName); table != nil {
+				for _, colName := range table.GetColumnNames() {
+					if col := table.GetColumn(colName); col != nil && col.IsKey() {
+						if et := col.ColumnDef().EntityType(); et != "" {
+							return et
+						}
+					}
+				}
+			}
+			return ""
+		}
+
+		// Find all tables that have a column with this entity type
+		for tableName, table := range dataModel.GetAllTables() {
+			// Skip the current table and system tables
+			if tableName == currentTableName || strings.HasPrefix(tableName, "_") {
+				continue
+			}
+
+			// Get the table's primary key entity type using the same logic as primary key resolver
+			tablePKEntityType := getTablePKEntityType(tableName)
+
+			// Skip tables whose primary key is part of a hierarchy
+			// (those are already shown in hierarchy navigation)
+			if hierarchyEntityTypes[tablePKEntityType] {
+				continue
+			}
+
+			// Check each column for a matching entity type
+			for _, colName := range table.GetColumnNames() {
+				col := table.GetColumn(colName)
+				if col == nil {
+					continue
+				}
+
+				colEntityType := col.ColumnDef().EntityType()
+				if colEntityType == primaryKeyEntityType {
+					// Found a matching column - create a related table entry
+					// Generate the filter URL
+					q := currentQuery.Clone()
+					q.Path = "table"
+					q.Table = tableName
+					q.ClearTableSpecificState()
+					q.Filters[colName] = `"` + primaryKeyValue + `"`
+					filterURL := q.ToURL()
+
+					// Create a nice display name from the table name
+					displayName := formatTableDisplayName(tableName)
+
+					relatedTables = append(relatedTables, views.RelatedTable{
+						TableName:        tableName,
+						DisplayName:      displayName,
+						ColumnName:       colName,
+						ColumnEntityType: colEntityType,
+						FilterURL:        filterURL,
+					})
+
+					// Only add one entry per table (even if multiple columns match)
+					break
+				}
+			}
+		}
+
+		return relatedTables
 	})
 
 	// Load user profiles
@@ -759,4 +925,22 @@ func entityTypeToColumnName(entityType string) string {
 		return entityType[idx+1:]
 	}
 	return entityType
+}
+
+// formatTableDisplayName creates a user-friendly display name from a table name.
+// Examples: "google_clusters" -> "Clusters", "customer_orders" -> "Customer Orders"
+func formatTableDisplayName(tableName string) string {
+	// Remove common prefixes
+	name := tableName
+	if idx := strings.Index(name, "_"); idx != -1 {
+		// Check if the prefix looks like a namespace (e.g., "google_")
+		prefix := name[:idx]
+		if prefix == "google" || prefix == "demo" {
+			name = name[idx+1:]
+		}
+	}
+
+	// Replace underscores with spaces and title case
+	name = strings.ReplaceAll(name, "_", " ")
+	return strings.Title(name)
 }

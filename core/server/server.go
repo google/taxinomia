@@ -64,6 +64,7 @@ type Server struct {
 	primaryKeyResolver        PrimaryKeyResolver               // Optional resolver for table primary key entity types
 	entityTypeDescResolver    EntityTypeDescriptionResolver    // Optional resolver for entity type descriptions
 	hierarchyContextBuilder   views.HierarchyContextBuilder    // Optional builder for hierarchy contexts in detail panel
+	relatedTablesResolver     views.RelatedTablesResolver      // Optional resolver for related tables in detail panel
 
 	// Caches for computed columns
 	exprCache         map[string]*expr.Expression   // expression string -> compiled expression
@@ -116,6 +117,11 @@ func (s *Server) SetEntityTypeDescriptionResolver(resolver EntityTypeDescription
 // SetHierarchyContextBuilder sets the builder for hierarchy contexts in the detail panel
 func (s *Server) SetHierarchyContextBuilder(builder views.HierarchyContextBuilder) {
 	s.hierarchyContextBuilder = builder
+}
+
+// SetRelatedTablesResolver sets the resolver for finding related tables in the detail panel
+func (s *Server) SetRelatedTablesResolver(resolver views.RelatedTablesResolver) {
+	s.relatedTablesResolver = resolver
 }
 
 // makeCacheKey creates a cache key combining user and table name
@@ -309,7 +315,7 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	if s.entityTypeDescResolver != nil {
 		entityTypeDescResolver = views.EntityTypeDescriptionResolver(s.entityTypeDescResolver)
 	}
-	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, s.hierarchyContextBuilder)
+	viewModel := views.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, s.hierarchyContextBuilder, s.relatedTablesResolver)
 	timing.Record("Build ViewModel", time.Since(vmStart))
 
 	// Set timing information
