@@ -513,8 +513,12 @@ manager := datasources.NewManager()
 manager.RegisterLoader(datasources.NewProtoLoader())
 manager.RegisterLoader(datasources.NewCsvLoader())
 
-// Load config (annotations loaded eagerly)
-manager.LoadConfig("data_sources.textproto")
+// Set file reader (all file I/O is controlled by the caller)
+manager.SetFileReader(os.ReadFile)
+
+// Load config (file I/O done outside the library, annotations loaded eagerly)
+configData, _ := os.ReadFile("data_sources.textproto")
+manager.LoadConfigFromBytes(configData, ".")
 
 // Load data on demand (lazy)
 table, err := manager.LoadData("customer_orders")

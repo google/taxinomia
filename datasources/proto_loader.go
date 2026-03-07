@@ -20,7 +20,6 @@ package datasources
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -69,7 +68,7 @@ func (l *ProtoLoader) SourceType() string {
 }
 
 // DiscoverSchema discovers the table schema from the proto descriptor.
-func (l *ProtoLoader) DiscoverSchema(config map[string]string) (*TableSchema, error) {
+func (l *ProtoLoader) DiscoverSchema(config map[string]string, readFile FileReader) (*TableSchema, error) {
 	messageType := config["message_type"]
 	if messageType == "" {
 		return nil, fmt.Errorf("message_type is required")
@@ -77,7 +76,7 @@ func (l *ProtoLoader) DiscoverSchema(config map[string]string) (*TableSchema, er
 
 	// Load descriptor set if specified
 	if descriptorSet := config["descriptor_set"]; descriptorSet != "" {
-		if err := l.LoadDescriptorSet(descriptorSet); err != nil {
+		if err := l.loadDescriptorSetWithReader(descriptorSet, readFile); err != nil {
 			return nil, fmt.Errorf("failed to load descriptor set: %w", err)
 		}
 	}
@@ -125,7 +124,7 @@ func protoColumnTypeToType(t protoloader.ColumnType) ColumnType {
 }
 
 // Load loads a protobuf file and returns a DataTable.
-func (l *ProtoLoader) Load(config map[string]string, enrichedColumns []*EnrichedColumn) (*tables.DataTable, error) {
+func (l *ProtoLoader) Load(config map[string]string, enrichedColumns []*EnrichedColumn, readFile FileReader) (*tables.DataTable, error) {
 	protoFile := config["proto_file"]
 	if protoFile == "" {
 		return nil, fmt.Errorf("proto_file is required")
@@ -138,7 +137,7 @@ func (l *ProtoLoader) Load(config map[string]string, enrichedColumns []*Enriched
 
 	// Load descriptor set if specified (may already be loaded from DiscoverSchema)
 	if descriptorSet := config["descriptor_set"]; descriptorSet != "" {
-		if err := l.LoadDescriptorSet(descriptorSet); err != nil {
+		if err := l.loadDescriptorSetWithReader(descriptorSet, readFile); err != nil {
 			return nil, fmt.Errorf("failed to load descriptor set: %w", err)
 		}
 	}
@@ -154,7 +153,7 @@ func (l *ProtoLoader) Load(config map[string]string, enrichedColumns []*Enriched
 	}
 
 	// Read proto file
-	data, err := os.ReadFile(protoFile)
+	data, err := readFile(protoFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read proto file: %w", err)
 	}
@@ -309,8 +308,8 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 	return table
 }
 
-// LoadDescriptorSet loads a .pb descriptor set file into the registry.
-func (l *ProtoLoader) LoadDescriptorSet(path string) error {
+// loadDescriptorSetWithReader loads a .pb descriptor set file into the registry using the provided FileReader.
+func (l *ProtoLoader) loadDescriptorSetWithReader(path string, readFile FileReader) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -319,7 +318,7 @@ func (l *ProtoLoader) LoadDescriptorSet(path string) error {
 		return nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := readFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read descriptor set: %w", err)
 	}

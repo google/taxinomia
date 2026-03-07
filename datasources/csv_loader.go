@@ -19,9 +19,9 @@ limitations under the License.
 package datasources
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/google/taxinomia/core/columns"
@@ -51,7 +51,7 @@ func (l *CsvLoader) SourceType() string {
 
 // DiscoverSchema discovers the table schema from the CSV header.
 // All columns are typed as string.
-func (l *CsvLoader) DiscoverSchema(config map[string]string) (*TableSchema, error) {
+func (l *CsvLoader) DiscoverSchema(config map[string]string, readFile FileReader) (*TableSchema, error) {
 	filePath := config["file_path"]
 	if filePath == "" {
 		return nil, fmt.Errorf("file_path is required")
@@ -67,15 +67,14 @@ func (l *CsvLoader) DiscoverSchema(config map[string]string) (*TableSchema, erro
 		delimiter = rune(d[0])
 	}
 
-	// Open file
-	file, err := os.Open(filePath)
+	// Read file
+	data, err := readFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open CSV file: %w", err)
+		return nil, fmt.Errorf("failed to read CSV file: %w", err)
 	}
-	defer file.Close()
 
 	// Create CSV reader
-	reader := csv.NewReader(file)
+	reader := csv.NewReader(bytes.NewReader(data))
 	reader.Comma = delimiter
 
 	// Read first row to get column names
@@ -110,7 +109,7 @@ func (l *CsvLoader) DiscoverSchema(config map[string]string) (*TableSchema, erro
 }
 
 // Load loads a CSV file and returns a DataTable.
-func (l *CsvLoader) Load(config map[string]string, enrichedColumns []*EnrichedColumn) (*tables.DataTable, error) {
+func (l *CsvLoader) Load(config map[string]string, enrichedColumns []*EnrichedColumn, readFile FileReader) (*tables.DataTable, error) {
 	filePath := config["file_path"]
 	if filePath == "" {
 		return nil, fmt.Errorf("file_path is required")
@@ -126,15 +125,14 @@ func (l *CsvLoader) Load(config map[string]string, enrichedColumns []*EnrichedCo
 		delimiter = rune(d[0])
 	}
 
-	// Open file
-	file, err := os.Open(filePath)
+	// Read file
+	data, err := readFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open CSV file: %w", err)
+		return nil, fmt.Errorf("failed to read CSV file: %w", err)
 	}
-	defer file.Close()
 
 	// Create CSV reader
-	reader := csv.NewReader(file)
+	reader := csv.NewReader(bytes.NewReader(data))
 	reader.Comma = delimiter
 
 	// Read all records
@@ -205,7 +203,7 @@ func (l *CsvLoaderTyped) SourceType() string {
 
 // DiscoverSchema discovers the table schema by sampling CSV data.
 // Column types are inferred from the data.
-func (l *CsvLoaderTyped) DiscoverSchema(config map[string]string) (*TableSchema, error) {
+func (l *CsvLoaderTyped) DiscoverSchema(config map[string]string, readFile FileReader) (*TableSchema, error) {
 	filePath := config["file_path"]
 	if filePath == "" {
 		return nil, fmt.Errorf("file_path is required")
@@ -221,15 +219,14 @@ func (l *CsvLoaderTyped) DiscoverSchema(config map[string]string) (*TableSchema,
 		delimiter = rune(d[0])
 	}
 
-	// Open file
-	file, err := os.Open(filePath)
+	// Read file
+	data, err := readFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open CSV file: %w", err)
+		return nil, fmt.Errorf("failed to read CSV file: %w", err)
 	}
-	defer file.Close()
 
 	// Create CSV reader
-	reader := csv.NewReader(file)
+	reader := csv.NewReader(bytes.NewReader(data))
 	reader.Comma = delimiter
 
 	// Read all records
@@ -288,7 +285,7 @@ func (l *CsvLoaderTyped) DiscoverSchema(config map[string]string) (*TableSchema,
 }
 
 // Load loads a CSV file with typed columns.
-func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*EnrichedColumn) (*tables.DataTable, error) {
+func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*EnrichedColumn, readFile FileReader) (*tables.DataTable, error) {
 	filePath := config["file_path"]
 	if filePath == "" {
 		return nil, fmt.Errorf("file_path is required")
@@ -304,15 +301,14 @@ func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*Enric
 		delimiter = rune(d[0])
 	}
 
-	// Open file
-	file, err := os.Open(filePath)
+	// Read file
+	data, err := readFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open CSV file: %w", err)
+		return nil, fmt.Errorf("failed to read CSV file: %w", err)
 	}
-	defer file.Close()
 
 	// Create CSV reader
-	reader := csv.NewReader(file)
+	reader := csv.NewReader(bytes.NewReader(data))
 	reader.Comma = delimiter
 
 	// Read all records

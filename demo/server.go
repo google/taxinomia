@@ -20,6 +20,7 @@ package demo
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -110,6 +111,8 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// Create manager early so we can register programmatic tables for hierarchy lookups
 	dsManager := datasources.NewManager()
 	dsManager.RegisterLoader(datasources.NewProtoLoader())
+	// Set file reader - file I/O is controlled by the caller
+	dsManager.SetFileReader(os.ReadFile)
 
 	// Register Google tables with dsManager for hierarchy lookups
 	// This allows BuildHierarchyLookups to scan them for parent-child relationships
@@ -134,9 +137,14 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// Load configuration from data_sources.textproto
 	// - Annotations are loaded eagerly (display names, entity types)
 	// - Source metadata is registered (data loaded lazily)
-	configPath := filepath.Join(filepath.Dir(currentFile), "data", "data_sources.textproto")
-	if err := dsManager.LoadConfig(configPath); err != nil {
-		fmt.Printf("Warning: Failed to load data sources config: %v\n", err)
+	// File I/O is done here (outside the library) and content is passed to the library
+	configDir := filepath.Join(filepath.Dir(currentFile), "data")
+	configPath := filepath.Join(configDir, "data_sources.textproto")
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		fmt.Printf("Warning: Failed to read data sources config: %v\n", err)
+	} else if err := dsManager.LoadConfigFromBytes(configData, configDir); err != nil {
+		fmt.Printf("Warning: Failed to parse data sources config: %v\n", err)
 	} else {
 		fmt.Printf("Loaded annotations: %v\n", dsManager.GetAnnotationIDs())
 		fmt.Printf("Registered sources: %v\n", dsManager.GetSourceNames())

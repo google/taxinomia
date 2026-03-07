@@ -20,7 +20,6 @@ package datasources
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -64,6 +63,9 @@ type Manager struct {
 
 	// Base directory for resolving relative paths
 	baseDir string
+
+	// File reader for reading files (injected by caller)
+	fileReader FileReader
 }
 
 // NewManager creates a new data source manager.
@@ -88,20 +90,24 @@ func (m *Manager) RegisterLoader(loader DataSourceLoader) {
 	m.loaders[loader.SourceType()] = loader
 }
 
-// LoadConfig loads a DataSourcesConfig from a file.
-// Annotations are loaded eagerly; source metadata is registered for lazy loading.
-func (m *Manager) LoadConfig(configPath string) error {
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
+// SetFileReader sets the file reader used to read files.
+// This must be called before LoadData if loading file-based sources.
+func (m *Manager) SetFileReader(reader FileReader) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.fileReader = reader
+}
 
+// LoadConfigFromBytes parses and loads a DataSourcesConfig from raw bytes.
+// The baseDir is used to resolve relative paths in source configurations.
+// Annotations are loaded eagerly; source metadata is registered for lazy loading.
+func (m *Manager) LoadConfigFromBytes(data []byte, baseDir string) error {
 	config := &DataSourcesConfig{}
 	if err := prototext.Unmarshal(data, config); err != nil {
-		return fmt.Errorf("failed to parse config file: %w", err)
+		return fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	m.baseDir = filepath.Dir(configPath)
+	m.baseDir = baseDir
 
 	return m.LoadConfigFromProto(config)
 }
@@ -193,6 +199,8 @@ func (m *Manager) GetSource(name string) *DataSource {
 // 1. Loader discovers schema from the data source (column names and types)
 // 2. Manager enriches schema with annotations (display names, entity types)
 // 3. Loader creates table with the enriched schema
+//
+// A FileOpener must be set via SetFileOpener before calling this method.
 func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 	// Check cache first (with read lock)
 	m.mu.RLock()
@@ -208,6 +216,7 @@ func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 	annotations := m.annotations[source.GetAnnotationsId()]
 	loader, hasLoader := m.loaders[source.GetSourceType()]
 	baseDir := m.baseDir
+	fileReader := m.fileReader
 	m.mu.RUnlock()
 
 	// Check if loader is registered
@@ -215,11 +224,16 @@ func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 		return nil, fmt.Errorf("no loader registered for source type %q", source.GetSourceType())
 	}
 
+	// Check if file reader is set
+	if fileReader == nil {
+		return nil, fmt.Errorf("file reader not set; call SetFileReader before LoadData")
+	}
+
 	// Prepare config with resolved paths
 	config := m.resolveConfigPaths(source.GetConfig(), baseDir)
 
 	// Step 1: Discover schema from the data source
-	schema, err := loader.DiscoverSchema(config)
+	schema, err := loader.DiscoverSchema(config, fileReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover schema for source %q: %w", sourceName, err)
 	}
@@ -228,7 +242,7 @@ func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 	enrichedColumns := EnrichSchema(schema, annotations)
 
 	// Step 3: Load data with enriched schema
-	table, err := loader.Load(config, enrichedColumns)
+	table, err := loader.Load(config, enrichedColumns, fileReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load source %q: %w", sourceName, err)
 	}

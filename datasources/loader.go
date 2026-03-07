@@ -26,6 +26,11 @@ import (
 	"github.com/google/taxinomia/core/tables"
 )
 
+// FileReader is a function that reads a file and returns its contents.
+// This allows callers to inject their own file reading implementation,
+// keeping file I/O outside the library core.
+type FileReader func(path string) ([]byte, error)
+
 // ColumnType represents the data type of a column.
 type ColumnType int
 
@@ -92,11 +97,13 @@ type DataSourceLoader interface {
 
 	// DiscoverSchema returns the schema discovered from the data source.
 	// This is called first to determine column names and types.
-	DiscoverSchema(config map[string]string) (*TableSchema, error)
+	// The FileReader is used to read files; callers control the I/O implementation.
+	DiscoverSchema(config map[string]string, readFile FileReader) (*TableSchema, error)
 
 	// Load retrieves data and returns a DataTable.
 	// The enriched columns contain the discovered schema plus annotations.
-	Load(config map[string]string, columns []*EnrichedColumn) (*tables.DataTable, error)
+	// The FileReader is used to read files; callers control the I/O implementation.
+	Load(config map[string]string, columns []*EnrichedColumn, readFile FileReader) (*tables.DataTable, error)
 }
 
 // EnrichSchema combines a discovered TableSchema with ColumnAnnotations.

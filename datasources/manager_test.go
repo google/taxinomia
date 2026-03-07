@@ -25,10 +25,15 @@ func TestManagerLoadConfig(t *testing.T) {
 	manager := NewManager()
 	protoLoader := NewProtoLoader()
 	manager.RegisterLoader(protoLoader)
+	manager.SetFileReader(os.ReadFile)
 
-	// Load config
+	// Load config (file I/O done outside the library)
 	configPath := filepath.Join(demoDataDir, "data_sources.textproto")
-	if err := manager.LoadConfig(configPath); err != nil {
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read config: %v", err)
+	}
+	if err := manager.LoadConfigFromBytes(configData, demoDataDir); err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
@@ -159,6 +164,7 @@ Charlie,35,true`
 	// Create manager and register CSV loader
 	manager := NewManager()
 	manager.RegisterLoader(NewCsvLoader())
+	manager.SetFileReader(os.ReadFile)
 
 	// Add annotations
 	manager.AddAnnotations(&ColumnAnnotations{
@@ -215,10 +221,15 @@ func TestEntityTypes(t *testing.T) {
 	// Create manager and register proto loader
 	manager := NewManager()
 	manager.RegisterLoader(NewProtoLoader())
+	manager.SetFileReader(os.ReadFile)
 
-	// Load config
+	// Load config (file I/O done outside the library)
 	configPath := filepath.Join(demoDataDir, "data_sources.textproto")
-	if err := manager.LoadConfig(configPath); err != nil {
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read config: %v", err)
+	}
+	if err := manager.LoadConfigFromBytes(configData, demoDataDir); err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
@@ -282,6 +293,7 @@ Charlie,35,92.3,true`
 	// Create manager and register typed CSV loader
 	manager := NewManager()
 	manager.RegisterLoader(NewCsvLoaderTyped())
+	manager.SetFileReader(os.ReadFile)
 
 	// Add source (no schema - test type inference)
 	manager.AddSource(&DataSource{
