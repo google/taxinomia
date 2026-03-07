@@ -37,6 +37,13 @@ import (
 	"github.com/google/taxinomia/core/views"
 )
 
+// Resource limits to prevent abuse
+const (
+	MaxComputedColumns = 10 // Maximum number of computed columns per request
+	MaxFilters         = 20 // Maximum number of filter expressions per request
+	MaxGroupingLevels  = 5  // Maximum number of grouping levels per request
+)
+
 // ProductConfig defines the configuration interface for a product.
 // Products provide their own tables, landing page settings, and default columns.
 type ProductConfig interface {
@@ -216,6 +223,17 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 	// Validate table parameter
 	if q.Table == "" {
 		return &TableHandlerResult{StatusCode: 400, Message: "Table parameter is required"}
+	}
+
+	// Resource limits validation
+	if len(q.ComputedColumns) > MaxComputedColumns {
+		return &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many computed columns (max %d)", MaxComputedColumns)}
+	}
+	if len(q.Filters) > MaxFilters {
+		return &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many filters (max %d)", MaxFilters)}
+	}
+	if len(q.GroupedColumns) > MaxGroupingLevels {
+		return &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many grouping levels (max %d)", MaxGroupingLevels)}
 	}
 
 	// Get the table from data model

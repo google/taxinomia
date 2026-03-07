@@ -256,10 +256,18 @@ func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 }
 
 // resolveConfigPaths resolves relative file paths in config to absolute paths.
+// It cleans paths to normalize traversals and prevent injection attacks.
+//
+// Security note: This function allows relative paths (including ..) to support
+// legitimate configs. The actual file access is controlled by the FileReader
+// injected via SetFileReader, which is the true security boundary.
 func (m *Manager) resolveConfigPaths(config map[string]string, baseDir string) map[string]string {
 	if baseDir == "" {
 		return config
 	}
+
+	// Clean baseDir for consistent path handling
+	cleanBaseDir := filepath.Clean(baseDir)
 
 	resolved := make(map[string]string, len(config))
 	pathKeys := map[string]bool{
@@ -270,7 +278,9 @@ func (m *Manager) resolveConfigPaths(config map[string]string, baseDir string) m
 
 	for k, v := range config {
 		if pathKeys[k] && v != "" && !filepath.IsAbs(v) {
-			resolved[k] = filepath.Join(baseDir, v)
+			// Clean and resolve the path - this normalizes any .. or . sequences
+			resolvedPath := filepath.Clean(filepath.Join(cleanBaseDir, v))
+			resolved[k] = resolvedPath
 		} else {
 			resolved[k] = v
 		}
