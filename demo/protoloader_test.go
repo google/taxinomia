@@ -12,8 +12,22 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/google/taxinomia/datasources"
 	"google.golang.org/protobuf/proto"
 )
+
+// testDirReader creates a DirReader for tests
+func testDirReader(path string) ([]datasources.DirEntry, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]datasources.DirEntry, len(entries))
+	for i, e := range entries {
+		result[i] = datasources.DirEntry{Name: e.Name(), IsDir: e.IsDir()}
+	}
+	return result, nil
+}
 
 func TestProtoTableLoaderIntegration(t *testing.T) {
 	// Get the directory of this test file
@@ -24,6 +38,8 @@ func TestProtoTableLoaderIntegration(t *testing.T) {
 	demoDir := filepath.Dir(currentFile)
 
 	loader := NewProtoTableLoader()
+	loader.SetFileReader(os.ReadFile)
+	loader.SetDirReader(testDirReader)
 
 	// Load the descriptor set
 	descriptorPath := filepath.Join(demoDir, "customer_orders.pb")
@@ -107,6 +123,8 @@ func TestBinaryProtoLoading(t *testing.T) {
 	demoDir := filepath.Dir(currentFile)
 
 	loader := NewProtoTableLoader()
+	loader.SetFileReader(os.ReadFile)
+	loader.SetDirReader(testDirReader)
 
 	// Load the descriptor set
 	descriptorPath := filepath.Join(demoDir, "customer_orders.pb")

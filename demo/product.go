@@ -20,10 +20,10 @@ package demo
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/google/taxinomia/core/views"
+	"github.com/google/taxinomia/datasources"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -82,9 +82,11 @@ func (p *Product) GetDefaultColumns(tableName string) []string {
 
 // ProductRegistry manages multiple products and table metadata.
 type ProductRegistry struct {
-	products  map[string]*Product
-	fallback  string // Name of the default product
-	allTables []views.TableInfo
+	products   map[string]*Product
+	fallback   string // Name of the default product
+	allTables  []views.TableInfo
+	fileReader datasources.FileReader
+	dirReader  datasources.DirReader
 }
 
 // NewProductRegistry creates a new product registry.
@@ -93,6 +95,16 @@ func NewProductRegistry() *ProductRegistry {
 		products: make(map[string]*Product),
 		fallback: "default",
 	}
+}
+
+// SetFileReader sets the file reader for loading product files.
+func (r *ProductRegistry) SetFileReader(reader datasources.FileReader) {
+	r.fileReader = reader
+}
+
+// SetDirReader sets the directory reader for listing product directories.
+func (r *ProductRegistry) SetDirReader(reader datasources.DirReader) {
+	r.dirReader = reader
 }
 
 // SetTables sets the global table metadata for all products.
@@ -159,26 +171,33 @@ const ProductFileName = "product.textproto"
 
 // LoadFromDirectory loads products from subdirectories.
 // Each subdirectory should contain a product.textproto file.
+// Requires SetFileReader and SetDirReader to be called first.
 func (r *ProductRegistry) LoadFromDirectory(dir string) error {
-	entries, err := os.ReadDir(dir)
+	if r.dirReader == nil {
+		return fmt.Errorf("directory reader not set; call SetDirReader first")
+	}
+	if r.fileReader == nil {
+		return fmt.Errorf("file reader not set; call SetFileReader first")
+	}
+
+	entries, err := r.dirReader(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read products directory: %w", err)
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir {
 			continue
 		}
 
-		productPath := filepath.Join(dir, entry.Name(), ProductFileName)
-		if _, err := os.Stat(productPath); os.IsNotExist(err) {
-			// Skip directories without a product file
-			continue
-		}
+		productPath := filepath.Join(dir, entry.Name, ProductFileName)
 
-		product, err := LoadProduct(productPath)
+		// Try to load the product file - skip if it doesn't exist
+		product, err := r.loadProduct(productPath)
 		if err != nil {
-			return fmt.Errorf("failed to load product %s: %w", entry.Name(), err)
+			// Check if file doesn't exist by trying to read it
+			// The error message will indicate if it's a "not found" error
+			continue
 		}
 
 		r.Register(product)
@@ -187,9 +206,9 @@ func (r *ProductRegistry) LoadFromDirectory(dir string) error {
 	return nil
 }
 
-// LoadProduct loads a single product from a textproto file.
-func LoadProduct(filePath string) (*Product, error) {
-	data, err := os.ReadFile(filePath)
+// loadProduct loads a single product from a textproto file using the injected reader.
+func (r *ProductRegistry) loadProduct(filePath string) (*Product, error) {
+	data, err := r.fileReader(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}

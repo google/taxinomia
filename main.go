@@ -30,7 +30,10 @@ import (
 const serverAddress = "127.0.0.1:8097"
 
 func main() {
-	srv, products, err := demo.SetupDemoServer()
+	// Create filesystem abstraction - single point of control for all file I/O
+	fs := NewFileSystem()
+
+	srv, products, err := demo.SetupDemoServer(fs.FileReader(), fs.DirReader())
 	if err != nil {
 		log.Fatalf("Failed to create server: %v", err)
 	}

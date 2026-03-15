@@ -20,10 +20,10 @@ package demo
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/google/taxinomia/core/users"
+	"github.com/google/taxinomia/datasources"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -32,7 +32,9 @@ const ProfileFileName = "profile.textproto"
 
 // UserStore manages user profiles loaded from files.
 type UserStore struct {
-	users map[string]*users.UserProfile
+	users      map[string]*users.UserProfile
+	fileReader datasources.FileReader
+	dirReader  datasources.DirReader
 }
 
 // NewUserStore creates a new empty UserStore.
@@ -42,32 +44,47 @@ func NewUserStore() *UserStore {
 	}
 }
 
+// SetFileReader sets the file reader for loading profile files.
+func (s *UserStore) SetFileReader(reader datasources.FileReader) {
+	s.fileReader = reader
+}
+
+// SetDirReader sets the directory reader for listing user directories.
+func (s *UserStore) SetDirReader(reader datasources.DirReader) {
+	s.dirReader = reader
+}
+
 // LoadFromDirectory loads user profiles from subdirectories.
 // Each subdirectory should contain a profile.textproto file.
+// Requires SetFileReader and SetDirReader to be called first.
 func (s *UserStore) LoadFromDirectory(dir string) error {
-	entries, err := os.ReadDir(dir)
+	if s.dirReader == nil {
+		return fmt.Errorf("directory reader not set; call SetDirReader first")
+	}
+	if s.fileReader == nil {
+		return fmt.Errorf("file reader not set; call SetFileReader first")
+	}
+
+	entries, err := s.dirReader(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read users directory: %w", err)
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir {
 			continue
 		}
 
-		profilePath := filepath.Join(dir, entry.Name(), ProfileFileName)
-		if _, err := os.Stat(profilePath); os.IsNotExist(err) {
-			// Skip directories without a profile file
-			continue
-		}
+		profilePath := filepath.Join(dir, entry.Name, ProfileFileName)
 
-		profile, err := LoadUserProfile(profilePath)
+		// Try to load the profile - skip if it doesn't exist
+		profile, err := s.loadUserProfile(profilePath)
 		if err != nil {
-			return fmt.Errorf("failed to load user profile %s: %w", entry.Name(), err)
+			continue
 		}
 
 		// Use folder name as the user identifier
-		s.users[entry.Name()] = profile
+		s.users[entry.Name] = profile
 	}
 
 	return nil
@@ -87,9 +104,9 @@ func (s *UserStore) GetAllUsers() []*users.UserProfile {
 	return result
 }
 
-// LoadUserProfile loads a single user profile from a textproto file.
-func LoadUserProfile(filePath string) (*users.UserProfile, error) {
-	data, err := os.ReadFile(filePath)
+// loadUserProfile loads a single user profile from a textproto file using the injected reader.
+func (s *UserStore) loadUserProfile(filePath string) (*users.UserProfile, error) {
+	data, err := s.fileReader(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}

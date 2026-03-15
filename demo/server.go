@@ -20,7 +20,6 @@ package demo
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -32,8 +31,9 @@ import (
 	"github.com/google/taxinomia/datasources"
 )
 
-// SetupDemoServer creates and configures a server with demo data
-func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
+// SetupDemoServer creates and configures a server with demo data.
+// fileReader and dirReader are injected to control all file I/O from outside the library.
+func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.DirReader) (*server.Server, *ProductRegistry, error) {
 	fmt.Println("Starting Taxinomia...")
 
 	// Create a DataModel to manage tables and entity types
@@ -111,8 +111,7 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// Create manager early so we can register programmatic tables for hierarchy lookups
 	dsManager := datasources.NewManager()
 	dsManager.RegisterLoader(datasources.NewProtoLoader())
-	// Set file reader - file I/O is controlled by the caller
-	dsManager.SetFileReader(os.ReadFile)
+	dsManager.SetFileReader(fileReader)
 
 	// Register Google tables with dsManager for hierarchy lookups
 	// This allows BuildHierarchyLookups to scan them for parent-child relationships
@@ -140,7 +139,7 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// File I/O is done here (outside the library) and content is passed to the library
 	configDir := filepath.Join(filepath.Dir(currentFile), "data")
 	configPath := filepath.Join(configDir, "data_sources.textproto")
-	configData, err := os.ReadFile(configPath)
+	configData, err := fileReader(configPath)
 	if err != nil {
 		fmt.Printf("Warning: Failed to read data sources config: %v\n", err)
 	} else if err := dsManager.LoadConfigFromBytes(configData, configDir); err != nil {
@@ -512,6 +511,8 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// Load user profiles
 	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
 	userStore := NewUserStore()
+	userStore.SetFileReader(fileReader)
+	userStore.SetDirReader(dirReader)
 	if err := userStore.LoadFromDirectory(usersDir); err != nil {
 		fmt.Printf("Warning: Failed to load user profiles: %v\n", err)
 	} else {
@@ -522,6 +523,8 @@ func SetupDemoServer() (*server.Server, *ProductRegistry, error) {
 	// Load products from textproto files
 	productsDir := filepath.Join(filepath.Dir(currentFile), "products")
 	products := NewProductRegistry()
+	products.SetFileReader(fileReader)
+	products.SetDirReader(dirReader)
 
 	// Set table metadata for products to filter
 	// URLs are relative so they work with any product path (e.g., /default/table, /analytics/table)

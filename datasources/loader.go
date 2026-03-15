@@ -31,6 +31,16 @@ import (
 // keeping file I/O outside the library core.
 type FileReader func(path string) ([]byte, error)
 
+// DirEntry represents a directory entry returned by DirReader.
+type DirEntry struct {
+	Name  string
+	IsDir bool
+}
+
+// DirReader is a function that lists directory contents.
+// This allows callers to inject their own directory listing implementation.
+type DirReader func(path string) ([]DirEntry, error)
+
 // ColumnType represents the data type of a column.
 type ColumnType int
 
