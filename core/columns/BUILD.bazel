@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "columns",
+    srcs = [
+        "bool_column.go",
+        "columns.go",
+        "compare.go",
+        "computed_columns.go",
+        "datetime_column.go",
+        "duration_column.go",
+        "float64_column.go",
+        "int64_column.go",
+        "joined_columns.go",
+        "string_column.go",
+        "uint32_column.go",
+        "uint64_column.go",
+    ],
+    importpath = "github.com/google/taxinomia/core/columns",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "columns_test",
+    srcs = [
+        "column_bench_test.go",
+        "datetime_column_test.go",
+        "duration_column_test.go",
+    ],
+    embed = [":columns"],
+)

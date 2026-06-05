@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "datasources_proto",
+    srcs = ["datasource.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "datasources_go_proto",
+    importpath = "github.com/google/taxinomia/datasources",
+    proto = ":datasources_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "datasources",
+    srcs = [
+        "csv_loader.go",
+        "loader.go",
+        "manager.go",
+        "proto_loader.go",
+    ],
+    embed = [":datasources_go_proto"],
+    importpath = "github.com/google/taxinomia/datasources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core/columns",
+        "//core/protoloader",
+        "//core/tables",
+        "@org_golang_google_protobuf//encoding/prototext",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protodesc",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//reflect/protoregistry",
+        "@org_golang_google_protobuf//types/descriptorpb",
+    ],
+)
+
+go_test(
+    name = "datasources_test",
+    srcs = ["manager_test.go"],
+    # Tests read the demo config tree (//demo/data) via runtime.Caller paths.
+    data = ["//demo:runtime_data"],  # keep
+    embed = [":datasources"],
+    # Resolve those workspace-relative paths from the workspace root, not the
+    # default package directory.
+    rundir = ".",  # keep
+)

@@ -1,0 +1,105 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+# product.proto and customer_orders.proto declare different go_package values,
+# so they cannot share a single go_proto_library. Generate one proto target per
+# file in this directory.
+# gazelle:proto file
+
+go_proto_library(
+    name = "demo_go_proto",
+    importpath = "github.com/google/taxinomia/demo",
+    proto = ":product_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "demo",
+    srcs = [
+        "demo_data.go",
+        "gogle_tables.go",
+        "perf_data.go",
+        "product.go",
+        "protoloader.go",
+        "server.go",
+        "user_store.go",
+    ],
+    embed = [":demo_go_proto"],
+    embedsrcs = [
+        "data/capitals.csv",
+        "data/items.csv",
+        "data/orders.csv",
+        "data/regions.csv",
+        "data/sales.csv",
+        "data/sources.textproto",
+    ],
+    importpath = "github.com/google/taxinomia/demo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core/columns",
+        "//core/csvimport",
+        "//core/models",
+        "//core/protoloader",
+        "//core/query",
+        "//core/server",
+        "//core/tables",
+        "//core/users",
+        "//core/views",
+        "//datasources",
+        "@org_golang_google_protobuf//encoding/prototext",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protodesc",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//reflect/protoregistry",
+        "@org_golang_google_protobuf//types/descriptorpb",
+    ],
+)
+
+# Runtime data files loaded by path (not embedded). Used by the //:taxinomia
+# binary and by tests here and in //datasources, which read the demo config
+# tree, user profiles, and product definitions via runtime.Caller paths.
+filegroup(
+    name = "runtime_data",
+    srcs = glob([
+        "data/**",
+        "users/**",
+        "products/**",
+        "*.pb",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "demo_test",
+    srcs = ["protoloader_test.go"],
+    data = [":runtime_data"],  # keep
+    embed = [":demo"],
+    # Tests resolve data paths relative to the workspace root (via runtime.Caller),
+    # so run from there instead of the default package directory.
+    rundir = ".",  # keep
+    deps = [
+        "//datasources",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+proto_library(
+    name = "customer_orders_proto",
+    srcs = ["customer_orders.proto"],
+    visibility = ["//visibility:public"],
+    deps = ["@protobuf//:timestamp_proto"],
+)
+
+proto_library(
+    name = "product_proto",
+    srcs = ["product.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "customer_orders_go_proto",
+    importpath = "github.com/google/taxinomia/demo/proto",
+    proto = ":customer_orders_proto",
+    visibility = ["//visibility:public"],
+)

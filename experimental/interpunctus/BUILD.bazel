@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "interpunctus_lib",
+    srcs = [
+        "aggregation.go",
+        "cellbuilder.go",
+        "columns.go",
+        "filtering.go",
+        "github_loader.go",
+        "group.go",
+        "main.go",
+        "orderedmap.go",
+        "orderedmap_example.go",
+        "render.go",
+        "sample_loader.go",
+        "sorting.go",
+        "tables.go",
+        "view.go",
+        "viewmodel.go",
+        "viewmodel_builder.go",
+        "web.go",
+    ],
+    embedsrcs = [
+        "resources/tables/script.js",
+        "resources/tables/style.css",
+    ],
+    importpath = "github.com/google/taxinomia/experimental/interpunctus",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "interpunctus",
+    embed = [":interpunctus_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "interpunctus_test",
+    srcs = [
+        "filtering_test.go",
+        "grouping_test.go",
+        "orderedmap_test.go",
+        "render_test.go",
+        "sorting_test.go",
+        "viewmodel_builder_test.go",
+    ],
+    embed = [":interpunctus_lib"],
+)

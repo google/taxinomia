@@ -1,2 +1,12 @@
 experimental/interpunctus/nul
 .claude/
+.vscode/
+
+# Bazel convenience symlinks (created in the workspace root on each build).
+/bazel-*
+
+# Local, machine-specific Bazel overrides (e.g. BAZEL_SH / shell paths).
+/user.bazelrc
+
+# Compiled binaries — build outputs do not belong in version control.
+*.exe

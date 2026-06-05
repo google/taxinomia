@@ -1,0 +1,34 @@
+load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+# gazelle:prefix github.com/google/taxinomia
+# gazelle:proto default
+# gazelle:go_generate_proto true
+
+# Run `bazel run //:gazelle` to (re)generate BUILD files,
+# and `bazel run //:gazelle-update-repos` is not needed under Bzlmod
+# (use `bazel mod tidy` to sync go.mod deps into MODULE.bazel).
+gazelle(name = "gazelle")
+
+go_library(
+    name = "taxinomia_lib",
+    srcs = [
+        "filesystem.go",
+        "main.go",
+    ],
+    importpath = "github.com/google/taxinomia",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//datasources",
+        "//demo",
+    ],
+)
+
+go_binary(
+    name = "taxinomia",
+    # Demo data (user profiles, products, config tree) is read at runtime by
+    # path, so it must be present in the binary's runfiles.
+    data = ["//demo:runtime_data"],  # keep
+    embed = [":taxinomia_lib"],
+    visibility = ["//visibility:public"],
+)

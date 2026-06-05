@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "aggregates",
+    srcs = ["aggregates.go"],
+    importpath = "github.com/google/taxinomia/core/aggregates",
+    visibility = ["//visibility:public"],
+    deps = ["//core/query"],
+)

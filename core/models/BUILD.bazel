@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "models",
+    srcs = [
+        "datamodel.go",
+        "system_tables.go",
+    ],
+    importpath = "github.com/google/taxinomia/core/models",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core/columns",
+        "//core/tables",
+    ],
+)
+
+go_test(
+    name = "models_test",
+    srcs = ["system_tables_test.go"],
+    embed = [":models"],
+    deps = [
+        "//core/columns",
+        "//core/tables",
+    ],
+)

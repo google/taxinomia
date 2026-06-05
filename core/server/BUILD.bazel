@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "server",
+    srcs = ["server.go"],
+    importpath = "github.com/google/taxinomia/core/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core/columns",
+        "//core/expr",
+        "//core/models",
+        "//core/query",
+        "//core/rendering",
+        "//core/tables",
+        "//core/users",
+        "//core/views",
+    ],
+)

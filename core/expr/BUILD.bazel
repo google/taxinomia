@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "expr",
+    srcs = [
+        "ast.go",
+        "eval.go",
+        "expr.go",
+        "lexer.go",
+        "parser.go",
+        "token.go",
+        "types.go",
+    ],
+    importpath = "github.com/google/taxinomia/core/expr",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "expr_test",
+    srcs = ["expr_test.go"],
+    embed = [":expr"],
+)

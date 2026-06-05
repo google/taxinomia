@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tables",
+    srcs = [
+        "data_table.go",
+        "sorting.go",
+        "table_view.go",
+        "table_view_ascii.go",
+    ],
+    importpath = "github.com/google/taxinomia/core/tables",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core/aggregates",
+        "//core/columns",
+        "//core/grouping",
+        "//core/query",
+    ],
+)
+
+go_test(
+    name = "tables_test",
+    srcs = [
+        "ascii_demo_test.go",
+        "ascii_test.go",
+        "benchmark_test.go",
+        "filter_bench_test.go",
+        "table_view_test.go",
+    ],
+    embed = [":tables"],
+    deps = [
+        "//core/columns",
+        "//core/expr",
+        "//core/grouping",
+    ],
+)
