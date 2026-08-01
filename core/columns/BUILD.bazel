@@ -8,6 +8,7 @@ go_library(
         "compare.go",
         "computed_columns.go",
         "datetime_column.go",
+        "dict_column.go",
         "duration_column.go",
         "float64_column.go",
         "int64_column.go",
@@ -25,6 +26,9 @@ go_test(
     srcs = [
         "column_bench_test.go",
         "datetime_column_test.go",
+        "dict_cardinality_test.go",
+        "dict_column_bench_test.go",
+        "dict_column_test.go",
         "duration_column_test.go",
     ],
     embed = [":columns"],

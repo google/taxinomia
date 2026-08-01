@@ -140,3 +140,64 @@ BenchmarkGroupIndices_EdgeCase_1M_1MGroups/Uint32-8            3    372349467 ns
 PASS
 ok  github.com/google/taxinomia/core/columns  52.095s
 ```
+
+---
+
+## Dictionary encoding prototype (DictStringColumn)
+
+**Different machine — do not compare against the numbers above.** Measured on an
+Intel Core i7-1185G7 @ 3.00GHz (Windows/amd64), `-benchtime 20x -count 3`, median
+of three runs. `StringColumn` was re-measured on the same machine so the two
+columns of each table are comparable.
+
+Run with:
+```bash
+go test ./core/columns/ -run '^$' -bench 'BenchmarkDict_' -benchtime 20x -count 3
+go test ./core/columns/ -run TestMemoryFootprint -v
+```
+
+### Time — 1M rows
+
+| Operation | Distinct | StringColumn | DictStringColumn | Speedup |
+|-----------|----------|--------------|------------------|---------|
+| GroupIndices, full range | 100 | 21.8 ms | 2.5 ms (uint8) | **8.6x** |
+| GroupIndices, full range | 1,000 | 27.6 ms | 5.1 ms (uint16) | **5.4x** |
+| GroupIndices, 100k subset | 100 | 2.60 ms | 0.25 ms (uint8) | **10.4x** |
+| Filter, cheap predicate | 100 | 1.94 ms | 2.09 ms (uint8) | 0.9x (parity) |
+| Filter, expensive predicate | 100 | 36.9 ms | 2.05 ms (uint8) | **18x** |
+| GetString, full scan | 100 | 2.03 ms | 2.03 ms (uint8) | 1.0x |
+| Append (build) | 100 | 24.8 ms | 11.7 ms (uint8) | **2.1x** |
+| CompactStringColumn | 100 | — | 23.1 ms (one-off) | — |
+
+### Allocations — GroupIndices, 1M rows
+
+| Distinct | StringColumn | DictStringColumn |
+|----------|--------------|------------------|
+| 100 | 14.1 MB / 1,818 allocs | 4.0 MB / **8 allocs** |
+| 1,000 | 13.2 MB / 12,040 allocs | 4.1 MB / **10 allocs** |
+
+The allocation collapse comes from laying every group out in one backing array
+(counting sort) instead of growing a slice per group.
+
+### Retained memory — 1M rows, 100 distinct values
+
+| | Retained |
+|---|---|
+| StringColumn | 24.58 MB |
+| DictStringColumn[uint8] | 1.07 MB |
+| **Ratio** | **23x** |
+
+Measured with the column owning its strings, as it does after a load.
+
+### Reading the results
+
+- **Grouping is where it pays.** The code is the group key, so there is no
+  hashing and no string comparison per row.
+- **Filter only wins when the predicate is expensive.** With a cheap predicate
+  the output allocation dominates and the two are level; the win appears once
+  the predicate costs more than a code lookup, because it runs once per distinct
+  value instead of once per row.
+- **Random single-row reads are a wash** — the extra indirection costs about
+  what the narrower scan saves.
+- **Building is faster, not slower**, despite the interning map: fewer bytes are
+  moved and the GC has ~1M fewer live objects to trace.
