@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "engine",
+    srcs = [
+        "catalog.go",
+        "doc.go",
+        "request.go",
+        "result.go",
+    ],
+    importpath = "github.com/google/taxinomia/core/engine",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "engine_test",
+    srcs = ["engine_test.go"],
+    deps = [
+        ":engine",
+        "//core/query",
+    ],
+)
