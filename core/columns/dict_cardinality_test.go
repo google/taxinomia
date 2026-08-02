@@ -60,9 +60,10 @@ func BenchmarkDict_Sweep_Build(b *testing.B) {
 	}
 }
 
-// Grouping a small subset of a high-cardinality column: the dictionary path
-// allocates dense arrays sized by the dictionary, not by the input, so this is
-// where it should degrade worst.
+// Grouping a small subset of a high-cardinality column: the dense counting-sort
+// path allocates arrays sized by the dictionary, not by the input, so
+// GroupIndices falls back to map grouping when the subset is small relative to
+// the dictionary. This sweep covers both sides of that switch.
 func BenchmarkDict_Sweep_SmallSubset(b *testing.B) {
 	subset := createBenchIndices(1000)
 	for _, d := range []int{100, 10_000, 500_000} {
@@ -128,8 +129,9 @@ func TestCardinalityMemorySweep(t *testing.T) {
 			col.FinalizeColumn()
 			return col
 		})
-		// Same column with the interning map released after finalize, which is
-		// safe for non-key columns: Filter and GroupIndices never touch it.
+		// FinalizeColumn now releases the interning map for non-key columns
+		// itself; the explicit nil is kept so the comparison stays valid even
+		// at the d=n point where the column is a key.
 		dictNoIdxBytes := retained(func() any {
 			col := NewDictStringColumn[uint32](NewColumnDef("test", "Test", ""))
 			for j := 0; j < largeSize; j++ {
@@ -149,9 +151,9 @@ func TestCardinalityMemorySweep(t *testing.T) {
 	}
 }
 
-// Cost of deciding NOT to compact. The current n/2 rule builds a map with up to
-// n/2 entries before giving up, i.e. it is most expensive exactly for the
-// columns that gain nothing.
+// Cost of deciding NOT to compact. The absolute cardinality cap bounds the
+// counting map at 64k entries regardless of n (the old n/2 rule grew it to
+// n/2, most expensive exactly for the columns that gain nothing).
 func BenchmarkDict_Compact_BailOut(b *testing.B) {
 	for _, d := range []int{600_000, 1_000_000} {
 		b.Run(fmt.Sprintf("d=%d", d), func(b *testing.B) {

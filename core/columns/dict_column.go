@@ -21,6 +21,7 @@ package columns
 import (
 	"fmt"
 	"sort"
+	"sync"
 )
 
 // DictStringColumn is optimized for low-cardinality string data, where the same
@@ -41,9 +42,10 @@ type DictStringColumn[K Unsigned] struct {
 	columnDef *ColumnDef
 	dict      []string    // code -> distinct value
 	codes     []K         // row -> code
-	index     map[string]K // value -> code (size d, kept for Append/Filter/GetIndex)
+	index     map[string]K // value -> code (size d, released by FinalizeColumn unless key)
 	isKey     bool
 	ranks     []K // code -> sort rank, built lazily by Ranks()
+	ranksOnce sync.Once
 }
 
 // NewDictStringColumn creates an empty dictionary-encoded string column.
@@ -152,8 +154,14 @@ func (c *DictStringColumn[K]) CreateJoinedColumn(columnDef *ColumnDef, joiner IJ
 // FinalizeColumn detects whether the column happens to be unique. The
 // dictionary and its index are already built by Append, so there is no second
 // pass over the rows.
+//
+// For non-key columns the interning map is released: Filter and GroupIndices
+// never read it, and GetIndex already errors. No Append after FinalizeColumn.
 func (c *DictStringColumn[K]) FinalizeColumn() {
 	c.isKey = len(c.dict) == len(c.codes)
+	if !c.isKey {
+		c.index = nil
+	}
 }
 
 // Filter returns the indices whose value satisfies the predicate. The predicate
@@ -174,20 +182,21 @@ func (c *DictStringColumn[K]) Filter(predicate func(string) bool) []int {
 
 // Ranks returns, per dictionary code, the position of its value in sorted order.
 // Built once and cached, it turns row comparison into an integer compare.
+// Safe for concurrent callers.
 func (c *DictStringColumn[K]) Ranks() []K {
-	if c.ranks != nil {
-		return c.ranks
-	}
-	order := make([]int, len(c.dict))
-	for i := range order {
-		order[i] = i
-	}
-	sort.Slice(order, func(a, b int) bool { return c.dict[order[a]] < c.dict[order[b]] })
+	c.ranksOnce.Do(func() {
+		order := make([]int, len(c.dict))
+		for i := range order {
+			order[i] = i
+		}
+		sort.Slice(order, func(a, b int) bool { return c.dict[order[a]] < c.dict[order[b]] })
 
-	c.ranks = make([]K, len(c.dict))
-	for rank, code := range order {
-		c.ranks[code] = K(rank)
-	}
+		ranks := make([]K, len(c.dict))
+		for rank, code := range order {
+			ranks[code] = K(rank)
+		}
+		c.ranks = ranks
+	})
 	return c.ranks
 }
 
@@ -199,6 +208,17 @@ func (c *DictStringColumn[K]) Ranks() []K {
 func (c *DictStringColumn[K]) GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32) {
 	if len(indices) == 0 {
 		return map[uint32][]uint32{}, nil
+	}
+
+	// Small subset of a high-cardinality column: the dense arrays below are
+	// sized by the dictionary and would dwarf the input. Hash instead.
+	if len(indices) < len(c.dict)/8 {
+		grouped := make(map[uint32][]uint32)
+		for _, i := range indices {
+			code := uint32(c.codes[i])
+			grouped[code] = append(grouped[code], i)
+		}
+		return grouped, nil
 	}
 
 	// Pass 1: count rows per code.
@@ -249,32 +269,40 @@ func (c *DictStringColumn[K]) GroupIndices(indices []uint32, columnView *ColumnV
 // It reports whether compaction happened; when it returns false the original
 // column is returned unchanged. This is the intended hook for FinalizeColumn:
 // the cardinality is known only after the data is loaded.
+// Compaction thresholds: below minDictRows the savings cannot amount to
+// anything, and above maxDictCardinality the dictionary itself becomes the
+// cost. Absolute bounds, not ratios of n — the old d <= n/2 rule sanctioned a
+// memory regression at its own boundary.
+const (
+	minDictRows        = 4096
+	maxDictCardinality = 1 << 16
+)
+
 func CompactStringColumn(c *StringColumn) (IDataColumn, bool) {
 	n := len(c.data)
-	if n == 0 {
+	if n < minDictRows {
+		return c, false
+	}
+	// A primary key is the guaranteed-worst case: every value distinct. Decline
+	// up front instead of burning a full counting scan.
+	if c.IsKey() {
 		return c, false
 	}
 
-	// Count distinct values, bailing out as soon as the column looks
-	// high-cardinality enough that encoding would not pay for itself.
-	threshold := n / 2
-	seen := make(map[string]struct{}, min(threshold, 1024))
+	// Count distinct values, bailing out as soon as the column exceeds the
+	// cardinality cap.
+	seen := make(map[string]struct{}, 1024)
 	for _, v := range c.data {
 		seen[v] = struct{}{}
-		if len(seen) > threshold {
+		if len(seen) > maxDictCardinality {
 			return c, false
 		}
 	}
 
-	d := len(seen)
-	switch {
-	case d <= 1<<8:
+	if d := len(seen); d <= 1<<8 {
 		return buildDict[uint8](c), true
-	case d <= 1<<16:
-		return buildDict[uint16](c), true
-	default:
-		return buildDict[uint32](c), true
 	}
+	return buildDict[uint16](c), true
 }
 
 func buildDict[K Unsigned](c *StringColumn) *DictStringColumn[K] {

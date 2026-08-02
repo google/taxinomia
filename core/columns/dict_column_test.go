@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -267,9 +268,10 @@ func TestCompactStringColumn(t *testing.T) {
 		wantCompat bool
 		wantType   string
 	}{
-		{"low cardinality", repetitiveValues(1000, 5), true, "*columns.DictStringColumn[uint8]"},
+		{"low cardinality", repetitiveValues(8192, 5), true, "*columns.DictStringColumn[uint8]"},
 		{"medium cardinality", repetitiveValues(10000, 300), true, "*columns.DictStringColumn[uint16]"},
-		{"high cardinality", repetitiveValues(1000, 1000), false, "*columns.StringColumn"},
+		{"above cardinality cap", repetitiveValues(140000, 70000), false, "*columns.StringColumn"},
+		{"below row threshold", repetitiveValues(1000, 5), false, "*columns.StringColumn"},
 		{"empty", nil, false, "*columns.StringColumn"},
 	}
 	for _, tc := range cases {
@@ -301,6 +303,48 @@ func TestCompactStringColumn(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCompactStringColumn_KeyColumnDeclined(t *testing.T) {
+	// A primary key is all-distinct by definition; compaction must decline
+	// without scanning.
+	plain := NewStringColumn(NewColumnDef("id", "ID", ""))
+	for _, v := range repetitiveValues(8192, 8192) {
+		plain.Append(v)
+	}
+	plain.FinalizeColumn()
+	if !plain.IsKey() {
+		t.Fatal("all-distinct column should be a key")
+	}
+
+	compacted, ok := CompactStringColumn(plain)
+	if ok {
+		t.Fatal("key column should not be compacted")
+	}
+	if compacted != IDataColumn(plain) {
+		t.Fatal("declining should return the original column")
+	}
+}
+
+func TestDictColumn_RanksConcurrent(t *testing.T) {
+	_, dict := buildPair(repetitiveValues(1000, 9))
+
+	var wg sync.WaitGroup
+	results := make([][]uint8, 8)
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			results[g] = dict.Ranks()
+		}(g)
+	}
+	wg.Wait()
+
+	for g, ranks := range results {
+		if &ranks[0] != &results[0][0] {
+			t.Fatalf("goroutine %d got a different ranks slice", g)
+		}
 	}
 }
 

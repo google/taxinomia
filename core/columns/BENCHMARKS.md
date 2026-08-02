@@ -201,3 +201,32 @@ Measured with the column owning its strings, as it does after a load.
   what the narrower scan saves.
 - **Building is faster, not slower**, despite the interning map: fewer bytes are
   moved and the GC has ~1M fewer live objects to trace.
+
+### Prototype fixes (2026-08-02)
+
+Same machine as the prototype numbers above (i7-1185G7), `-benchtime 20x
+-count 3`, median of three runs. Four defects measured by the cardinality sweep
+were fixed:
+
+- `CompactStringColumn` now uses absolute bounds (`n >= 4096 && d <= 65536`)
+  instead of the `d <= n/2` ratio, and declines key columns without scanning.
+- `FinalizeColumn` releases the interning map for non-key columns.
+- `GroupIndices` falls back to map grouping when the subset is smaller than
+  1/8 of the dictionary, instead of allocating dense arrays sized by it.
+- `Ranks()` is guarded by `sync.Once`; concurrent sorts no longer race.
+
+**Small subset (1,000 rows of 1M), by dictionary cardinality** — before the
+fix, the d=500k case was **7.8x slower** than `StringColumn`; it is now faster:
+
+| Distinct | StringColumn | DictStringColumn (uint32) | |
+|----------|--------------|---------------------------|---|
+| 100 | 46.4 µs / 28 KB | 4.6 µs / 10 KB | **10.1x** (dense path) |
+| 10,000 | 123.1 µs / 273 KB | 64.7 µs / 168 KB | **1.9x** (map path) |
+| 500,000 | 110.2 µs / 273 KB | 65.8 µs / 168 KB | **1.7x** (map path) |
+
+**Cost of deciding not to compact** (1M rows):
+
+| Distinct | Before (n/2 rule) | After |
+|----------|-------------------|-------|
+| 600,000 | counts up to 500k entries | 5.3 ms, bails at 65,537 |
+| 1,000,000 (key) | full counting scan | **25 ns** (`IsKey` short-circuit) |
