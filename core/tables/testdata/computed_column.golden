@@ -1,0 +1,36 @@
+"b1" rows=23 subgroups=3 height=3 complete=true
+  agg[region]: count=23 unique=3
+  agg[category]: count=23 unique=4
+  agg[amount]: count=23 sum=1052 avg=45.74 min=7 max=85 stddev=23.34
+  agg[score]: count=23 sum=47.75 avg=2.08 min=0.25 max=4.25 stddev=1.4
+  agg[flag]: count=23 true=7 false=16 ratio=30.4%
+  agg[note]: count=23 unique=4
+  "Active" rows=8 subgroups=0 height=1 complete=true
+    agg[region]: count=8 unique=3
+    agg[category]: count=8 unique=4
+    agg[amount]: count=8 sum=155 avg=19.38 min=7 max=31 stddev=8.14
+    agg[score]: count=8 sum=15 avg=1.88 min=0.25 max=4.25 stddev=1.32
+    agg[flag]: count=8 true=2 false=6 ratio=25.0%
+    agg[note]: count=8 unique=4
+  "Inactive" rows=7 subgroups=0 height=1 complete=true
+    agg[region]: count=7 unique=3
+    agg[category]: count=7 unique=4
+    agg[amount]: count=7 sum=319 avg=45.57 min=34 max=55 stddev=6.69
+    agg[score]: count=7 sum=16.75 avg=2.39 min=0.25 max=4.25 stddev=1.46
+    agg[flag]: count=7 true=3 false=4 ratio=42.9%
+    agg[note]: count=7 unique=4
+  "Pending" rows=8 subgroups=0 height=1 complete=true
+    agg[region]: count=8 unique=3
+    agg[category]: count=8 unique=3
+    agg[amount]: count=8 sum=578 avg=72.25 min=61 max=85 stddev=7.9
+    agg[score]: count=8 sum=16 avg=2 min=0.25 max=4.25 stddev=1.39
+    agg[flag]: count=8 true=2 false=6 ratio=25.0%
+    agg[note]: count=8 unique=4
+
+=== ascii ===
+|--|--------|
+|b1|Active  |
+|  |--------|
+|  |Inactive|
+|  |--------|
+|--|--------|

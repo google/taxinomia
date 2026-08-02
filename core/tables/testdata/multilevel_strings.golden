@@ -1,0 +1,188 @@
+"Active" rows=9 subgroups=3 height=6 complete=true
+  agg[amount]: count=9 sum=171 avg=19 min=7 max=31 stddev=7.75
+  agg[score]: count=9 sum=18.25 avg=2.03 min=0.25 max=4.25 stddev=1.31
+  agg[flag]: count=9 true=3 false=6 ratio=33.3%
+  agg[note]: count=9 unique=4
+  "East" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=84 avg=28 min=25 max=31 stddev=2.45
+    agg[score]: count=3 sum=6.75 avg=2.25 min=1.25 max=3.25 stddev=0.82
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "C" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=59 avg=29.5 min=28 max=31 stddev=1.5
+      agg[score]: count=2 sum=5.5 avg=2.75 min=2.25 max=3.25 stddev=0.5
+      agg[flag]: count=2 true=0 false=2 ratio=0.0%
+      agg[note]: count=2 unique=2
+    "Z" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=25 avg=25 min=25 max=25 stddev=0
+      agg[score]: count=1 sum=1.25 avg=1.25 min=1.25 max=1.25 stddev=0
+      agg[flag]: count=1 true=1 false=0 ratio=100.0%
+      agg[note]: count=1 unique=1
+  "North" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=30 avg=10 min=7 max=13 stddev=2.45
+    agg[score]: count=3 sum=3.75 avg=1.25 min=0.25 max=2.25 stddev=0.82
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "A" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=17 avg=8.5 min=7 max=10 stddev=1.5
+      agg[score]: count=2 sum=1.5 avg=0.75 min=0.25 max=1.25 stddev=0.5
+      agg[flag]: count=2 true=1 false=1 ratio=50.0%
+      agg[note]: count=2 unique=2
+    "B" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=13 avg=13 min=13 max=13 stddev=0
+      agg[score]: count=1 sum=2.25 avg=2.25 min=2.25 max=2.25 stddev=0
+      agg[flag]: count=1 true=0 false=1 ratio=0.0%
+      agg[note]: count=1 unique=1
+  "South" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=57 avg=19 min=16 max=22 stddev=2.45
+    agg[score]: count=3 sum=7.75 avg=2.58 min=0.25 max=4.25 stddev=1.7
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "A" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=16 avg=16 min=16 max=16 stddev=0
+      agg[score]: count=1 sum=3.25 avg=3.25 min=3.25 max=3.25 stddev=0
+      agg[flag]: count=1 true=1 false=0 ratio=100.0%
+      agg[note]: count=1 unique=1
+    "B" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=41 avg=20.5 min=19 max=22 stddev=1.5
+      agg[score]: count=2 sum=4.5 avg=2.25 min=0.25 max=4.25 stddev=2
+      agg[flag]: count=2 true=0 false=2 ratio=0.0%
+      agg[note]: count=2 unique=2
+"Inactive" rows=9 subgroups=3 height=6 complete=true
+  agg[amount]: count=9 sum=414 avg=46 min=34 max=58 stddev=7.75
+  agg[score]: count=9 sum=19.25 avg=2.14 min=0.25 max=4.25 stddev=1.45
+  agg[flag]: count=9 true=3 false=6 ratio=33.3%
+  agg[note]: count=9 unique=4
+  "East" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=165 avg=55 min=52 max=58 stddev=2.45
+    agg[score]: count=3 sum=3.75 avg=1.25 min=0.25 max=2.25 stddev=0.82
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "C" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=113 avg=56.5 min=55 max=58 stddev=1.5
+      agg[score]: count=2 sum=3.5 avg=1.75 min=1.25 max=2.25 stddev=0.5
+      agg[flag]: count=2 true=0 false=2 ratio=0.0%
+      agg[note]: count=2 unique=2
+    "Z" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=52 avg=52 min=52 max=52 stddev=0
+      agg[score]: count=1 sum=0.25 avg=0.25 min=0.25 max=0.25 stddev=0
+      agg[flag]: count=1 true=1 false=0 ratio=100.0%
+      agg[note]: count=1 unique=1
+  "North" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=111 avg=37 min=34 max=40 stddev=2.45
+    agg[score]: count=3 sum=5.75 avg=1.92 min=0.25 max=4.25 stddev=1.7
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "A" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=71 avg=35.5 min=34 max=37 stddev=1.5
+      agg[score]: count=2 sum=4.5 avg=2.25 min=0.25 max=4.25 stddev=2
+      agg[flag]: count=2 true=1 false=1 ratio=50.0%
+      agg[note]: count=2 unique=2
+    "B" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=40 avg=40 min=40 max=40 stddev=0
+      agg[score]: count=1 sum=1.25 avg=1.25 min=1.25 max=1.25 stddev=0
+      agg[flag]: count=1 true=0 false=1 ratio=0.0%
+      agg[note]: count=1 unique=1
+  "South" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=138 avg=46 min=43 max=49 stddev=2.45
+    agg[score]: count=3 sum=9.75 avg=3.25 min=2.25 max=4.25 stddev=0.82
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "A" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=43 avg=43 min=43 max=43 stddev=0
+      agg[score]: count=1 sum=2.25 avg=2.25 min=2.25 max=2.25 stddev=0
+      agg[flag]: count=1 true=1 false=0 ratio=100.0%
+      agg[note]: count=1 unique=1
+    "B" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=95 avg=47.5 min=46 max=49 stddev=1.5
+      agg[score]: count=2 sum=7.5 avg=3.75 min=3.25 max=4.25 stddev=0.5
+      agg[flag]: count=2 true=0 false=2 ratio=0.0%
+      agg[note]: count=2 unique=2
+"Pending" rows=9 subgroups=3 height=6 complete=true
+  agg[amount]: count=9 sum=657 avg=73 min=61 max=85 stddev=7.75
+  agg[score]: count=9 sum=20.25 avg=2.25 min=0.25 max=4.25 stddev=1.49
+  agg[flag]: count=9 true=3 false=6 ratio=33.3%
+  agg[note]: count=9 unique=4
+  "East" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=246 avg=82 min=79 max=85 stddev=2.45
+    agg[score]: count=3 sum=5.75 avg=1.92 min=0.25 max=4.25 stddev=1.7
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "C" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=167 avg=83.5 min=82 max=85 stddev=1.5
+      agg[score]: count=2 sum=1.5 avg=0.75 min=0.25 max=1.25 stddev=0.5
+      agg[flag]: count=2 true=0 false=2 ratio=0.0%
+      agg[note]: count=2 unique=2
+    "Z" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=79 avg=79 min=79 max=79 stddev=0
+      agg[score]: count=1 sum=4.25 avg=4.25 min=4.25 max=4.25 stddev=0
+      agg[flag]: count=1 true=1 false=0 ratio=100.0%
+      agg[note]: count=1 unique=1
+  "North" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=192 avg=64 min=61 max=67 stddev=2.45
+    agg[score]: count=3 sum=7.75 avg=2.58 min=0.25 max=4.25 stddev=1.7
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "A" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=125 avg=62.5 min=61 max=64 stddev=1.5
+      agg[score]: count=2 sum=7.5 avg=3.75 min=3.25 max=4.25 stddev=0.5
+      agg[flag]: count=2 true=1 false=1 ratio=50.0%
+      agg[note]: count=2 unique=2
+    "B" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=67 avg=67 min=67 max=67 stddev=0
+      agg[score]: count=1 sum=0.25 avg=0.25 min=0.25 max=0.25 stddev=0
+      agg[flag]: count=1 true=0 false=1 ratio=0.0%
+      agg[note]: count=1 unique=1
+  "South" rows=3 subgroups=2 height=2 complete=true
+    agg[amount]: count=3 sum=219 avg=73 min=70 max=76 stddev=2.45
+    agg[score]: count=3 sum=6.75 avg=2.25 min=1.25 max=3.25 stddev=0.82
+    agg[flag]: count=3 true=1 false=2 ratio=33.3%
+    agg[note]: count=3 unique=3
+    "A" rows=1 subgroups=0 height=1 complete=true
+      agg[amount]: count=1 sum=70 avg=70 min=70 max=70 stddev=0
+      agg[score]: count=1 sum=1.25 avg=1.25 min=1.25 max=1.25 stddev=0
+      agg[flag]: count=1 true=1 false=0 ratio=100.0%
+      agg[note]: count=1 unique=1
+    "B" rows=2 subgroups=0 height=1 complete=true
+      agg[amount]: count=2 sum=149 avg=74.5 min=73 max=76 stddev=1.5
+      agg[score]: count=2 sum=5.5 avg=2.75 min=2.25 max=3.25 stddev=0.5
+      agg[flag]: count=2 true=0 false=2 ratio=0.0%
+      agg[note]: count=2 unique=2
+
+=== ascii ===
+|--------|-----|-|
+|Active  |East |C|
+|        |     |-|
+|        |     |Z|
+|        |-----|-|
+|        |North|A|
+|        |     |-|
+|        |     |B|
+|        |-----|-|
+|        |South|A|
+|        |     |-|
+|        |     |B|
+|--------|-----|-|
+|Inactive|East |C|
+|        |     |-|
+|        |     |Z|
+|        |-----|-|
+|        |North|A|
+|        |     |-|
+|        |     |B|
+|        |-----|-|
+|        |South|A|
+|        |     |-|
+|        |     |B|
+|--------|-----|-|
+|Pending |East |C|
+|        |     |-|
+|        |     |Z|
+|        |-----|-|
+|        |North|A|
+|        |     |-|
+|        |     |B|
+|        |-----|-|
+|        |South|A|
+|        |     |-|
+|--------|-----|-|

@@ -1,0 +1,14 @@
+"Ada" rows=3 subgroups=0 height=1 complete=true
+  agg[amount]: count=3 sum=38 avg=12.67 min=10 max=16 stddev=2.49
+"Edsger" rows=1 subgroups=0 height=1 complete=true
+  agg[amount]: count=1 sum=14 avg=14 min=14 max=14 stddev=0
+"Grace" rows=2 subgroups=0 height=1 complete=true
+  agg[amount]: count=2 sum=26 avg=13 min=11 max=15 stddev=2
+
+=== ascii ===
+|------|
+|Ada   |
+|------|
+|Edsger|
+|------|
+|------|

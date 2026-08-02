@@ -25,12 +25,15 @@ go_test(
         "ascii_test.go",
         "benchmark_test.go",
         "filter_bench_test.go",
+        "golden_test.go",
         "table_view_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":tables"],
     deps = [
         "//core/columns",
         "//core/expr",
         "//core/grouping",
+        "//core/query",
     ],
 )

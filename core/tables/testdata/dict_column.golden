@@ -1,0 +1,30 @@
+"alpha" rows=715 subgroups=0 height=1 complete=true
+  agg[amount]: count=715 sum=4290 avg=6 min=0 max=12 stddev=3.74
+"beta" rows=715 subgroups=0 height=1 complete=true
+  agg[amount]: count=715 sum=4290 avg=6 min=0 max=12 stddev=3.74
+"delta" rows=714 subgroups=0 height=1 complete=true
+  agg[amount]: count=714 sum=4281 avg=6 min=0 max=12 stddev=3.74
+"epsilon" rows=714 subgroups=0 height=1 complete=true
+  agg[amount]: count=714 sum=4280 avg=5.99 min=0 max=12 stddev=3.74
+"eta" rows=714 subgroups=0 height=1 complete=true
+  agg[amount]: count=714 sum=4278 avg=5.99 min=0 max=12 stddev=3.74
+"gamma" rows=714 subgroups=0 height=1 complete=true
+  agg[amount]: count=714 sum=4282 avg=6 min=0 max=12 stddev=3.74
+"zeta" rows=714 subgroups=0 height=1 complete=true
+  agg[amount]: count=714 sum=4279 avg=5.99 min=0 max=12 stddev=3.74
+
+=== ascii ===
+|-------|
+|alpha  |
+|-------|
+|beta   |
+|-------|
+|delta  |
+|-------|
+|epsilon|
+|-------|
+|eta    |
+|-------|
+|gamma  |
+|-------|
+|-------|

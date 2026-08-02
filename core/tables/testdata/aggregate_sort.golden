@@ -1,0 +1,21 @@
+"Pending" rows=7 subgroups=0 height=1 complete=true
+  agg[region]: count=7 unique=3
+  agg[category]: count=7 unique=4
+  agg[amount]: count=7 sum=517 avg=73.86 min=61 max=85 stddev=7.97
+  agg[score]: count=7 sum=12.75 avg=1.82 min=0.25 max=4.25 stddev=1.4
+  agg[flag]: count=7 true=3 false=4 ratio=42.9%
+  agg[note]: count=7 unique=3
+"Inactive" rows=7 subgroups=0 height=1 complete=true
+  agg[region]: count=7 unique=3
+  agg[category]: count=7 unique=3
+  agg[amount]: count=7 sum=322 avg=46 min=34 max=58 stddev=8.18
+  agg[score]: count=7 sum=17.75 avg=2.54 min=0.25 max=4.25 stddev=1.39
+  agg[flag]: count=7 true=2 false=5 ratio=28.6%
+  agg[note]: count=7 unique=3
+"Active" rows=7 subgroups=0 height=1 complete=true
+  agg[region]: count=7 unique=3
+  agg[category]: count=7 unique=4
+  agg[amount]: count=7 sum=127 avg=18.14 min=7 max=31 stddev=7.97
+  agg[score]: count=7 sum=12.75 avg=1.82 min=0.25 max=4.25 stddev=1.4
+  agg[flag]: count=7 true=2 false=5 ratio=28.6%
+  agg[note]: count=7 unique=3
