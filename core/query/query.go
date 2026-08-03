@@ -187,6 +187,8 @@ type Query struct {
 	ColumnWidths       map[string]int               // Column widths in pixels (columnName -> width)
 	Expanded           []string                     // List of expanded paths in the sidebar
 	GroupedColumns     []string                     // Ordered list of columns to group by
+	ExpandedGroups     [][]string                   // Open group-tree paths (outermost group value first); meaningful only when HasExpandedGroups
+	HasExpandedGroups  bool                         // True when the URL carries the gexp parameter; false keeps the historical expand-everything grouping
 	Filters            map[string]string            // Column filters (columnName -> filterValue)
 	Limit              int                          // Number of rows to display (0 = show all)
 	ComputedColumns    []ComputedColumnDef          // Computed column definitions
@@ -262,6 +264,17 @@ func NewQuery(u *url.URL) *Query {
 		state.GroupedColumns = strings.Split(groupedStr, ",")
 	} else {
 		state.GroupedColumns = []string{}
+	}
+
+	// Extract group expansion parameter (format: gexp=path1,path2 where each
+	// path is query-escaped group values joined by "/"). Presence of the
+	// parameter — even empty — switches grouping to explicit expansion;
+	// absence keeps the historical expand-everything behavior.
+	if vals, ok := q["gexp"]; ok {
+		state.HasExpandedGroups = true
+		if len(vals) > 0 {
+			state.ExpandedGroups = parseGroupExpansion(vals[0])
+		}
 	}
 
 	// Extract limit parameter
@@ -355,6 +368,45 @@ func parseComputedColumns(computedStr string) []ComputedColumnDef {
 		})
 	}
 	return result
+}
+
+// parseGroupExpansion parses the gexp parameter into group paths.
+// Format: paths separated by ",", path components (group values, query-escaped)
+// separated by "/".
+func parseGroupExpansion(s string) [][]string {
+	if s == "" {
+		return nil
+	}
+	var paths [][]string
+	for _, pathStr := range strings.Split(s, ",") {
+		if pathStr == "" {
+			continue
+		}
+		parts := strings.Split(pathStr, "/")
+		path := make([]string, len(parts))
+		for i, part := range parts {
+			if dec, err := url.QueryUnescape(part); err == nil {
+				path[i] = dec
+			} else {
+				path[i] = part
+			}
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+// encodeGroupExpansion is the inverse of parseGroupExpansion.
+func encodeGroupExpansion(paths [][]string) string {
+	pathStrs := make([]string, 0, len(paths))
+	for _, path := range paths {
+		comps := make([]string, len(path))
+		for i, v := range path {
+			comps[i] = url.QueryEscape(v)
+		}
+		pathStrs = append(pathStrs, strings.Join(comps, "/"))
+	}
+	return strings.Join(pathStrs, ",")
 }
 
 // parseSortOrder parses the sort parameter string into SortColumn slice
@@ -470,6 +522,7 @@ func (s *Query) Clone() *Query {
 		ShowInfoPane:        s.ShowInfoPane,
 		InfoPaneTab:         s.InfoPaneTab,
 		SelectedRowID:       s.SelectedRowID,
+		HasExpandedGroups:   s.HasExpandedGroups,
 	}
 
 	// Deep copy columns
@@ -485,6 +538,14 @@ func (s *Query) Clone() *Query {
 
 	// Deep copy grouped columns
 	copy(clone.GroupedColumns, s.GroupedColumns)
+
+	// Deep copy expanded group paths
+	if s.ExpandedGroups != nil {
+		clone.ExpandedGroups = make([][]string, len(s.ExpandedGroups))
+		for i, path := range s.ExpandedGroups {
+			clone.ExpandedGroups[i] = append([]string(nil), path...)
+		}
+	}
 
 	// Deep copy filters
 	for colName, filterValue := range s.Filters {
@@ -525,6 +586,8 @@ func (s *Query) ClearTableSpecificState() {
 	s.ColumnWidths = make(map[string]int)
 	s.Expanded = nil
 	s.GroupedColumns = nil
+	s.ExpandedGroups = nil
+	s.HasExpandedGroups = false
 	s.Filters = make(map[string]string)
 	s.ComputedColumns = nil
 	s.SortOrder = nil
@@ -727,6 +790,12 @@ func (s *Query) ToURL() string {
 	// Add grouped columns parameter
 	if len(s.GroupedColumns) > 0 {
 		q.Set("grouped", strings.Join(s.GroupedColumns, ","))
+	}
+
+	// Add group expansion parameter. Presence alone is meaningful: an empty
+	// value means "nothing expanded", absence means expand everything.
+	if s.HasExpandedGroups {
+		q.Set("gexp", encodeGroupExpansion(s.ExpandedGroups))
 	}
 
 	// Add filter parameters (format: filter:columnName=value)

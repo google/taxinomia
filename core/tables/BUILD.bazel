@@ -27,6 +27,7 @@ go_test(
         "filter_bench_test.go",
         "golden_test.go",
         "grouping_release_test.go",
+        "lazy_grouping_test.go",
         "race_off_test.go",
         "race_on_test.go",
         "table_view_test.go",

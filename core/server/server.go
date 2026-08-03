@@ -313,9 +313,12 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 				}
 			}
 		}
-		// Call GroupTableWithLimit - it will use the cached filter mask
-		// Pass display limit for top-K optimization when sorting groups
-		tableView.GroupTableWithLimit(q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.Limit)
+		// Group with the viewport (display limit) and expansion state from the
+		// URL. Without a gexp parameter the expansion is expand-all, which is
+		// the historical eager build and byte-identical output; with one, only
+		// the opened subtrees are computed.
+		expansion := tables.GroupExpansion{ExpandAll: !q.HasExpandedGroups, Paths: q.ExpandedGroups}
+		tableView.GroupTableWindowed(q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.Limit, expansion)
 
 	} else {
 		tableView.ClearGroupings()

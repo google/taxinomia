@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/taxinomia/core/aggregates"
@@ -107,6 +108,7 @@ type TableView struct {
 	lastGroupingOrder   []string          // Grouping order when grouping was computed
 	lastGroupingFilters map[string]string // Filter state when grouping was computed
 	lastGroupingSortAsc map[string]bool   // Sort direction when grouping was computed
+	lastExpansion       *GroupExpansion   // Expansion state when grouping was computed (nil = never grouped)
 }
 
 // ApplyFilters builds and caches a filter mask based on the provided filters
@@ -314,6 +316,7 @@ func (t *TableView) ClearGroupings() {
 	t.lastGroupingOrder = nil
 	t.lastGroupingFilters = nil
 	t.lastGroupingSortAsc = nil
+	t.lastExpansion = nil
 }
 
 func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
@@ -323,12 +326,63 @@ func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []strin
 // GroupTableWithLimit groups the table with an optional display limit for top-K optimization.
 // When displayLimit > 0, only the top K groups are kept after sorting (O(n log k) vs O(n log n)).
 // Use displayLimit=0 to sort all groups (original behavior).
+//
+// The entire tree is built eagerly (every group of every level). To compute
+// only opened subtrees, use GroupTableWindowed with an explicit expansion.
 func (t *TableView) GroupTableWithLimit(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool, displayLimit int) {
+	t.GroupTableWindowed(groupingOrder, aggregatedColumns, compare, asc, displayLimit, GroupExpansion{ExpandAll: true})
+}
+
+// GroupExpansion selects which subtrees of the grouping hierarchy a request
+// wants computed. Expansion is a query concept — which parts of the tree to
+// build — not a presentation detail.
+type GroupExpansion struct {
+	// ExpandAll reproduces the historical behavior: every group of every
+	// level is built. Paths is ignored when set.
+	ExpandAll bool
+	// Paths lists the open group paths. Each path names a group by its
+	// rendered values from the first grouping level downward (mirroring
+	// engine.GroupPath). Opening a nested group implies opening every
+	// ancestor on its path.
+	Paths [][]string
+}
+
+// groupsBuilt counts every grouping.Group created by grouping builds in this
+// process. Tests read it to assert how much of the tree a request computed.
+var groupsBuilt atomic.Uint64
+
+// GroupTableWindowed groups the table computing only the subtrees selected by
+// expansion. Level 0 is always computed (counts, representative rows and
+// aggregates are O(distinct)); deeper levels are built only underneath groups
+// named in expansion.Paths. When only the expansion differs from the previous
+// call, the cached level-0 state is kept and child blocks are built or
+// dropped incrementally, without rescanning the table.
+func (t *TableView) GroupTableWindowed(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool, displayLimit int, expansion GroupExpansion) {
 	// Check if grouping inputs are unchanged - skip recomputation
-	if t.groupingEqual(groupingOrder, asc) {
-		return
+	if t.groupingEqual(groupingOrder, asc) && t.lastExpansion != nil {
+		if expansionEqual(*t.lastExpansion, expansion) {
+			return
+		}
+		if !t.lastExpansion.ExpandAll && !expansion.ExpandAll {
+			// Same grouping, different expansion: reuse the level-0 state
+			// and adjust only the affected subtrees.
+			t.updateGroupExpansion(asc, expansion)
+			return
+		}
+		// Switching between expand-all and explicit expansion falls through
+		// to a full rebuild.
 	}
 
+	if expansion.ExpandAll {
+		t.groupTableEager(groupingOrder, asc, displayLimit)
+	} else {
+		t.groupTableLazy(groupingOrder, asc, displayLimit, expansion)
+	}
+}
+
+// groupTableEager builds the full grouping tree: every group of every level.
+// This is the historical behavior and the byte-identical default.
+func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool, displayLimit int) {
 	// clear current groups
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
@@ -378,7 +432,184 @@ func (t *TableView) GroupTableWithLimit(groupingOrder []string, aggregatedColumn
 	// O(rows).
 	releaseGroupMembership(t.firstBlock)
 
-	// Save the state that produced this grouping
+	t.saveGroupingState(groupingOrder, asc)
+	t.lastExpansion = &GroupExpansion{ExpandAll: true}
+}
+
+// groupTableLazy builds level 0 in full (O(distinct) retained state) and
+// deeper levels only underneath groups opened by expansion.
+func (t *TableView) groupTableLazy(groupingOrder []string, asc map[string]bool, displayLimit int, expansion GroupExpansion) {
+	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
+	t.firstBlock = nil
+	t.blocksByColumn = make(map[string][]*grouping.Block)
+
+	t.groupingOrder = groupingOrder
+	indices := t.GetFilteredIndices()
+
+	parentBlocks := t.groupFirstColumnInTable(indices)
+	t.firstBlock = parentBlocks[0]
+
+	firstColumn := groupingOrder[0]
+	ascending, hasSort := asc[firstColumn]
+	descending := hasSort && !ascending // default to ascending if not specified
+	t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
+
+	// Register a GroupedColumn for every deeper level up front so group
+	// counts and stats resolve even when no subtree at that level is open.
+	for level, col := range groupingOrder[1:] {
+		t.groupedColumns[col] = &grouping.GroupedColumn{
+			DataColumn: t.GetColumn(col),
+			ColumnView: t.columnViews[col],
+			Level:      level + 1,
+			Tag:        "next",
+		}
+	}
+
+	expanded := normalizeExpansion(expansion.Paths)
+	t.buildExpandedChildren(t.firstBlock, 0, nil, expanded, asc)
+
+	leafColumns := t.GetLeafColumns()
+	columnTypes := make(map[string]query.ColumnType)
+	for _, colName := range leafColumns {
+		columnTypes[colName] = t.GetColumnType(colName)
+	}
+	t.ComputeAggregates(leafColumns, columnTypes)
+
+	releaseGroupMembership(t.firstBlock)
+
+	t.saveGroupingState(groupingOrder, asc)
+	exp := expansion
+	t.lastExpansion = &exp
+}
+
+// updateGroupExpansion adjusts an existing lazy grouping to a new expansion
+// state: newly opened subtrees are built (membership re-resolved through the
+// column's GroupMembers operation), closed ones are dropped. The cached
+// level-0 state — counts, representative rows, aggregates, sort order — is
+// reused untouched.
+func (t *TableView) updateGroupExpansion(asc map[string]bool, expansion GroupExpansion) {
+	expanded := normalizeExpansion(expansion.Paths)
+	t.syncExpansion(t.firstBlock, 0, nil, expanded, asc)
+	t.rebuildBlockRegistry()
+
+	leafColumns := t.GetLeafColumns()
+	columnTypes := make(map[string]query.ColumnType)
+	for _, colName := range leafColumns {
+		columnTypes[colName] = t.GetColumnType(colName)
+	}
+	t.ComputeAggregates(leafColumns, columnTypes)
+
+	releaseGroupMembership(t.firstBlock)
+
+	exp := expansion
+	t.lastExpansion = &exp
+}
+
+// buildExpandedChildren descends from block into every group opened by
+// expanded, building child blocks from the still-transient membership lists
+// of the initial build.
+func (t *TableView) buildExpandedChildren(block *grouping.Block, level int, prefix []string, expanded map[string]bool, asc map[string]bool) {
+	if block == nil || level+1 >= len(t.groupingOrder) {
+		return
+	}
+	for _, g := range block.Groups {
+		path := appendPath(prefix, g.GetValue())
+		if !expanded[expansionKey(path)] {
+			continue
+		}
+		child := t.buildChildBlock(g, level+1, g.Indices, asc)
+		t.buildExpandedChildren(child, level+1, path, expanded, asc)
+	}
+}
+
+// syncExpansion walks an existing tree and reconciles it with the requested
+// expansion: builds missing child blocks, drops no-longer-open ones.
+func (t *TableView) syncExpansion(block *grouping.Block, level int, prefix []string, expanded map[string]bool, asc map[string]bool) {
+	if block == nil {
+		return
+	}
+	lastLevel := level+1 >= len(t.groupingOrder)
+	for _, g := range block.Groups {
+		path := appendPath(prefix, g.GetValue())
+		want := !lastLevel && expanded[expansionKey(path)]
+		if want && g.ChildBlock == nil {
+			t.buildChildBlock(g, level+1, t.membersForGroup(g), asc)
+		} else if !want && g.ChildBlock != nil {
+			g.ChildBlock = nil
+		}
+		t.syncExpansion(g.ChildBlock, level+1, path, expanded, asc)
+	}
+}
+
+// buildChildBlock groups members (the parent group's rows) by the column at
+// the given level, attaches the resulting block to the parent group, and
+// sorts its groups by value.
+func (t *TableView) buildChildBlock(parentGroup *grouping.Group, level int, members []uint32, asc map[string]bool) *grouping.Block {
+	col := t.groupingOrder[level]
+	gcol := t.groupedColumns[col]
+	b := &grouping.Block{
+		ParentGroup:   parentGroup,
+		GroupedColumn: gcol,
+	}
+	gcol.Blocks = append(gcol.Blocks, b)
+	t.blocksByColumn[col] = append(t.blocksByColumn[col], b)
+	parentGroup.ChildBlock = b
+
+	buildGroupsForBlock(gcol.DataColumn, gcol.ColumnView, members, b, parentGroup)
+
+	ascending, hasSort := asc[col]
+	t.sortGroupsInBlock(b, hasSort && !ascending)
+	return b
+}
+
+// membersForGroup re-resolves a group's membership after the transient build
+// lists have been released, by chaining the column's GroupMembers operation
+// from the filtered selection down the group's ancestry. Cost is O(selection)
+// per ancestry level — a scan, not a rebuild of the grouping state.
+func (t *TableView) membersForGroup(g *grouping.Group) []uint32 {
+	if g.Indices != nil {
+		return g.Indices
+	}
+	var sel []uint32
+	if g.ParentGroup == nil {
+		sel = t.GetFilteredIndices()
+	} else {
+		sel = t.membersForGroup(g.ParentGroup)
+	}
+	gcol := g.Block.GroupedColumn
+	ops := columns.GroupOpsFor(gcol.DataColumn, gcol.ColumnView)
+	return ops.GroupMembers(sel, g.GroupKey, 0, int(g.Count))
+}
+
+// rebuildBlockRegistry rebuilds the per-column block lists from the tree.
+// Incremental expansion changes mutate the tree in place; rebuilding the
+// registry afterwards keeps GetGroupCount and blocksByColumn consistent.
+func (t *TableView) rebuildBlockRegistry() {
+	t.blocksByColumn = make(map[string][]*grouping.Block)
+	for _, col := range t.groupingOrder {
+		if gc := t.groupedColumns[col]; gc != nil {
+			gc.Blocks = nil
+		}
+	}
+	var walk func(b *grouping.Block)
+	walk = func(b *grouping.Block) {
+		if b == nil {
+			return
+		}
+		gc := b.GroupedColumn
+		gc.Blocks = append(gc.Blocks, b)
+		col := t.groupingOrder[gc.Level]
+		t.blocksByColumn[col] = append(t.blocksByColumn[col], b)
+		for _, g := range b.Groups {
+			walk(g.ChildBlock)
+		}
+	}
+	walk(t.firstBlock)
+}
+
+// saveGroupingState records the inputs that produced the current grouping so
+// unchanged requests can skip recomputation.
+func (t *TableView) saveGroupingState(groupingOrder []string, asc map[string]bool) {
 	t.lastGroupingOrder = make([]string, len(groupingOrder))
 	copy(t.lastGroupingOrder, groupingOrder)
 	t.lastGroupingFilters = make(map[string]string, len(t.lastFilters))
@@ -389,6 +620,49 @@ func (t *TableView) GroupTableWithLimit(groupingOrder []string, aggregatedColumn
 	for k, v := range asc {
 		t.lastGroupingSortAsc[k] = v
 	}
+}
+
+// expansionKey joins path components with an unprintable separator so group
+// values containing "/" or "," cannot collide.
+func expansionKey(path []string) string {
+	return strings.Join(path, "\x1f")
+}
+
+// appendPath returns prefix + value as a fresh slice (no aliasing).
+func appendPath(prefix []string, value string) []string {
+	path := make([]string, 0, len(prefix)+1)
+	path = append(path, prefix...)
+	return append(path, value)
+}
+
+// normalizeExpansion expands the path list into a prefix-closed set: opening
+// a nested group implies opening every ancestor on its path.
+func normalizeExpansion(paths [][]string) map[string]bool {
+	set := make(map[string]bool)
+	for _, p := range paths {
+		for i := 1; i <= len(p); i++ {
+			set[expansionKey(p[:i])] = true
+		}
+	}
+	return set
+}
+
+// expansionEqual reports whether two expansion states select the same
+// subtrees.
+func expansionEqual(a, b GroupExpansion) bool {
+	if a.ExpandAll || b.ExpandAll {
+		return a.ExpandAll == b.ExpandAll
+	}
+	sa, sb := normalizeExpansion(a.Paths), normalizeExpansion(b.Paths)
+	if len(sa) != len(sb) {
+		return false
+	}
+	for k := range sa {
+		if !sb[k] {
+			return false
+		}
+	}
+	return true
 }
 
 // sortGroupsInBlock sorts the groups within a block based on their values
@@ -531,6 +805,7 @@ func buildGroupsForBlock(dataColumn columns.IDataColumn, columnView *columns.Col
 	copy(cursor, offsets)
 	ops.GroupAggregates(sel, &scatterAccumulator{backing: backing, cursor: cursor})
 
+	created := uint64(0)
 	for code, n := range counts {
 		if n == 0 {
 			continue
@@ -545,7 +820,9 @@ func buildGroupsForBlock(dataColumn columns.IDataColumn, columnView *columns.Col
 			Block:       block,
 			IsComplete:  true,
 		})
+		created++
 	}
+	groupsBuilt.Add(created)
 }
 
 // releaseGroupMembership drops the transient membership lists of every group

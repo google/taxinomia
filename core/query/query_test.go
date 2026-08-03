@@ -20,6 +20,7 @@ package query
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -184,4 +185,94 @@ func TestColumnReorderingOnFiltering(t *testing.T) {
 			t.Errorf("Expected columns %v, got %v", expectedColumns, q.Columns)
 		}
 	})
+}
+// TestGroupExpansionParameter tests the gexp parameter: parsing, round-trip,
+// defaults and state clearing. Absence of gexp must keep the historical
+// expand-everything behavior; presence — even empty — switches to explicit
+// expansion.
+func TestGroupExpansionParameter(t *testing.T) {
+	t.Run("Absent means expand-all", func(t *testing.T) {
+		u, _ := url.Parse("/table?table=test&grouped=status,region")
+		q := NewQuery(u)
+		if q.HasExpandedGroups {
+			t.Error("HasExpandedGroups should be false without gexp parameter")
+		}
+		if q.ExpandedGroups != nil {
+			t.Errorf("ExpandedGroups should be nil, got %v", q.ExpandedGroups)
+		}
+		if got := q.ToURL(); strings.Contains(got, "gexp") {
+			t.Errorf("ToURL should not emit gexp, got %s", got)
+		}
+	})
+
+	t.Run("Present but empty means nothing expanded", func(t *testing.T) {
+		u, _ := url.Parse("/table?table=test&grouped=status,region&gexp=")
+		q := NewQuery(u)
+		if !q.HasExpandedGroups {
+			t.Error("HasExpandedGroups should be true with empty gexp parameter")
+		}
+		if len(q.ExpandedGroups) != 0 {
+			t.Errorf("ExpandedGroups should be empty, got %v", q.ExpandedGroups)
+		}
+		// Round-trip preserves the presence of the parameter
+		u2, _ := url.Parse(q.ToURL())
+		q2 := NewQuery(u2)
+		if !q2.HasExpandedGroups {
+			t.Error("empty gexp lost in ToURL round-trip")
+		}
+	})
+
+	t.Run("Paths with escaped separators round-trip", func(t *testing.T) {
+		paths := [][]string{
+			{"Active"},
+			{"Active", "North/East"},
+			{"Pending", "a,b", "50% off"},
+		}
+		q := NewQuery(mustParse(t, "/table?table=test&grouped=a,b,c"))
+		q.HasExpandedGroups = true
+		q.ExpandedGroups = paths
+
+		u2, _ := url.Parse(q.ToURL())
+		q2 := NewQuery(u2)
+		if !q2.HasExpandedGroups {
+			t.Fatal("HasExpandedGroups lost in round-trip")
+		}
+		if len(q2.ExpandedGroups) != len(paths) {
+			t.Fatalf("got %d paths, want %d: %v", len(q2.ExpandedGroups), len(paths), q2.ExpandedGroups)
+		}
+		for i, path := range paths {
+			if !equalStringSlices(q2.ExpandedGroups[i], path) {
+				t.Errorf("path %d = %v, want %v", i, q2.ExpandedGroups[i], path)
+			}
+		}
+	})
+
+	t.Run("Clone deep-copies expansion", func(t *testing.T) {
+		q := NewQuery(mustParse(t, "/table?table=test&grouped=a&gexp=Active"))
+		clone := q.Clone()
+		if !clone.HasExpandedGroups || len(clone.ExpandedGroups) != 1 {
+			t.Fatalf("clone lost expansion: %v", clone.ExpandedGroups)
+		}
+		clone.ExpandedGroups[0][0] = "mutated"
+		if q.ExpandedGroups[0][0] != "Active" {
+			t.Error("mutating clone affected original")
+		}
+	})
+
+	t.Run("ClearTableSpecificState resets expansion", func(t *testing.T) {
+		q := NewQuery(mustParse(t, "/table?table=test&grouped=a&gexp=Active"))
+		q.ClearTableSpecificState()
+		if q.HasExpandedGroups || q.ExpandedGroups != nil {
+			t.Errorf("expansion not cleared: has=%v paths=%v", q.HasExpandedGroups, q.ExpandedGroups)
+		}
+	})
+}
+
+func mustParse(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
 }
