@@ -92,6 +92,30 @@ func (h *topKHeap) peek() uint32 {
 	return h.indices[0]
 }
 
+// replaceTop overwrites the top element and restores the heap invariant.
+// Equivalent to heap.Pop followed by heap.Push, but without boxing the
+// uint32 into an interface{}, which allocates on every replacement.
+func (h *topKHeap) replaceTop(idx uint32) {
+	h.indices[0] = idx
+	i := 0
+	n := len(h.indices)
+	for {
+		l, r := 2*i+1, 2*i+2
+		top := i
+		if l < n && h.Less(l, top) {
+			top = l
+		}
+		if r < n && h.Less(r, top) {
+			top = r
+		}
+		if top == i {
+			return
+		}
+		h.Swap(i, top)
+		i = top
+	}
+}
+
 // GetSortedTopK returns the top K indices from the input, sorted according to sortOrder.
 // Uses heap-based selection: O(n log k) instead of O(n log n) for full sort.
 //
@@ -99,6 +123,11 @@ func (h *topKHeap) peek() uint32 {
 // 1. Build a max-heap of size K (keeping the K "best" elements seen so far)
 // 2. Scan all indices, replacing heap top when a better element is found
 // 3. Sort the final K elements
+//
+// Deprecated: it consumes a materialised index list, which costs four bytes
+// per row. Nothing in this repository uses it; it remains for external
+// callers and will be removed in a future major cleanup. GetFilteredRowsSorted
+// performs the same selection directly on the filter bitmap.
 func (t *TableView) GetSortedTopK(indices []uint32, sortOrder []query.SortColumn, limit int) []uint32 {
 	if len(indices) == 0 || limit <= 0 {
 		return []uint32{}
@@ -175,20 +204,85 @@ func (t *TableView) sortIndices(indices []uint32, cols []sortableColumn) []uint3
 	return indices
 }
 
+// collectRows materialises up to limit rows of sel in set order (all rows
+// when limit < 0). The allocation is bounded by the caller's limit — or by the
+// output size when everything was asked for — never by the match count alone.
+func collectRows(sel columns.RowSet, limit int) []uint32 {
+	n := sel.NumRows()
+	if limit >= 0 && limit < n {
+		n = limit
+	}
+	out := make([]uint32, 0, n)
+	sel.ForEachRow(func(i uint32) bool {
+		if len(out) >= n {
+			return false
+		}
+		out = append(out, i)
+		return true
+	})
+	return out
+}
+
+// sortedTopK selects the top limit rows of sel according to sortableCols with
+// a bounded heap, scanning the selection once without materialising it.
+// limit must be > 0.
+func (t *TableView) sortedTopK(sel columns.RowSet, sortableCols []sortableColumn, limit int) []uint32 {
+	if limit >= sel.NumRows() {
+		return t.sortIndices(collectRows(sel, -1), sortableCols)
+	}
+
+	h := &topKHeap{
+		indices: make([]uint32, 0, limit),
+		cols:    sortableCols,
+	}
+	sel.ForEachRow(func(idx uint32) bool {
+		if len(h.indices) < limit {
+			h.indices = append(h.indices, idx)
+			if len(h.indices) == limit {
+				heap.Init(h)
+			}
+			return true
+		}
+		// Compare with heap top (the "worst" of current K best)
+		if h.compare(idx, h.peek()) < 0 {
+			// New element is "better" - replace heap top
+			h.replaceTop(idx)
+		}
+		return true
+	})
+	return t.sortIndices(h.indices, sortableCols)
+}
+
 // GetFilteredRowsSorted returns rows sorted according to sortOrder, limited to top K.
-// This combines filtering, sorting, and limiting into an efficient operation.
+// This combines filtering, sorting, and limiting into an efficient operation,
+// working directly on the filter selection bitmap.
 func (t *TableView) GetFilteredRowsSorted(columnNames []string, sortOrder []query.SortColumn, limit int) []map[string]string {
-	// Get filtered indices
-	filteredIndices := t.GetFilteredIndices()
+	sel := t.rowSet()
 
 	// Get top K sorted indices
 	var sortedIndices []uint32
 	if len(sortOrder) > 0 && limit > 0 {
-		sortedIndices = t.GetSortedTopK(filteredIndices, sortOrder, limit)
-	} else if limit > 0 && limit < len(filteredIndices) {
-		sortedIndices = filteredIndices[:limit]
+		// Resolve columns and build sortable column list
+		sortableCols := make([]sortableColumn, 0, len(sortOrder))
+		for _, so := range sortOrder {
+			col := t.GetColumn(so.Name)
+			if col != nil {
+				sortableCols = append(sortableCols, sortableColumn{
+					col:        col,
+					descending: so.Descending,
+				})
+			}
+		}
+		if len(sortableCols) == 0 {
+			// No valid sort columns: first K rows in selection order.
+			sortedIndices = collectRows(sel, limit)
+		} else {
+			sortedIndices = t.sortedTopK(sel, sortableCols, limit)
+		}
+	} else if limit > 0 {
+		sortedIndices = collectRows(sel, limit)
 	} else {
-		sortedIndices = filteredIndices
+		sortedIndices = collectRows(sel, -1)
 	}
 
 	// Build result rows

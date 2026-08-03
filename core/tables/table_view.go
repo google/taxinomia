@@ -224,12 +224,24 @@ func (t *TableView) GetFilteredRowCount() int {
 	return t.filterSel.Count()
 }
 
+// rowSet returns the current filter selection as a columns.RowSet without
+// materialising indices: the cached bitmap when a filter is active, the full
+// row universe otherwise. Every selection-consuming path starts here.
+func (t *TableView) rowSet() columns.RowSet {
+	if t.filterSel == nil {
+		return columns.AllRows(t.baseTable.Length())
+	}
+	return t.filterSel
+}
+
 // GetFilteredIndices returns the indices of rows that pass the current filter
 // Returns all indices if no filter is active
 //
-// The result costs four bytes per passing row; it exists as an adapter for
-// callers that predate the Selection bitmap and will be replaced by
-// Selection-consuming paths as they migrate.
+// Deprecated: the result costs four bytes per passing row, which is what the
+// Selection bitmap exists to avoid. Nothing in this repository uses it; it
+// remains as an adapter for external callers and will be removed in a future
+// major cleanup. Use GetFilteredRowCount, GetFilteredRows or
+// GetFilteredRowsSorted instead.
 func (t *TableView) GetFilteredIndices() []uint32 {
 	if t.filterSel == nil {
 		// No filter - return all indices
@@ -246,17 +258,16 @@ func (t *TableView) GetFilteredIndices() []uint32 {
 // Returns only rows that pass the current filter, up to the specified limit
 // If limit <= 0, returns all filtered rows
 func (t *TableView) GetFilteredRows(columnNames []string, limit int) []map[string]string {
-	filteredIndices := t.GetFilteredIndices()
+	sel := t.rowSet()
 
 	// Determine how many rows to return
-	rowCount := len(filteredIndices)
+	rowCount := sel.NumRows()
 	if limit > 0 && limit < rowCount {
 		rowCount = limit
 	}
 
 	rows := make([]map[string]string, 0, rowCount)
-	for i := 0; i < rowCount; i++ {
-		rowIndex := filteredIndices[i]
+	sel.ForEachRow(func(rowIndex uint32) bool {
 		row := make(map[string]string)
 		for _, colName := range columnNames {
 			col := t.GetColumn(colName)
@@ -274,7 +285,8 @@ func (t *TableView) GetFilteredRows(columnNames []string, limit int) []map[strin
 			}
 		}
 		rows = append(rows, row)
-	}
+		return len(rows) < rowCount
+	})
 	return rows
 }
 
@@ -363,23 +375,14 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
 
-	// get indices from cached filter selection
+	// Group directly from the cached filter selection; the bitmap is never
+	// materialised as an index list.
 	t.groupingOrder = groupingOrder
-	indices := []uint32{}
-	if t.filterSel == nil {
-		// No filter - include all rows
-		indices = make([]uint32, t.baseTable.Length())
-		for i := 0; i < t.baseTable.Length(); i++ {
-			indices[i] = uint32(i)
-		}
-	} else {
-		// Use filter selection to select rows
-		indices = t.filterSel.ToIndices()
-	}
+	sel := t.rowSet()
 
 	// Process first column
 	// groupedTable.columns = columns
-	parentBlocks := t.groupFirstColumnInTable(indices)
+	parentBlocks := t.groupFirstColumnInTable(sel)
 	t.firstBlock = parentBlocks[0]
 
 	// Sort first column groups with top-K optimization
@@ -389,7 +392,7 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 	t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
 
 	// Process subsequent columns
-	t.groupSubsequentColumnsInTable(indices, t.groupingOrder[1:], parentBlocks, asc)
+	t.groupSubsequentColumnsInTable(t.groupingOrder[1:], parentBlocks, asc)
 
 	// Compute aggregates for all groups
 	leafColumns := t.GetLeafColumns()
@@ -416,9 +419,8 @@ func (t *TableView) groupTableLazy(groupingOrder []string, asc map[string]bool, 
 	t.blocksByColumn = make(map[string][]*grouping.Block)
 
 	t.groupingOrder = groupingOrder
-	indices := t.GetFilteredIndices()
 
-	parentBlocks := t.groupFirstColumnInTable(indices)
+	parentBlocks := t.groupFirstColumnInTable(t.rowSet())
 	t.firstBlock = parentBlocks[0]
 
 	firstColumn := groupingOrder[0]
@@ -527,7 +529,7 @@ func (t *TableView) buildChildBlock(parentGroup *grouping.Group, level int, memb
 	t.blocksByColumn[col] = append(t.blocksByColumn[col], b)
 	parentGroup.ChildBlock = b
 
-	buildGroupsForBlock(gcol.DataColumn, gcol.ColumnView, members, b, parentGroup)
+	buildGroupsForBlock(gcol.DataColumn, gcol.ColumnView, columns.RowIndices(members), b, parentGroup)
 
 	ascending, hasSort := asc[col]
 	t.sortGroupsInBlock(b, hasSort && !ascending)
@@ -542,11 +544,11 @@ func (t *TableView) membersForGroup(g *grouping.Group) []uint32 {
 	if g.Indices != nil {
 		return g.Indices
 	}
-	var sel []uint32
+	var sel columns.RowSet
 	if g.ParentGroup == nil {
-		sel = t.GetFilteredIndices()
+		sel = t.rowSet()
 	} else {
-		sel = t.membersForGroup(g.ParentGroup)
+		sel = columns.RowIndices(t.membersForGroup(g.ParentGroup))
 	}
 	gcol := g.Block.GroupedColumn
 	ops := columns.GroupOpsFor(gcol.DataColumn, gcol.ColumnView)
@@ -762,7 +764,7 @@ func (a *scatterAccumulator) Add(code uint32, row uint32) {
 // code order. Count and First are final; Indices holds the group's members
 // only transiently — sliced from a single backing array — until
 // releaseGroupMembership drops them at the end of the grouping build.
-func buildGroupsForBlock(dataColumn columns.IDataColumn, columnView *columns.ColumnView, sel []uint32, block *grouping.Block, parent *grouping.Group) {
+func buildGroupsForBlock(dataColumn columns.IDataColumn, columnView *columns.ColumnView, sel columns.RowSet, block *grouping.Block, parent *grouping.Group) {
 	ops := columns.GroupOpsFor(dataColumn, columnView)
 	counts, firsts := ops.GroupCounts(sel)
 
@@ -810,7 +812,7 @@ func releaseGroupMembership(block *grouping.Block) {
 	}
 }
 
-func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block {
+func (t *TableView) groupFirstColumnInTable(sel columns.RowSet) []*grouping.Block {
 	firstColumn := t.groupingOrder[0]
 	columnView := t.columnViews[firstColumn]
 	dataColumn := t.GetColumn(firstColumn)
@@ -832,18 +834,18 @@ func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block 
 	g.Blocks = append(g.Blocks, b)
 	t.blocksByColumn[firstColumn] = append(t.blocksByColumn[firstColumn], b)
 
-	buildGroupsForBlock(dataColumn, columnView, indices, b, nil)
+	buildGroupsForBlock(dataColumn, columnView, sel, b, nil)
 
 	return []*grouping.Block{b}
 }
 
-func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []string, parentBlocks []*grouping.Block, asc map[string]bool) {
-	if len(columns) == 0 {
+func (t *TableView) groupSubsequentColumnsInTable(cols []string, parentBlocks []*grouping.Block, asc map[string]bool) {
+	if len(cols) == 0 {
 		return
 	}
 
 	// for following columns, each parent group spawns a child block
-	for level, col := range columns {
+	for level, col := range cols {
 		dataColumn := t.GetColumn(col)
 		columnView := t.columnViews[col]
 
@@ -874,7 +876,7 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 				parentGroup.ChildBlock = b
 
 				// now group within the parent group
-				buildGroupsForBlock(dataColumn, columnView, parentGroup.Indices, b, parentGroup)
+				buildGroupsForBlock(dataColumn, columnView, columns.RowIndices(parentGroup.Indices), b, parentGroup)
 
 				// Sort groups within this block
 				t.sortGroupsInBlock(b, descending)

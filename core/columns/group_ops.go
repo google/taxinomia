@@ -38,6 +38,10 @@ type GroupAccumulator interface {
 // and fall back to GroupOpsFor's shim, so external IDataColumn implementations
 // keep working unchanged.
 //
+// The selection is a RowSet — a Selection bitmap, an AllRows universe, or an
+// explicit RowIndices list — and is never materialised by the operations, so
+// no selection allocation scales with the match count.
+//
 // Group codes are dense uint32 values in [0, len(counts)). For a fixed column
 // state and a fixed selection, the three operations assign identical codes, so
 // results can be combined across calls. Codes are not otherwise specified:
@@ -52,17 +56,17 @@ type IGroupOps interface {
 	// GroupCounts returns, per group code, the number of selected rows in the
 	// group and the first selected row carrying it (the group's representative
 	// row, valid wherever counts[code] > 0). Output is O(distinct).
-	GroupCounts(sel []uint32) (counts []uint32, firsts []uint32)
+	GroupCounts(sel RowSet) (counts []uint32, firsts []uint32)
 
 	// GroupAggregates streams every resolvable selected row to acc as a
 	// (code, row) pair, in selection order. The accumulator owns the
 	// aggregation, so this replaces iterating per-group membership lists.
-	GroupAggregates(sel []uint32, acc GroupAccumulator)
+	GroupAggregates(sel RowSet, acc GroupAccumulator)
 
 	// GroupMembers returns one page of one group: the selected rows carrying
 	// code, in selection order, skipping the first offset of them and
 	// returning at most n (n < 0 means all remaining).
-	GroupMembers(sel []uint32, code uint32, offset, n int) []uint32
+	GroupMembers(sel RowSet, code uint32, offset, n int) []uint32
 }
 
 // GroupOpsFor returns col's native IGroupOps when it implements one, or a
@@ -83,12 +87,12 @@ func GroupOpsFor(col IDataColumn, view *ColumnView) IGroupOps {
 // appearance in the selection. The three operations share the key getter so
 // their code assignment is identical for the same selection.
 
-func groupCountsByKey[T comparable](sel []uint32, key func(uint32) (T, bool)) (counts, firsts []uint32) {
+func groupCountsByKey[T comparable](sel RowSet, key func(uint32) (T, bool)) (counts, firsts []uint32) {
 	codeOf := make(map[T]uint32)
-	for _, i := range sel {
+	sel.ForEachRow(func(i uint32) bool {
 		v, ok := key(i)
 		if !ok {
-			continue
+			return true
 		}
 		code, seen := codeOf[v]
 		if !seen {
@@ -98,16 +102,17 @@ func groupCountsByKey[T comparable](sel []uint32, key func(uint32) (T, bool)) (c
 			firsts = append(firsts, i)
 		}
 		counts[code]++
-	}
+		return true
+	})
 	return counts, firsts
 }
 
-func groupAggregatesByKey[T comparable](sel []uint32, key func(uint32) (T, bool), acc GroupAccumulator) {
+func groupAggregatesByKey[T comparable](sel RowSet, key func(uint32) (T, bool), acc GroupAccumulator) {
 	codeOf := make(map[T]uint32)
-	for _, i := range sel {
+	sel.ForEachRow(func(i uint32) bool {
 		v, ok := key(i)
 		if !ok {
-			continue
+			return true
 		}
 		code, seen := codeOf[v]
 		if !seen {
@@ -115,20 +120,21 @@ func groupAggregatesByKey[T comparable](sel []uint32, key func(uint32) (T, bool)
 			codeOf[v] = code
 		}
 		acc.Add(code, i)
-	}
+		return true
+	})
 }
 
-func groupMembersByKey[T comparable](sel []uint32, key func(uint32) (T, bool), code uint32, offset, n int) []uint32 {
+func groupMembersByKey[T comparable](sel RowSet, key func(uint32) (T, bool), code uint32, offset, n int) []uint32 {
 	if n == 0 {
 		return nil
 	}
 	codeOf := make(map[T]uint32)
 	var members []uint32
 	skipped := 0
-	for _, i := range sel {
+	sel.ForEachRow(func(i uint32) bool {
 		v, ok := key(i)
 		if !ok {
-			continue
+			return true
 		}
 		c, seen := codeOf[v]
 		if !seen {
@@ -136,17 +142,15 @@ func groupMembersByKey[T comparable](sel []uint32, key func(uint32) (T, bool), c
 			codeOf[v] = c
 		}
 		if c != code {
-			continue
+			return true
 		}
 		if skipped < offset {
 			skipped++
-			continue
+			return true
 		}
 		members = append(members, i)
-		if n > 0 && len(members) >= n {
-			break
-		}
-	}
+		return n < 0 || len(members) < n
+	})
 	return members
 }
 
@@ -172,9 +176,11 @@ type groupIndicesShim struct {
 
 // partition runs GroupIndices and orders its groups by ascending group key,
 // which is deterministic for a fixed column and selection regardless of the
-// wrapped implementation's key scheme.
-func (s *groupIndicesShim) partition(sel []uint32) [][]uint32 {
-	grouped, _ := s.col.GroupIndices(sel, s.view)
+// wrapped implementation's key scheme. It materialises the selection —
+// GroupIndices consumes an index list — which is the price of the
+// compatibility fallback, not of the RowSet paths.
+func (s *groupIndicesShim) partition(sel RowSet) [][]uint32 {
+	grouped, _ := s.col.GroupIndices(rowSetIndices(sel), s.view)
 	keys := make([]uint32, 0, len(grouped))
 	for k := range grouped {
 		keys = append(keys, k)
@@ -187,7 +193,7 @@ func (s *groupIndicesShim) partition(sel []uint32) [][]uint32 {
 	return parts
 }
 
-func (s *groupIndicesShim) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (s *groupIndicesShim) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	parts := s.partition(sel)
 	counts := make([]uint32, len(parts))
 	firsts := make([]uint32, len(parts))
@@ -198,7 +204,7 @@ func (s *groupIndicesShim) GroupCounts(sel []uint32) ([]uint32, []uint32) {
 	return counts, firsts
 }
 
-func (s *groupIndicesShim) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (s *groupIndicesShim) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	for code, members := range s.partition(sel) {
 		for _, i := range members {
 			acc.Add(uint32(code), i)
@@ -206,7 +212,7 @@ func (s *groupIndicesShim) GroupAggregates(sel []uint32, acc GroupAccumulator) {
 	}
 }
 
-func (s *groupIndicesShim) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (s *groupIndicesShim) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	parts := s.partition(sel)
 	if int(code) >= len(parts) {
 		return nil
@@ -231,15 +237,15 @@ func (c *StringColumn) groupKeyAt(i uint32) (string, bool) {
 	return c.data[i], true
 }
 
-func (c *StringColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *StringColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *StringColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *StringColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *StringColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *StringColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -250,15 +256,15 @@ func (c *Uint32Column) groupKeyAt(i uint32) (uint32, bool) {
 	return c.data[i], true
 }
 
-func (c *Uint32Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *Uint32Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *Uint32Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *Uint32Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *Uint32Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *Uint32Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -269,15 +275,15 @@ func (c *Int64Column) groupKeyAt(i uint32) (int64, bool) {
 	return c.data[i], true
 }
 
-func (c *Int64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *Int64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *Int64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *Int64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *Int64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *Int64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -288,15 +294,15 @@ func (c *Uint64Column) groupKeyAt(i uint32) (uint64, bool) {
 	return c.data[i], true
 }
 
-func (c *Uint64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *Uint64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *Uint64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *Uint64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *Uint64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *Uint64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -307,15 +313,15 @@ func (c *Float64Column) groupKeyAt(i uint32) (uint64, bool) {
 	return float64GroupKey(c.data[i]), true
 }
 
-func (c *Float64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *Float64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *Float64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *Float64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *Float64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *Float64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -326,15 +332,15 @@ func (c *BoolColumn) groupKeyAt(i uint32) (bool, bool) {
 	return c.data[i], true
 }
 
-func (c *BoolColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *BoolColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *BoolColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *BoolColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *BoolColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *BoolColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -345,15 +351,15 @@ func (c *DatetimeColumn) groupKeyAt(i uint32) (int64, bool) {
 	return c.data[i].UnixNano(), true
 }
 
-func (c *DatetimeColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *DatetimeColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *DatetimeColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *DatetimeColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *DatetimeColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *DatetimeColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -364,15 +370,15 @@ func (c *DurationColumn) groupKeyAt(i uint32) (int64, bool) {
 	return int64(c.data[i]), true
 }
 
-func (c *DurationColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *DurationColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *DurationColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *DurationColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *DurationColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *DurationColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -385,8 +391,8 @@ func (c *DurationColumn) GroupMembers(sel []uint32, code uint32, offset, n int) 
 // depends only on (column, selection), keeping code assignment consistent
 // across the three operations.
 
-func (c *DictStringColumn[K]) smallGroupSubset(sel []uint32) bool {
-	return len(sel) < len(c.dict)/8
+func (c *DictStringColumn[K]) smallGroupSubset(sel RowSet) bool {
+	return sel.NumRows() < len(c.dict)/8
 }
 
 func (c *DictStringColumn[K]) groupKeyAt(i uint32) (K, bool) {
@@ -396,33 +402,35 @@ func (c *DictStringColumn[K]) groupKeyAt(i uint32) (K, bool) {
 	return c.codes[i], true
 }
 
-func (c *DictStringColumn[K]) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *DictStringColumn[K]) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	if c.smallGroupSubset(sel) {
 		return groupCountsByKey(sel, c.groupKeyAt)
 	}
 	counts := make([]uint32, len(c.dict))
 	firsts := make([]uint32, len(c.dict))
-	for _, i := range sel {
+	sel.ForEachRow(func(i uint32) bool {
 		code := c.codes[i]
 		if counts[code] == 0 {
 			firsts[code] = i
 		}
 		counts[code]++
-	}
+		return true
+	})
 	return counts, firsts
 }
 
-func (c *DictStringColumn[K]) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *DictStringColumn[K]) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	if c.smallGroupSubset(sel) {
 		groupAggregatesByKey(sel, c.groupKeyAt, acc)
 		return
 	}
-	for _, i := range sel {
+	sel.ForEachRow(func(i uint32) bool {
 		acc.Add(uint32(c.codes[i]), i)
-	}
+		return true
+	})
 }
 
-func (c *DictStringColumn[K]) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *DictStringColumn[K]) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	if c.smallGroupSubset(sel) {
 		return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 	}
@@ -431,19 +439,17 @@ func (c *DictStringColumn[K]) GroupMembers(sel []uint32, code uint32, offset, n 
 	}
 	var members []uint32
 	skipped := 0
-	for _, i := range sel {
+	sel.ForEachRow(func(i uint32) bool {
 		if uint32(c.codes[i]) != code {
-			continue
+			return true
 		}
 		if skipped < offset {
 			skipped++
-			continue
+			return true
 		}
 		members = append(members, i)
-		if n > 0 && len(members) >= n {
-			break
-		}
-	}
+		return n < 0 || len(members) < n
+	})
 	return members
 }
 
@@ -461,15 +467,15 @@ func (c *JoinedStringColumn) groupKeyAt(i uint32) (string, bool) {
 	return v, true
 }
 
-func (c *JoinedStringColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedStringColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedStringColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedStringColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedStringColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedStringColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -485,15 +491,15 @@ func (c *JoinedUint32Column) groupKeyAt(i uint32) (uint32, bool) {
 	return v, true
 }
 
-func (c *JoinedUint32Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedUint32Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedUint32Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedUint32Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedUint32Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedUint32Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -509,15 +515,15 @@ func (c *JoinedDatetimeColumn) groupKeyAt(i uint32) (int64, bool) {
 	return v.UnixNano(), true
 }
 
-func (c *JoinedDatetimeColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedDatetimeColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedDatetimeColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedDatetimeColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedDatetimeColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedDatetimeColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -533,15 +539,15 @@ func (c *JoinedDurationColumn) groupKeyAt(i uint32) (int64, bool) {
 	return int64(v), true
 }
 
-func (c *JoinedDurationColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedDurationColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedDurationColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedDurationColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedDurationColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedDurationColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -557,15 +563,15 @@ func (c *JoinedBoolColumn) groupKeyAt(i uint32) (bool, bool) {
 	return v, true
 }
 
-func (c *JoinedBoolColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedBoolColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedBoolColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedBoolColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedBoolColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedBoolColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -581,15 +587,15 @@ func (c *JoinedFloat64Column) groupKeyAt(i uint32) (uint64, bool) {
 	return float64GroupKey(v), true
 }
 
-func (c *JoinedFloat64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedFloat64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedFloat64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedFloat64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedFloat64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedFloat64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -605,15 +611,15 @@ func (c *JoinedInt64Column) groupKeyAt(i uint32) (int64, bool) {
 	return v, true
 }
 
-func (c *JoinedInt64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedInt64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedInt64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedInt64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedInt64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedInt64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -629,15 +635,15 @@ func (c *JoinedUint64Column) groupKeyAt(i uint32) (uint64, bool) {
 	return v, true
 }
 
-func (c *JoinedUint64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *JoinedUint64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *JoinedUint64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *JoinedUint64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *JoinedUint64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *JoinedUint64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -648,15 +654,15 @@ func (c *ComputedStringColumn) groupKeyAt(i uint32) (string, bool) {
 	return v, err == nil
 }
 
-func (c *ComputedStringColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *ComputedStringColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *ComputedStringColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *ComputedStringColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *ComputedStringColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *ComputedStringColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -665,15 +671,15 @@ func (c *ComputedUint32Column) groupKeyAt(i uint32) (uint32, bool) {
 	return v, err == nil
 }
 
-func (c *ComputedUint32Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *ComputedUint32Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *ComputedUint32Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *ComputedUint32Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *ComputedUint32Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *ComputedUint32Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -686,15 +692,15 @@ func (c *ComputedFloat64Column) groupKeyAt(i uint32) (float64, bool) {
 	return v, err == nil
 }
 
-func (c *ComputedFloat64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *ComputedFloat64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *ComputedFloat64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *ComputedFloat64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *ComputedFloat64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *ComputedFloat64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -703,15 +709,15 @@ func (c *ComputedInt64Column) groupKeyAt(i uint32) (int64, bool) {
 	return v, err == nil
 }
 
-func (c *ComputedInt64Column) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *ComputedInt64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *ComputedInt64Column) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *ComputedInt64Column) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *ComputedInt64Column) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *ComputedInt64Column) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -720,15 +726,15 @@ func (c *ComputedDatetimeColumn) groupKeyAt(i uint32) (int64, bool) {
 	return v, err == nil
 }
 
-func (c *ComputedDatetimeColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *ComputedDatetimeColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *ComputedDatetimeColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *ComputedDatetimeColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *ComputedDatetimeColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *ComputedDatetimeColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -737,15 +743,15 @@ func (c *ComputedDurationColumn) groupKeyAt(i uint32) (time.Duration, bool) {
 	return v, err == nil
 }
 
-func (c *ComputedDurationColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *ComputedDurationColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *ComputedDurationColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *ComputedDurationColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *ComputedDurationColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *ComputedDurationColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
@@ -754,15 +760,15 @@ func (c *ComputedBoolColumn) groupKeyAt(i uint32) (bool, bool) {
 	return v, err == nil
 }
 
-func (c *ComputedBoolColumn) GroupCounts(sel []uint32) ([]uint32, []uint32) {
+func (c *ComputedBoolColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
 	return groupCountsByKey(sel, c.groupKeyAt)
 }
 
-func (c *ComputedBoolColumn) GroupAggregates(sel []uint32, acc GroupAccumulator) {
+func (c *ComputedBoolColumn) GroupAggregates(sel RowSet, acc GroupAccumulator) {
 	groupAggregatesByKey(sel, c.groupKeyAt, acc)
 }
 
-func (c *ComputedBoolColumn) GroupMembers(sel []uint32, code uint32, offset, n int) []uint32 {
+func (c *ComputedBoolColumn) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 

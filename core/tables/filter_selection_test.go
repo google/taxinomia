@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/query"
 )
 
 // newFilterTestView builds a small table exercising every filter form:
@@ -132,8 +133,8 @@ func TestApplyFiltersSelectionParity(t *testing.T) {
 // TestApplyFiltersRetainedMemory pins the phase-2a acceptance criterion: the
 // cached selection for an unselective filter on 1M rows is a bitmap (~128 KB),
 // not the ~1 MB []bool mask it replaced, and nothing O(4 bytes x rows) is
-// retained. (The []uint32 form still exists behind the GetFilteredIndices
-// adapter for unmigrated callers; it is transient and removed in phase 2b.)
+// retained. (Since phase 2b nothing in-repo consumes the []uint32 form; the
+// deprecated GetFilteredIndices adapter remains for external callers only.)
 func TestApplyFiltersRetainedMemory(t *testing.T) {
 	if raceEnabled {
 		t.Skip("memory measurement is not meaningful under the race detector")
@@ -174,4 +175,64 @@ func TestApplyFiltersRetainedMemory(t *testing.T) {
 	if retained > 256<<10 {
 		t.Errorf("filter retained %d bytes; want a bitmap selection (< 256 KiB)", retained)
 	}
+}
+
+// TestRowListingAllocationBoundedByLimit pins the phase-2b acceptance
+// criterion: no selection allocation scales with the match count. Listing a
+// page of rows from an unselective filter over 1M rows — sorted or unsorted —
+// must allocate O(limit), never a ~4 MB []uint32 materialisation of the
+// selection.
+func TestRowListingAllocationBoundedByLimit(t *testing.T) {
+	if raceEnabled {
+		t.Skip("memory measurement is not meaningful under the race detector")
+	}
+	const rows = 1_000_000
+	const limit = 10
+
+	table := NewDataTable()
+	col := columns.NewStringColumn(columns.NewColumnDef("value", "Value", ""))
+	for i := 0; i < rows; i++ {
+		col.Append(fmt.Sprintf("row-%06d", i))
+	}
+	col.FinalizeColumn()
+	table.AddColumn(col)
+	tv := NewTableView(table, "bench")
+	tv.VisibleColumns = []string{"value"}
+
+	// Unselective filter: every row matches.
+	tv.ApplyFilters(map[string]string{"value": "row"})
+	if count := tv.GetFilteredRowCount(); count != rows {
+		t.Fatalf("unselective filter passed %d rows, want %d", count, rows)
+	}
+
+	measure := func(name string, f func() int) {
+		runtime.GC()
+		var before runtime.MemStats
+		runtime.ReadMemStats(&before)
+		got := f()
+		var after runtime.MemStats
+		runtime.ReadMemStats(&after)
+		if got != limit {
+			t.Fatalf("%s returned %d rows, want %d", name, got, limit)
+		}
+		allocated := int64(after.TotalAlloc) - int64(before.TotalAlloc)
+		t.Logf("%s allocated %d bytes for %d of %d rows", name, allocated, limit, rows)
+		// A materialised selection alone is 4 MB; a page of 10 row-maps is a
+		// few KB. 256 KiB fails loudly on any per-match allocation while
+		// leaving room for measurement noise.
+		if allocated > 256<<10 {
+			t.Errorf("%s allocated %d bytes; want O(limit), not O(match count)", name, allocated)
+		}
+	}
+
+	measure("GetFilteredRows", func() int {
+		return len(tv.GetFilteredRows([]string{"value"}, limit))
+	})
+	measure("GetFilteredRowsSorted(desc)", func() int {
+		sortOrder := []query.SortColumn{{Name: "value", Descending: true}}
+		return len(tv.GetFilteredRowsSorted([]string{"value"}, sortOrder, limit))
+	})
+	measure("GetFilteredRowsSorted(no sort)", func() int {
+		return len(tv.GetFilteredRowsSorted([]string{"value"}, nil, limit))
+	})
 }

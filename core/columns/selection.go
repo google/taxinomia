@@ -131,6 +131,26 @@ func (s *Selection) ForEach(f func(i uint32)) {
 	}
 }
 
+// ForEachRow implements RowSet: it calls f for every selected row in
+// ascending order until f returns false. Unlike ForEach, the selection must
+// not be modified during iteration.
+func (s *Selection) ForEachRow(f func(i uint32) bool) {
+	for w, word := range s.words {
+		for word != 0 {
+			tz := bits.TrailingZeros64(word)
+			if !f(uint32(w*64 + tz)) {
+				return
+			}
+			word &^= uint64(1) << tz
+		}
+	}
+}
+
+// NumRows implements RowSet; it is Count.
+func (s *Selection) NumRows() int {
+	return s.Count()
+}
+
 // ToIndices materialises the selection as a sorted []uint32 index list. It is
 // the compatibility adapter for callers that predate Selection: the result
 // costs four bytes per selected row, which is exactly the cost Selection

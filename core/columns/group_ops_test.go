@@ -47,10 +47,15 @@ func (a *collectAcc) Add(code uint32, row uint32) {
 //
 // Groups are matched by their first member, which is unique per group because
 // every implementation fills groups in selection order.
-func checkGroupOpsParity(t *testing.T, col IDataColumn, ops IGroupOps, sel []uint32) {
+//
+// The selection is passed to the three operations as a RowIndices RowSet; a
+// separate test pins that a Selection bitmap over the same rows behaves
+// identically.
+func checkGroupOpsParity(t *testing.T, col IDataColumn, ops IGroupOps, selIndices []uint32) {
 	t.Helper()
+	sel := RowIndices(selIndices)
 
-	grouped, _ := col.GroupIndices(sel, nil)
+	grouped, _ := col.GroupIndices(selIndices, nil)
 	expected := make(map[uint32][]uint32, len(grouped)) // first member -> members
 	for _, members := range grouped {
 		if len(members) == 0 {
