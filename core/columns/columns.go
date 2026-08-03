@@ -153,6 +153,15 @@ type IDataColumn interface {
 	IsKey() bool
 	// NewJoiner(onColumn IDataColumn) IJoiner
 	CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn
+	// GroupIndices returns every group's full membership list, keyed by an
+	// implementation-defined group key, plus the indices that could not be
+	// resolved (failed joins, computed errors).
+	//
+	// Deprecated: membership-returning grouping is O(rows) in output and does
+	// not scale; use the narrow IGroupOps operations instead (obtain them for
+	// any column via GroupOpsFor). GroupIndices remains for compatibility with
+	// external callers and implementations and will be removed in a future
+	// major cleanup.
 	GroupIndices(indices []uint32, columnView *ColumnView) (map[uint32][]uint32, []uint32)
 }
 

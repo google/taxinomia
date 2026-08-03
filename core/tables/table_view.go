@@ -46,8 +46,8 @@ func (h *groupHeap) Len() int { return len(h.groups) }
 // Less returns true if element at i should be ABOVE j in the heap.
 // For a max-heap of "best" elements, the worst element should be at the top.
 func (h *groupHeap) Less(i, j int) bool {
-	idxI := h.groups[i].Indices[0]
-	idxJ := h.groups[j].Indices[0]
+	idxI := h.groups[i].First
+	idxJ := h.groups[j].First
 	cmp := columns.CompareAtIndex(h.col, idxI, idxJ)
 	// For ascending sort: we want smallest, so largest (worst) should be at top
 	// For descending sort: we want largest, so smallest (worst) should be at top
@@ -373,6 +373,11 @@ func (t *TableView) GroupTableWithLimit(groupingOrder []string, aggregatedColumn
 	}
 	t.ComputeAggregates(leafColumns, columnTypes)
 
+	// Membership lists were only needed to build child levels and leaf
+	// aggregates; drop them so retained grouping state is O(distinct), not
+	// O(rows).
+	releaseGroupMembership(t.firstBlock)
+
 	// Save the state that produced this grouping
 	t.lastGroupingOrder = make([]string, len(groupingOrder))
 	copy(t.lastGroupingOrder, groupingOrder)
@@ -405,8 +410,8 @@ func (t *TableView) sortGroupsInBlockTopK(block *grouping.Block, descending bool
 	// If no limit or limit >= total groups, use standard sort
 	if limit <= 0 || limit >= len(groups) {
 		sort.Slice(groups, func(i, j int) bool {
-			idxI := groups[i].Indices[0]
-			idxJ := groups[j].Indices[0]
+			idxI := groups[i].First
+			idxJ := groups[j].First
 			cmp := columns.CompareAtIndex(col, idxI, idxJ)
 			if descending {
 				return cmp > 0
@@ -433,8 +438,8 @@ func (t *TableView) sortGroupsInBlockTopK(block *grouping.Block, descending bool
 	for i := limit; i < len(groups); i++ {
 		group := groups[i]
 		// Compare with heap top (the "worst" of current K best)
-		idxNew := group.Indices[0]
-		idxTop := h.groups[0].Indices[0]
+		idxNew := group.First
+		idxTop := h.groups[0].First
 		cmp := columns.CompareAtIndex(col, idxNew, idxTop)
 
 		// For ascending: we want smallest, so heap top is largest of K smallest
@@ -449,8 +454,8 @@ func (t *TableView) sortGroupsInBlockTopK(block *grouping.Block, descending bool
 	// Extract top K and sort them
 	topK := h.groups
 	sort.Slice(topK, func(i, j int) bool {
-		idxI := topK[i].Indices[0]
-		idxJ := topK[j].Indices[0]
+		idxI := topK[i].First
+		idxJ := topK[j].First
 		cmp := columns.CompareAtIndex(col, idxI, idxJ)
 		if descending {
 			return cmp > 0
@@ -494,6 +499,68 @@ func (t *TableView) groupingEqual(groupingOrder []string, asc map[string]bool) b
 	return true
 }
 
+// scatterAccumulator lays group members out contiguously in one backing
+// array, one cursor per group code. It implements columns.GroupAccumulator.
+type scatterAccumulator struct {
+	backing []uint32
+	cursor  []uint32
+}
+
+func (a *scatterAccumulator) Add(code uint32, row uint32) {
+	a.backing[a.cursor[code]] = row
+	a.cursor[code]++
+}
+
+// buildGroupsForBlock partitions sel with the column's narrow grouping
+// operations (columns.IGroupOps) and creates one Group per non-empty code, in
+// code order. Count and First are final; Indices holds the group's members
+// only transiently — sliced from a single backing array — until
+// releaseGroupMembership drops them at the end of the grouping build.
+func buildGroupsForBlock(dataColumn columns.IDataColumn, columnView *columns.ColumnView, sel []uint32, block *grouping.Block, parent *grouping.Group) {
+	ops := columns.GroupOpsFor(dataColumn, columnView)
+	counts, firsts := ops.GroupCounts(sel)
+
+	offsets := make([]uint32, len(counts))
+	var total uint32
+	for code, n := range counts {
+		offsets[code] = total
+		total += n
+	}
+	backing := make([]uint32, total)
+	cursor := make([]uint32, len(counts))
+	copy(cursor, offsets)
+	ops.GroupAggregates(sel, &scatterAccumulator{backing: backing, cursor: cursor})
+
+	for code, n := range counts {
+		if n == 0 {
+			continue
+		}
+		start := offsets[code]
+		block.Groups = append(block.Groups, &grouping.Group{
+			GroupKey:    uint32(code),
+			Indices:     backing[start : start+n : start+n],
+			Count:       n,
+			First:       firsts[code],
+			ParentGroup: parent,
+			Block:       block,
+			IsComplete:  true,
+		})
+	}
+}
+
+// releaseGroupMembership drops the transient membership lists of every group
+// reachable from block. After this the grouping state is O(distinct): counts,
+// representative rows and aggregates survive; full row lists do not.
+func releaseGroupMembership(block *grouping.Block) {
+	if block == nil {
+		return
+	}
+	for _, group := range block.Groups {
+		group.Indices = nil
+		releaseGroupMembership(group.ChildBlock)
+	}
+}
+
 func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block {
 	firstColumn := t.groupingOrder[0]
 	columnView := t.columnViews[firstColumn]
@@ -516,17 +583,7 @@ func (t *TableView) groupFirstColumnInTable(indices []uint32) []*grouping.Block 
 	g.Blocks = append(g.Blocks, b)
 	t.blocksByColumn[firstColumn] = append(t.blocksByColumn[firstColumn], b)
 
-	indicesByGroupKey, _ := dataColumn.GroupIndices(indices, columnView)
-	for groupKey, groupIndices := range indicesByGroupKey {
-		g2 := &grouping.Group{
-			GroupKey:    groupKey,
-			Indices:     groupIndices,
-			ParentGroup: nil,
-			Block:       b,
-			IsComplete:  true,
-		}
-		b.Groups = append(b.Groups, g2)
-	}
+	buildGroupsForBlock(dataColumn, columnView, indices, b, nil)
 
 	return []*grouping.Block{b}
 }
@@ -568,17 +625,7 @@ func (t *TableView) groupSubsequentColumnsInTable(indices []uint32, columns []st
 				parentGroup.ChildBlock = b
 
 				// now group within the parent group
-				indicesByGroupKey, _ := dataColumn.GroupIndices(parentGroup.Indices, columnView)
-				for groupKey, groupIndices := range indicesByGroupKey {
-					g2 := &grouping.Group{
-						GroupKey:    groupKey,
-						Indices:     groupIndices,
-						ParentGroup: parentGroup,
-						Block:       b,
-						IsComplete:  true,
-					}
-					b.Groups = append(b.Groups, g2)
-				}
+				buildGroupsForBlock(dataColumn, columnView, parentGroup.Indices, b, parentGroup)
 
 				// Sort groups within this block
 				t.sortGroupsInBlock(b, descending)
@@ -917,6 +964,13 @@ func (tv *TableView) computeAggregatesForBlock(block *grouping.Block, leafColumn
 			tv.computeAggregatesForBlock(group.ChildBlock, leafColumns, columnTypes)
 		}
 
+		// Leaf membership is released once the grouping build finishes; a
+		// repeated ComputeAggregates call afterwards keeps the aggregates
+		// computed during the build instead of zeroing them.
+		if group.ChildBlock == nil && group.Indices == nil && group.Aggregates != nil {
+			continue
+		}
+
 		// Now compute aggregates for this group
 		group.Aggregates = make(map[string]aggregates.AggregateState)
 
@@ -1237,8 +1291,8 @@ func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts m
 // getGroupRowCount returns the total number of rows in a group (recursively counting leaf indices).
 func (tv *TableView) getGroupRowCount(group *grouping.Group) int {
 	if group.ChildBlock == nil {
-		// Leaf group - return direct index count
-		return len(group.Indices)
+		// Leaf group - return direct row count
+		return group.Length()
 	}
 	// Parent group - sum up all child group row counts
 	total := 0

@@ -1359,7 +1359,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		}
 		// Get the raw value for filtering
 		rawValue := group.GetValue()
-		numRows := len(group.Indices)
+		numRows := group.Length()
 		numSubgroups := group.NumSubgroups()
 
 		// Tooltip explains the bracket format

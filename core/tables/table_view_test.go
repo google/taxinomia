@@ -89,7 +89,7 @@ func TestGroupTable(t *testing.T) {
 
 	// Debug: print group information
 	for i, group := range tableView.firstBlock.Groups {
-		t.Logf("Group %d: GroupKey=%d, NumIndices=%d, Indices=%v", i, group.GroupKey, len(group.Indices), group.Indices)
+		t.Logf("Group %d: GroupKey=%d, Rows=%d, First=%d", i, group.GroupKey, group.Length(), group.First)
 	}
 
 	// We should have 3 groups: Active, Inactive, Pending
@@ -102,7 +102,7 @@ func TestGroupTable(t *testing.T) {
 	// Verify that each group has the correct number of indices
 	groupCounts := make(map[uint32]int)
 	for _, group := range tableView.firstBlock.Groups {
-		groupCounts[group.GroupKey] = len(group.Indices)
+		groupCounts[group.GroupKey] = group.Length()
 	}
 
 	// We should have different group sizes:
@@ -166,9 +166,9 @@ func TestGroupTableWithMask(t *testing.T) {
 		t.Errorf("Expected 1 group with filter, got %d", len(tableView.firstBlock.Groups))
 	}
 
-	// The single group should have 3 indices
-	if len(tableView.firstBlock.Groups[0].Indices) != 3 {
-		t.Errorf("Expected 3 indices in the group, got %d", len(tableView.firstBlock.Groups[0].Indices))
+	// The single group should have 3 rows
+	if tableView.firstBlock.Groups[0].Length() != 3 {
+		t.Errorf("Expected 3 rows in the group, got %d", tableView.firstBlock.Groups[0].Length())
 	}
 }
 
@@ -275,7 +275,7 @@ func TestGroupTableWithUint32Column(t *testing.T) {
 	// Verify total indices
 	totalIndices := 0
 	for _, group := range tableView.firstBlock.Groups {
-		totalIndices += len(group.Indices)
+		totalIndices += group.Length()
 	}
 
 	if totalIndices != 6 {
@@ -336,7 +336,7 @@ func TestGroupTableTwoColumns(t *testing.T) {
 
 	t.Log("First level groups (status):")
 	for i, group := range tableView.firstBlock.Groups {
-		t.Logf("  Group %d: GroupKey=%d, NumIndices=%d, Indices=%v", i, group.GroupKey, len(group.Indices), group.Indices)
+		t.Logf("  Group %d: GroupKey=%d, Rows=%d, First=%d", i, group.GroupKey, group.Length(), group.First)
 	}
 
 	// Verify that the region column has a GroupedColumn
@@ -357,7 +357,7 @@ func TestGroupTableTwoColumns(t *testing.T) {
 	for i, block := range regionGroupedCol.Blocks {
 		t.Logf("  Block %d: ParentGroup=%v, NumGroups=%d", i, block.ParentGroup.GroupKey, len(block.Groups))
 		for j, group := range block.Groups {
-			t.Logf("    Group %d: GroupKey=%d, Indices=%v", j, group.GroupKey, group.Indices)
+			t.Logf("    Group %d: GroupKey=%d, Rows=%d, First=%d", j, group.GroupKey, group.Length(), group.First)
 			totalSecondLevelGroups++
 		}
 	}
@@ -371,7 +371,7 @@ func TestGroupTableTwoColumns(t *testing.T) {
 	totalIndices := 0
 	for _, block := range regionGroupedCol.Blocks {
 		for _, group := range block.Groups {
-			totalIndices += len(group.Indices)
+			totalIndices += group.Length()
 		}
 	}
 
@@ -438,14 +438,14 @@ func TestGroupTableTwoColumnsWithUint32(t *testing.T) {
 
 	t.Log("Category groups:")
 	for i, group := range tableView.firstBlock.Groups {
-		t.Logf("  Category %d: GroupKey=%d, Indices=%v", i, group.GroupKey, group.Indices)
+		t.Logf("  Category %d: GroupKey=%d, Rows=%d, First=%d", i, group.GroupKey, group.Length(), group.First)
 	}
 
 	t.Log("\nPriority blocks within each category:")
 	for i, block := range priorityGroupedCol.Blocks {
 		t.Logf("  Block %d (parent category GroupKey=%d):", i, block.ParentGroup.GroupKey)
 		for j, group := range block.Groups {
-			t.Logf("    Priority group %d: GroupKey=%d, Indices=%v", j, group.GroupKey, group.Indices)
+			t.Logf("    Priority group %d: GroupKey=%d, Rows=%d, First=%d", j, group.GroupKey, group.Length(), group.First)
 		}
 	}
 
@@ -453,7 +453,7 @@ func TestGroupTableTwoColumnsWithUint32(t *testing.T) {
 	totalIndices := 0
 	for _, block := range priorityGroupedCol.Blocks {
 		for _, group := range block.Groups {
-			totalIndices += len(group.Indices)
+			totalIndices += group.Length()
 		}
 	}
 
@@ -535,7 +535,7 @@ func TestGroupTableThreeColumns(t *testing.T) {
 	totalIndices := 0
 	for _, block := range col3Grouped.Blocks {
 		for _, group := range block.Groups {
-			totalIndices += len(group.Indices)
+			totalIndices += group.Length()
 		}
 	}
 

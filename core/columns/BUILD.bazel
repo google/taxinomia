@@ -11,6 +11,7 @@ go_library(
         "dict_column.go",
         "duration_column.go",
         "float64_column.go",
+        "group_ops.go",
         "int64_column.go",
         "joined_columns.go",
         "string_column.go",
@@ -30,6 +31,7 @@ go_test(
         "dict_column_bench_test.go",
         "dict_column_test.go",
         "duration_column_test.go",
+        "group_ops_test.go",
     ],
     embed = [":columns"],
 )

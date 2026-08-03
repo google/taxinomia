@@ -70,7 +70,7 @@ func (t *TableView) ToAscii() string {
 					sb.WriteString(strings.Repeat("-", colWidths[name]))
 				} else if g, ok := groupAtVerticalOffset[name][line]; ok {
 					// Get the display value for this group
-					valueStr, _ := g.Block.GroupedColumn.DataColumn.GetString(g.Indices[0])
+					valueStr := g.GetValue()
 					sb.WriteString(fmt.Sprintf("%-*s", colWidths[name], valueStr))
 				} else {
 					sb.WriteString(strings.Repeat(" ", colWidths[name]))
@@ -95,8 +95,8 @@ func (t *TableView) calculateColumnWidths() map[string]int {
 	for _, gc := range t.groupedColumns {
 		for _, block := range gc.Blocks {
 			for _, group := range block.Groups {
-				val, err := block.GroupedColumn.DataColumn.GetString(group.Indices[0])
-				if err == nil && len(val) > widths[gc.DataColumn.ColumnDef().Name()] {
+				val := group.GetValue()
+				if len(val) > widths[gc.DataColumn.ColumnDef().Name()] {
 					widths[gc.DataColumn.ColumnDef().Name()] = len(val)
 				}
 			}

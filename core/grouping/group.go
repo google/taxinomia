@@ -23,11 +23,24 @@ import (
 // The difference between the last grouped column and the aggregated columns is that the all rows of each group's share the same value.
 
 type Group struct {
-	GroupKey    uint32
+	GroupKey uint32
+	// Indices is the group's full membership list.
+	//
+	// Deprecated: full membership is O(rows) state and does not scale; the
+	// grouping build keeps it only transiently and releases it before
+	// returning, so it is nil on groups produced by TableView grouping. Use
+	// Length(), First and the column's IGroupOps operations instead. The
+	// field remains so existing constructors keep compiling; accessors fall
+	// back to it when it is set.
 	Indices     []uint32
 	ParentGroup *Group
 	Block       *Block
 	ChildBlock  *Block
+	// Count is the number of rows in this group (at its own level).
+	Count uint32
+	// First is the group's representative row: the first selected row that
+	// belongs to it. Group value rendering and value sorting read this row.
+	First uint32
 	// Aggregates stores computed aggregates for each leaf column.
 	// Keys are column names, values are aggregate states.
 	Aggregates map[string]aggregates.AggregateState
@@ -37,12 +50,19 @@ type Group struct {
 }
 
 func (g *Group) GetValue() string {
-	valueStr, _ := g.Block.GroupedColumn.DataColumn.GetString(g.Indices[0])
+	idx := g.First
+	if len(g.Indices) > 0 {
+		idx = g.Indices[0]
+	}
+	valueStr, _ := g.Block.GroupedColumn.DataColumn.GetString(idx)
 	return valueStr
 }
 
 func (g *Group) Length() int {
-	return len(g.Indices)
+	if g.Indices != nil {
+		return len(g.Indices)
+	}
+	return int(g.Count)
 }
 
 func (g *Group) Height() int {
