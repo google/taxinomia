@@ -149,7 +149,16 @@ func (c *BoolColumn) GroupIndices(indices []uint32, columnView *ColumnView) (map
 	return groupedIndices, nil
 }
 
+// FilterSelection returns the rows whose value satisfies the predicate as a
+// bitmap: one bit per row instead of eight bytes per match.
+func (c *BoolColumn) FilterSelection(predicate func(bool) bool) *Selection {
+	return filterToSelection(c.data, predicate)
+}
+
 // Filter returns indices where the predicate returns true.
+//
+// Deprecated: the returned []int costs eight bytes per matching row; use
+// FilterSelection, which is O(rows/8) regardless of selectivity.
 func (c *BoolColumn) Filter(predicate func(bool) bool) []int {
 	indices := make([]int, 0)
 	for i, v := range c.data {

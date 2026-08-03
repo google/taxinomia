@@ -79,7 +79,16 @@ func (c *StringColumn) GetString(i uint32) (string, error) {
 	return c.data[i], nil
 }
 
+// FilterSelection returns the rows whose value satisfies the predicate as a
+// bitmap: one bit per row instead of eight bytes per match.
+func (c *StringColumn) FilterSelection(predicate func(string) bool) *Selection {
+	return filterToSelection(c.data, predicate)
+}
+
 // Filter returns indices where the predicate returns true
+//
+// Deprecated: the returned []int costs eight bytes per matching row; use
+// FilterSelection, which is O(rows/8) regardless of selectivity.
 func (c *StringColumn) Filter(predicate func(string) bool) []int {
 	indices := make([]int, 0)
 	for i, v := range c.data {

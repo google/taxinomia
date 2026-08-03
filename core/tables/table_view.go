@@ -101,8 +101,8 @@ type TableView struct {
 	firstBlock     *grouping.Block
 
 	// Filtering
-	filterMask  []bool            // Cached filter mask (nil = no filter, all rows shown)
-	lastFilters map[string]string // Filters that produced current mask (for change detection)
+	filterSel   *columns.Selection // Cached filter selection bitmap (nil = no filter, all rows shown)
+	lastFilters map[string]string  // Filters that produced current selection (for change detection)
 
 	// Grouping cache tracking
 	lastGroupingOrder   []string          // Grouping order when grouping was computed
@@ -111,7 +111,7 @@ type TableView struct {
 	lastExpansion       *GroupExpansion   // Expansion state when grouping was computed (nil = never grouped)
 }
 
-// ApplyFilters builds and caches a filter mask based on the provided filters
+// ApplyFilters builds and caches a filter selection bitmap based on the provided filters
 // Each filter is a column name mapped to a filter value
 // Filter matching:
 //   - If filter value is enclosed in double quotes (e.g., "exact"), performs case-sensitive exact match
@@ -130,27 +130,22 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 		return
 	}
 
-	// If no filters, clear the mask
+	// If no filters, clear the selection
 	if len(filters) == 0 {
-		t.filterMask = nil
+		t.filterSel = nil
 		t.lastFilters = nil
 		return
 	}
 
-	// Initialize filter mask - start with all rows passing
-	t.filterMask = make([]bool, t.baseTable.Length())
-	for i := range t.filterMask {
-		t.filterMask[i] = true
-	}
+	// Initialize the selection - start with all rows passing
+	t.filterSel = columns.NewSelectionAll(t.baseTable.Length())
 
 	// Apply each filter one column at a time
 	for colName, filterValue := range filters {
 		col := t.GetColumn(colName)
 		if col == nil {
 			// Column not found - no rows pass
-			for i := range t.filterMask {
-				t.filterMask[i] = false
-			}
+			t.filterSel = columns.NewSelection(t.baseTable.Length())
 			return
 		}
 
@@ -162,15 +157,12 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 			for _, v := range values {
 				valueSet[v] = true
 			}
-			for i := 0; i < t.baseTable.Length(); i++ {
-				if !t.filterMask[i] {
-					continue
-				}
-				rowValue, err := col.GetString(uint32(i))
+			t.filterSel.ForEach(func(i uint32) {
+				rowValue, err := col.GetString(i)
 				if err != nil || !valueSet[rowValue] {
-					t.filterMask[i] = false
+					t.filterSel.Remove(i)
 				}
-			}
+			})
 		} else {
 			// Single value filter - determine filter type
 			isExactMatch := len(filterValue) >= 2 && filterValue[0] == '"' && filterValue[len(filterValue)-1] == '"'
@@ -178,32 +170,26 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 			if isExactMatch {
 				// Exact match (case-sensitive) - strip quotes
 				exactValue := filterValue[1 : len(filterValue)-1]
-				for i := 0; i < t.baseTable.Length(); i++ {
-					if !t.filterMask[i] {
-						continue
-					}
-					rowValue, err := col.GetString(uint32(i))
+				t.filterSel.ForEach(func(i uint32) {
+					rowValue, err := col.GetString(i)
 					if err != nil || rowValue != exactValue {
-						t.filterMask[i] = false
+						t.filterSel.Remove(i)
 					}
-				}
+				})
 			} else {
 				// Substring match (case-insensitive)
 				substringValue := strings.ToLower(filterValue)
-				for i := 0; i < t.baseTable.Length(); i++ {
-					if !t.filterMask[i] {
-						continue
-					}
-					rowValue, err := col.GetString(uint32(i))
+				t.filterSel.ForEach(func(i uint32) {
+					rowValue, err := col.GetString(i)
 					if err != nil || !strings.Contains(strings.ToLower(rowValue), substringValue) {
-						t.filterMask[i] = false
+						t.filterSel.Remove(i)
 					}
-				}
+				})
 			}
 		}
 	}
 
-	// Save the filters that produced this mask
+	// Save the filters that produced this selection
 	t.lastFilters = make(map[string]string, len(filters))
 	for k, v := range filters {
 		t.lastFilters[k] = v
@@ -223,31 +209,29 @@ func (t *TableView) filtersEqual(filters map[string]string) bool {
 	return true
 }
 
-// ClearFilters removes the active filter mask
+// ClearFilters removes the active filter selection
 func (t *TableView) ClearFilters() {
-	t.filterMask = nil
+	t.filterSel = nil
 	t.lastFilters = nil
 }
 
 // GetFilteredRowCount returns the number of rows that pass the current filter
 // Returns total row count if no filter is active
 func (t *TableView) GetFilteredRowCount() int {
-	if t.filterMask == nil {
+	if t.filterSel == nil {
 		return t.baseTable.Length()
 	}
-	count := 0
-	for _, passes := range t.filterMask {
-		if passes {
-			count++
-		}
-	}
-	return count
+	return t.filterSel.Count()
 }
 
 // GetFilteredIndices returns the indices of rows that pass the current filter
 // Returns all indices if no filter is active
+//
+// The result costs four bytes per passing row; it exists as an adapter for
+// callers that predate the Selection bitmap and will be replaced by
+// Selection-consuming paths as they migrate.
 func (t *TableView) GetFilteredIndices() []uint32 {
-	if t.filterMask == nil {
+	if t.filterSel == nil {
 		// No filter - return all indices
 		indices := make([]uint32, t.baseTable.Length())
 		for i := 0; i < t.baseTable.Length(); i++ {
@@ -255,15 +239,7 @@ func (t *TableView) GetFilteredIndices() []uint32 {
 		}
 		return indices
 	}
-
-	// Filter active - return indices that pass
-	indices := make([]uint32, 0, t.GetFilteredRowCount())
-	for i, passes := range t.filterMask {
-		if passes {
-			indices = append(indices, uint32(i))
-		}
-	}
-	return indices
+	return t.filterSel.ToIndices()
 }
 
 // GetFilteredRows returns rows as maps of column name to string value
@@ -387,22 +363,18 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
 
-	// get indices from cached filter mask
+	// get indices from cached filter selection
 	t.groupingOrder = groupingOrder
 	indices := []uint32{}
-	if t.filterMask == nil {
+	if t.filterSel == nil {
 		// No filter - include all rows
 		indices = make([]uint32, t.baseTable.Length())
 		for i := 0; i < t.baseTable.Length(); i++ {
 			indices[i] = uint32(i)
 		}
 	} else {
-		// Use filter mask to select rows
-		for i, passes := range t.filterMask {
-			if passes {
-				indices = append(indices, uint32(i))
-			}
-		}
+		// Use filter selection to select rows
+		indices = t.filterSel.ToIndices()
 	}
 
 	// Process first column

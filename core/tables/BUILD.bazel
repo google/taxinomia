@@ -25,6 +25,7 @@ go_test(
         "ascii_test.go",
         "benchmark_test.go",
         "filter_bench_test.go",
+        "filter_selection_test.go",
         "golden_test.go",
         "grouping_release_test.go",
         "lazy_grouping_test.go",

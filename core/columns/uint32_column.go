@@ -87,7 +87,16 @@ func (c *Uint32Column) GetIndex(v uint32) (uint32, error) {
 	return 0, fmt.Errorf("value %d not found in column %q", v, c.columnDef.Name())
 }
 
+// FilterSelection returns the rows whose value satisfies the predicate as a
+// bitmap: one bit per row instead of eight bytes per match.
+func (c *Uint32Column) FilterSelection(predicate func(uint32) bool) *Selection {
+	return filterToSelection(c.data, predicate)
+}
+
 // Filter returns indices where the predicate returns true
+//
+// Deprecated: the returned []int costs eight bytes per matching row; use
+// FilterSelection, which is O(rows/8) regardless of selectivity.
 func (c *Uint32Column) Filter(predicate func(uint32) bool) []int {
 	indices := make([]int, 0)
 	for i, v := range c.data {

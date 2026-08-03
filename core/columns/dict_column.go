@@ -164,8 +164,28 @@ func (c *DictStringColumn[K]) FinalizeColumn() {
 	}
 }
 
+// FilterSelection returns the rows whose value satisfies the predicate as a
+// bitmap: one bit per row instead of eight bytes per match. The predicate runs
+// once per distinct value, not once per row.
+func (c *DictStringColumn[K]) FilterSelection(predicate func(string) bool) *Selection {
+	keep := make([]bool, len(c.dict))
+	for code, value := range c.dict {
+		keep[code] = predicate(value)
+	}
+	s := NewSelection(len(c.codes))
+	for i, code := range c.codes {
+		if keep[code] {
+			s.Add(uint32(i))
+		}
+	}
+	return s
+}
+
 // Filter returns the indices whose value satisfies the predicate. The predicate
 // runs once per distinct value, not once per row.
+//
+// Deprecated: the returned []int costs eight bytes per matching row; use
+// FilterSelection, which is O(rows/8) regardless of selectivity.
 func (c *DictStringColumn[K]) Filter(predicate func(string) bool) []int {
 	keep := make([]bool, len(c.dict))
 	for code, value := range c.dict {
