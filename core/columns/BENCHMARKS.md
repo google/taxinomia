@@ -230,3 +230,26 @@ fix, the d=500k case was **7.8x slower** than `StringColumn`; it is now faster:
 |----------|-------------------|-------|
 | 600,000 | counts up to 500k entries | 5.3 ms, bails at 65,537 |
 | 1,000,000 (key) | full counting scan | **25 ns** (`IsKey` short-circuit) |
+
+### Chunked columns (2026-08-03, phase 3a)
+
+Same machine (i7-1185G7), `-benchtime 10x -count 3`, median of three runs,
+1M rows. Chunked columns store values in fixed 65,536-row heap chunks
+(`DefaultChunkSize`) with `(chunkID, offset)` addressing; flat is the
+pre-existing single-slice column.
+
+| Operation | Flat | Chunked | |
+|---|---|---|---|
+| Build, int64 | 5.85 ms | 3.09 ms | **1.9x** — appending never re-copies full chunks; flat pays doubling-growth copies |
+| FilterSelection, int64 (50% selective) | 2.02 ms | 2.32 ms | 0.87x — chunk-loop overhead, the price of chunking on a cheap scan |
+| GroupCounts, dict 100 distinct, full universe | 2.34 ms | 0.54 ms | **4.3x** — the chunk-wise loop skips the per-row `ForEachRow` closure the flat dense path pays |
+| FilterSelection, dict (50% of values) | 1.60 ms | 1.37 ms | ~parity |
+
+Notes:
+
+- The dict `GroupCounts` win is not chunking itself but the chunk-at-a-time
+  scan shape it forces; the flat dense path could adopt the same direct loop.
+  It is also the shape the phase-5 parallel executor runs per worker.
+- The int64 filter penalty (~15%) is the honest cost of chunked addressing on
+  a memory-bandwidth-bound scan with a trivial predicate. Zone-map pruning
+  (3b) exists to make such scans skip chunks entirely.

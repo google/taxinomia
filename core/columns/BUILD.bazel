@@ -4,6 +4,9 @@ go_library(
     name = "columns",
     srcs = [
         "bool_column.go",
+        "chunk.go",
+        "chunked_column.go",
+        "chunked_dict_column.go",
         "columns.go",
         "compare.go",
         "computed_columns.go",
@@ -27,6 +30,10 @@ go_library(
 go_test(
     name = "columns_test",
     srcs = [
+        "chunk_test.go",
+        "chunked_bench_test.go",
+        "chunked_column_test.go",
+        "chunked_dict_column_test.go",
         "column_bench_test.go",
         "datetime_column_test.go",
         "dict_cardinality_test.go",

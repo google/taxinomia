@@ -361,12 +361,12 @@ func (c *JoinedDurationColumn) GroupIndices(indices []uint32, columnView *Column
 // JoinedBoolColumn represents a column that gets its data by joining to a bool column in another table
 type JoinedBoolColumn struct {
 	columnDef    *ColumnDef
-	sourceColumn *BoolColumn
+	sourceColumn IDataColumnT[bool]
 	joiner       IJoiner
 }
 
 // NewJoinedBoolColumn creates a new joined column for bool data
-func NewJoinedBoolColumn(columnDef *ColumnDef, joiner IJoiner, sourceColumn *BoolColumn) *JoinedBoolColumn {
+func NewJoinedBoolColumn(columnDef *ColumnDef, joiner IJoiner, sourceColumn IDataColumnT[bool]) *JoinedBoolColumn {
 	return &JoinedBoolColumn{
 		columnDef:    columnDef,
 		joiner:       joiner,
@@ -438,12 +438,12 @@ func (c *JoinedBoolColumn) GroupIndices(indices []uint32, columnView *ColumnView
 // JoinedFloat64Column represents a column that gets its data by joining to a float64 column in another table
 type JoinedFloat64Column struct {
 	columnDef    *ColumnDef
-	sourceColumn *Float64Column
+	sourceColumn IDataColumnT[float64]
 	joiner       IJoiner
 }
 
 // NewJoinedFloat64Column creates a new joined column for float64 data
-func NewJoinedFloat64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn *Float64Column) *JoinedFloat64Column {
+func NewJoinedFloat64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn IDataColumnT[float64]) *JoinedFloat64Column {
 	return &JoinedFloat64Column{
 		columnDef:    columnDef,
 		joiner:       joiner,
@@ -530,12 +530,12 @@ func (c *JoinedFloat64Column) GroupIndices(indices []uint32, columnView *ColumnV
 // JoinedInt64Column represents a column that gets its data by joining to an int64 column in another table
 type JoinedInt64Column struct {
 	columnDef    *ColumnDef
-	sourceColumn *Int64Column
+	sourceColumn IDataColumnT[int64]
 	joiner       IJoiner
 }
 
 // NewJoinedInt64Column creates a new joined column for int64 data
-func NewJoinedInt64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn *Int64Column) *JoinedInt64Column {
+func NewJoinedInt64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn IDataColumnT[int64]) *JoinedInt64Column {
 	return &JoinedInt64Column{
 		columnDef:    columnDef,
 		joiner:       joiner,
@@ -611,12 +611,12 @@ func (c *JoinedInt64Column) GroupIndices(indices []uint32, columnView *ColumnVie
 // JoinedUint64Column represents a column that gets its data by joining to a uint64 column in another table
 type JoinedUint64Column struct {
 	columnDef    *ColumnDef
-	sourceColumn *Uint64Column
+	sourceColumn IDataColumnT[uint64]
 	joiner       IJoiner
 }
 
 // NewJoinedUint64Column creates a new joined column for uint64 data
-func NewJoinedUint64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn *Uint64Column) *JoinedUint64Column {
+func NewJoinedUint64Column(columnDef *ColumnDef, joiner IJoiner, sourceColumn IDataColumnT[uint64]) *JoinedUint64Column {
 	return &JoinedUint64Column{
 		columnDef:    columnDef,
 		joiner:       joiner,
