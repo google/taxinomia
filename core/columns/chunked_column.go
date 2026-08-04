@@ -19,9 +19,11 @@ limitations under the License.
 package columns
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 )
 
 // chunkedColumn is the shared machinery of the chunked column types: values
@@ -37,11 +39,16 @@ type chunkedColumn[T any, K comparable] struct {
 	data       chunkedData[T]
 	isKey      bool
 	valueIndex map[K]uint32 // canon(value) -> row, key entity columns only
+	zones      *zoneMap[T]  // per-chunk min/max, built by FinalizeColumn
 
 	canon  func(T) K
 	format func(T) string
+	// compare is the value ordering used by the zone maps.
+	compare func(T, T) int
 	// neverKey marks values that disqualify the column from being a key
 	// regardless of uniqueness (NaN for floats, mirroring Float64Column).
+	// The same values have no position in the ordering, so it doubles as the
+	// zone maps' unordered test.
 	neverKey func(T) bool
 	// autoKey: whether FinalizeColumn detects uniqueness at all. False for
 	// bool, mirroring BoolColumn.
@@ -50,13 +57,15 @@ type chunkedColumn[T any, K comparable] struct {
 
 func newChunkedColumn[T any, K comparable](
 	columnDef *ColumnDef, chunkSize int,
-	canon func(T) K, format func(T) string, neverKey func(T) bool, autoKey bool,
+	canon func(T) K, format func(T) string, compare func(T, T) int,
+	neverKey func(T) bool, autoKey bool,
 ) chunkedColumn[T, K] {
 	return chunkedColumn[T, K]{
 		columnDef: columnDef,
 		data:      newChunkedData[T](chunkSize),
 		canon:     canon,
 		format:    format,
+		compare:   compare,
 		neverKey:  neverKey,
 		autoKey:   autoKey,
 	}
@@ -103,10 +112,13 @@ func (c *chunkedColumn[T, K]) IsKey() bool {
 	return c.isKey
 }
 
-// FinalizeColumn detects uniqueness (by canonical key) and keeps the reverse
-// index when the column is a unique entity column, mirroring the plain
-// columns. No Append after FinalizeColumn.
+// FinalizeColumn builds the per-chunk zone maps, then detects uniqueness (by
+// canonical key) and keeps the reverse index when the column is a unique
+// entity column, mirroring the plain columns. No Append after FinalizeColumn.
 func (c *chunkedColumn[T, K]) FinalizeColumn() {
+	if c.compare != nil {
+		c.zones = buildZoneMap(&c.data, c.compare, c.neverKey)
+	}
 	if !c.autoKey {
 		return
 	}
@@ -154,6 +166,91 @@ func (c *chunkedColumn[T, K]) FilterSelection(predicate func(T) bool) *Selection
 		}
 	}
 	return s
+}
+
+// FilterSelectionEqual returns the rows whose value equals v, equality being
+// the column's grouping equality (for floats: NaN matches NaN, -0 matches
+// +0). Chunks whose zone map proves they cannot contain v are skipped without
+// touching a row — on data sorted by this column that prunes the scan to the
+// chunks actually holding v (docs/scaling-to-1b-rows.md §3.A).
+//
+// On a column that was never finalized there are no zone maps and every chunk
+// is scanned; the result is identical either way.
+func (c *chunkedColumn[T, K]) FilterSelectionEqual(v T) *Selection {
+	s := NewSelection(c.data.len())
+	key := c.canon(v)
+	for ci := 0; ci < c.data.numChunks(); ci++ {
+		if !c.zones.mayContainPoint(ci, v) {
+			continue
+		}
+		base := uint32(ci) << c.data.shift
+		for j, x := range c.data.chunk(ci) {
+			if c.canon(x) == key {
+				s.Add(base + uint32(j))
+			}
+		}
+	}
+	return s
+}
+
+// FilterSelectionIn returns the rows whose value equals any of the given
+// values (the multi-value OR filter), with the same chunk pruning and
+// equality semantics as FilterSelectionEqual.
+func (c *chunkedColumn[T, K]) FilterSelectionIn(values []T) *Selection {
+	s := NewSelection(c.data.len())
+	if len(values) == 0 {
+		return s
+	}
+	keys := make(map[K]struct{}, len(values))
+	for _, v := range values {
+		keys[c.canon(v)] = struct{}{}
+	}
+	for ci := 0; ci < c.data.numChunks(); ci++ {
+		if !c.zones.mayContainAny(ci, values) {
+			continue
+		}
+		base := uint32(ci) << c.data.shift
+		for j, x := range c.data.chunk(ci) {
+			if _, ok := keys[c.canon(x)]; ok {
+				s.Add(base + uint32(j))
+			}
+		}
+	}
+	return s
+}
+
+// FilterSelectionRange returns the rows whose value lies in [lo, hi]
+// (inclusive; a nil bound is unbounded), with chunk pruning. Values outside
+// the ordering (NaN) never match a range.
+func (c *chunkedColumn[T, K]) FilterSelectionRange(lo, hi *T) *Selection {
+	s := NewSelection(c.data.len())
+	for ci := 0; ci < c.data.numChunks(); ci++ {
+		if !c.zones.mayContainRange(ci, lo, hi) {
+			continue
+		}
+		base := uint32(ci) << c.data.shift
+		for j, x := range c.data.chunk(ci) {
+			if c.neverKey != nil && c.neverKey(x) {
+				continue
+			}
+			if lo != nil && c.compare(x, *lo) < 0 {
+				continue
+			}
+			if hi != nil && c.compare(x, *hi) > 0 {
+				continue
+			}
+			s.Add(base + uint32(j))
+		}
+	}
+	return s
+}
+
+// ChunkBounds returns chunk ci's zone-map bounds. ok is false when no zone
+// map exists (the column was not finalized) or the chunk holds no ordered
+// values (all NaN). The native file format serializes these; engines prune
+// with the FilterSelection* methods instead of reading bounds directly.
+func (c *chunkedColumn[T, K]) ChunkBounds(ci int) (min, max T, ok bool) {
+	return c.zones.bounds(ci)
 }
 
 // GroupIndices buckets the given indices by value, keyed in order of first
@@ -227,6 +324,19 @@ func (c *chunkedColumn[T, K]) Chunk(chunk int) []T {
 
 func identityKey[T comparable](v T) T { return v }
 
+// compareBool orders false before true, matching the sort order of the
+// formatted values ("False" < "True").
+func compareBool(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case !a:
+		return -1
+	default:
+		return 1
+	}
+}
+
 func formatString(v string) string { return v }
 
 func formatBool(v bool) string {
@@ -264,7 +374,7 @@ func NewChunkedStringColumn(columnDef *ColumnDef) *ChunkedStringColumn {
 
 func newChunkedStringColumn(columnDef *ColumnDef, chunkSize int) *ChunkedStringColumn {
 	return &ChunkedStringColumn{newChunkedColumn[string, string](
-		columnDef, chunkSize, identityKey[string], formatString, nil, true)}
+		columnDef, chunkSize, identityKey[string], formatString, strings.Compare, nil, true)}
 }
 
 func (c *ChunkedStringColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
@@ -283,7 +393,7 @@ func NewChunkedBoolColumn(columnDef *ColumnDef) *ChunkedBoolColumn {
 
 func newChunkedBoolColumn(columnDef *ColumnDef, chunkSize int) *ChunkedBoolColumn {
 	return &ChunkedBoolColumn{newChunkedColumn[bool, bool](
-		columnDef, chunkSize, identityKey[bool], formatBool, nil, false)}
+		columnDef, chunkSize, identityKey[bool], formatBool, compareBool, nil, false)}
 }
 
 func (c *ChunkedBoolColumn) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
@@ -302,7 +412,7 @@ func NewChunkedInt64Column(columnDef *ColumnDef) *ChunkedInt64Column {
 
 func newChunkedInt64Column(columnDef *ColumnDef, chunkSize int) *ChunkedInt64Column {
 	return &ChunkedInt64Column{newChunkedColumn[int64, int64](
-		columnDef, chunkSize, identityKey[int64], formatInt64, nil, true)}
+		columnDef, chunkSize, identityKey[int64], formatInt64, cmp.Compare[int64], nil, true)}
 }
 
 func (c *ChunkedInt64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
@@ -321,7 +431,7 @@ func NewChunkedUint64Column(columnDef *ColumnDef) *ChunkedUint64Column {
 
 func newChunkedUint64Column(columnDef *ColumnDef, chunkSize int) *ChunkedUint64Column {
 	return &ChunkedUint64Column{newChunkedColumn[uint64, uint64](
-		columnDef, chunkSize, identityKey[uint64], formatUint64, nil, true)}
+		columnDef, chunkSize, identityKey[uint64], formatUint64, cmp.Compare[uint64], nil, true)}
 }
 
 func (c *ChunkedUint64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
@@ -340,7 +450,7 @@ func NewChunkedUint32Column(columnDef *ColumnDef) *ChunkedUint32Column {
 
 func newChunkedUint32Column(columnDef *ColumnDef, chunkSize int) *ChunkedUint32Column {
 	return &ChunkedUint32Column{newChunkedColumn[uint32, uint32](
-		columnDef, chunkSize, identityKey[uint32], formatUint32, nil, true)}
+		columnDef, chunkSize, identityKey[uint32], formatUint32, cmp.Compare[uint32], nil, true)}
 }
 
 func (c *ChunkedUint32Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {
@@ -362,7 +472,7 @@ func NewChunkedFloat64Column(columnDef *ColumnDef) *ChunkedFloat64Column {
 
 func newChunkedFloat64Column(columnDef *ColumnDef, chunkSize int) *ChunkedFloat64Column {
 	return &ChunkedFloat64Column{newChunkedColumn[float64, uint64](
-		columnDef, chunkSize, float64GroupKey, FormatFloat64, math.IsNaN, true)}
+		columnDef, chunkSize, float64GroupKey, FormatFloat64, cmp.Compare[float64], math.IsNaN, true)}
 }
 
 func (c *ChunkedFloat64Column) CreateJoinedColumn(columnDef *ColumnDef, joiner IJoiner) IJoinedDataColumn {

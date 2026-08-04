@@ -22,6 +22,7 @@ go_library(
         "string_column.go",
         "uint32_column.go",
         "uint64_column.go",
+        "zone_map.go",
     ],
     importpath = "github.com/google/taxinomia/core/columns",
     visibility = ["//visibility:public"],
@@ -43,6 +44,7 @@ go_test(
         "group_ops_test.go",
         "row_set_test.go",
         "selection_test.go",
+        "zone_map_test.go",
     ],
     embed = [":columns"],
 )

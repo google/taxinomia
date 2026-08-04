@@ -21,6 +21,7 @@ package columns
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -36,7 +37,8 @@ type ChunkedDictStringColumn[K Unsigned] struct {
 	codes     chunkedData[K]  // row -> code
 	index     map[string]K    // value -> code (released by FinalizeColumn unless key)
 	isKey     bool
-	ranks     []K // code -> sort rank, built lazily by Ranks()
+	zones     *zoneMap[string] // per-chunk min/max value, built by FinalizeColumn
+	ranks     []K              // code -> sort rank, built lazily by Ranks()
 	ranksOnce sync.Once
 }
 
@@ -133,9 +135,9 @@ func (c *ChunkedDictStringColumn[K]) CreateJoinedColumn(columnDef *ColumnDef, jo
 	return NewJoinedStringColumn(columnDef, joiner, c)
 }
 
-// FinalizeColumn detects whether the column happens to be unique. The
-// dictionary and its index are already built by Append, so there is no second
-// pass over the rows.
+// FinalizeColumn detects whether the column happens to be unique and builds
+// the per-chunk zone maps. The dictionary and its index are already built by
+// Append, so uniqueness needs no second pass over the rows.
 //
 // For non-key columns the interning map is released. No Append after
 // FinalizeColumn.
@@ -144,6 +146,152 @@ func (c *ChunkedDictStringColumn[K]) FinalizeColumn() {
 	if !c.isKey {
 		c.index = nil
 	}
+	c.zones = c.buildZones()
+}
+
+// buildZones records each chunk's min/max value. Codes are ranked by value
+// once so the per-row tracking is an integer compare, then the bounds are
+// stored as strings — the same zoneMap shape as the plain chunked columns,
+// and what the native file format serializes.
+func (c *ChunkedDictStringColumn[K]) buildZones() *zoneMap[string] {
+	n := c.codes.numChunks()
+	z := &zoneMap[string]{
+		cmp:       strings.Compare,
+		mins:      make([]string, n),
+		maxs:      make([]string, n),
+		hasBounds: make([]bool, n),
+	}
+	if len(c.dict) == 0 {
+		return z
+	}
+	order := make([]int, len(c.dict)) // rank -> code
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(a, b int) bool { return c.dict[order[a]] < c.dict[order[b]] })
+	ranks := make([]int, len(c.dict)) // code -> rank
+	for rank, code := range order {
+		ranks[code] = rank
+	}
+	for ci := 0; ci < n; ci++ {
+		chunk := c.codes.chunk(ci)
+		minR, maxR := ranks[chunk[0]], ranks[chunk[0]]
+		for _, code := range chunk[1:] {
+			if r := ranks[code]; r < minR {
+				minR = r
+			} else if r > maxR {
+				maxR = r
+			}
+		}
+		z.mins[ci], z.maxs[ci] = c.dict[order[minR]], c.dict[order[maxR]]
+		z.hasBounds[ci] = true
+	}
+	return z
+}
+
+// lookupCode returns the dictionary code for a value: via the interning map
+// while it exists (key columns), by dictionary scan otherwise — O(distinct),
+// paid once per filter, never per row.
+func (c *ChunkedDictStringColumn[K]) lookupCode(v string) (K, bool) {
+	if c.index != nil {
+		code, ok := c.index[v]
+		return code, ok
+	}
+	for code, s := range c.dict {
+		if s == v {
+			return K(code), true
+		}
+	}
+	return 0, false
+}
+
+// FilterSelectionEqual returns the rows whose value is exactly v. A value
+// absent from the dictionary returns an empty selection without touching any
+// chunk; a present one scans only the chunks whose zone map admits it,
+// comparing codes.
+func (c *ChunkedDictStringColumn[K]) FilterSelectionEqual(v string) *Selection {
+	s := NewSelection(c.codes.len())
+	code, ok := c.lookupCode(v)
+	if !ok {
+		return s
+	}
+	for ci := 0; ci < c.codes.numChunks(); ci++ {
+		if !c.zones.mayContainPoint(ci, v) {
+			continue
+		}
+		base := uint32(ci) << c.codes.shift
+		for j, cd := range c.codes.chunk(ci) {
+			if cd == code {
+				s.Add(base + uint32(j))
+			}
+		}
+	}
+	return s
+}
+
+// FilterSelectionIn returns the rows whose value equals any of the given
+// values (the multi-value OR filter), pruning chunks by zone map. Values
+// absent from the dictionary are dropped up front.
+func (c *ChunkedDictStringColumn[K]) FilterSelectionIn(values []string) *Selection {
+	s := NewSelection(c.codes.len())
+	keep := make([]bool, len(c.dict))
+	present := make([]string, 0, len(values))
+	for _, v := range values {
+		if code, ok := c.lookupCode(v); ok && !keep[code] {
+			keep[code] = true
+			present = append(present, v)
+		}
+	}
+	if len(present) == 0 {
+		return s
+	}
+	for ci := 0; ci < c.codes.numChunks(); ci++ {
+		if !c.zones.mayContainAny(ci, present) {
+			continue
+		}
+		base := uint32(ci) << c.codes.shift
+		for j, cd := range c.codes.chunk(ci) {
+			if keep[cd] {
+				s.Add(base + uint32(j))
+			}
+		}
+	}
+	return s
+}
+
+// FilterSelectionRange returns the rows whose value lies in [lo, hi]
+// (inclusive; a nil bound is unbounded). The range test runs once per
+// distinct value; chunks outside the range are skipped by zone map.
+func (c *ChunkedDictStringColumn[K]) FilterSelectionRange(lo, hi *string) *Selection {
+	s := NewSelection(c.codes.len())
+	keep := make([]bool, len(c.dict))
+	any := false
+	for code, value := range c.dict {
+		in := (lo == nil || value >= *lo) && (hi == nil || value <= *hi)
+		keep[code] = in
+		any = any || in
+	}
+	if !any {
+		return s
+	}
+	for ci := 0; ci < c.codes.numChunks(); ci++ {
+		if !c.zones.mayContainRange(ci, lo, hi) {
+			continue
+		}
+		base := uint32(ci) << c.codes.shift
+		for j, cd := range c.codes.chunk(ci) {
+			if keep[cd] {
+				s.Add(base + uint32(j))
+			}
+		}
+	}
+	return s
+}
+
+// ChunkBounds returns chunk ci's zone-map bounds (min and max value). ok is
+// false when the column was not finalized.
+func (c *ChunkedDictStringColumn[K]) ChunkBounds(ci int) (min, max string, ok bool) {
+	return c.zones.bounds(ci)
 }
 
 // FilterSelection returns the rows whose value satisfies the predicate as a

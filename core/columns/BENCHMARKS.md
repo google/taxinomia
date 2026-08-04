@@ -253,3 +253,27 @@ Notes:
 - The int64 filter penalty (~15%) is the honest cost of chunked addressing on
   a memory-bandwidth-bound scan with a trivial predicate. Zone-map pruning
   (3b) exists to make such scans skip chunks entirely.
+
+### Zone-map pruning (2026-08-03, phase 3b)
+
+Same machine, `-benchtime 5x -count 3`, median of three runs, 1M rows
+(16 chunks). Naive is `FilterSelection` with the equivalent predicate — a
+scan of every chunk; pruned is the structured `FilterSelectionEqual`/`Range`,
+which skips chunks whose recorded min/max exclude the target. Sorted data is
+the layout the design targets (`scaling-to-1b-rows.md` §5: storage sorted by
+the filtered dimensions).
+
+| Filter | Naive | Pruned | |
+|---|---|---|---|
+| Equality, int64, sorted (1 of 16 chunks can match) | 15.9 ms | 0.62 ms | **26x** |
+| Range of 10k rows, int64, sorted | 12.6 ms | 1.59 ms | **7.9x** |
+| Equality, int64, unsorted (every chunk can match) | 8.4 ms | 8.2 ms | ~parity — bound checks cost nothing measurable; the direct compare also avoids the naive path's per-row closure call |
+| Equality, dict, sorted | 2.4 ms | 0.37 ms | **6.5x** |
+
+Notes:
+
+- The pruned floor (~0.4–0.6 ms) is dominated by allocating and zeroing the
+  1M-bit result `Selection`, not by scanning — the surviving chunk itself is
+  only 65k rows.
+- A dict equality on a value absent from the dictionary returns without
+  touching any chunk at all, regardless of sortedness.
