@@ -277,3 +277,18 @@ Notes:
   only 65k rows.
 - A dict equality on a value absent from the dictionary returns without
   touching any chunk at all, regardless of sortedness.
+
+### Loaders build chunked tables (2026-08-04, phase 3c)
+
+End-to-end through `TableView.ApplyFilters` (the path a URL filter takes),
+`BenchmarkApplyFiltersExactSorted` in `core/tables`: 1M rows sorted by the
+filtered column, exact-match filter, `-benchtime 3x -count 3`, medians.
+
+| Table | Time | Allocated | |
+|---|---|---|---|
+| Plain `StringColumn` (per-row scan) | 8.8 ms | 131 KB | |
+| Chunked `ChunkedStringColumn` (structured path, zone-map pruned) | 0.84 ms | 262 KB | **10.5x** |
+
+The chunked path allocates one extra 1M-bit `Selection` (the structured
+filter's result, intersected into the running selection), which is where the
+extra 131 KB comes from — constant per filter, not per row.

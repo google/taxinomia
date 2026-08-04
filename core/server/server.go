@@ -548,6 +548,16 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 				return expr.NilValue(), err
 			}
 			return expr.NewDuration(nanos), nil
+		// Any other column with typed datetime access (the chunked datetime
+		// column) — checked after the concrete cases above.
+		case interface {
+			GetValue(uint32) (time.Time, error)
+		}:
+			t, err := dtCol.GetValue(rowIndex)
+			if err != nil {
+				return expr.NilValue(), err
+			}
+			return expr.NewDatetime(t.UnixNano()), nil
 		}
 
 		strVal, err := col.GetString(rowIndex)

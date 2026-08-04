@@ -213,6 +213,56 @@ func BenchmarkFilterSelectivity(b *testing.B) {
 	})
 }
 
+// BenchmarkApplyFiltersExactSorted measures the exact-match filter on data
+// sorted by the filtered column, where chunk pruning pays: the plain column
+// scans every row per filter, the chunked column's structured path skips the
+// chunks whose zone maps exclude the value. ClearFilters between iterations
+// defeats the same-filters cache so the filter is actually recomputed.
+func BenchmarkApplyFiltersExactSorted(b *testing.B) {
+	const rows = 1 << 20 // 16 chunks at DefaultChunkSize
+	build := func(chunked bool) *TableView {
+		table := NewDataTable()
+		var col columns.IDataColumn
+		if chunked {
+			c := columns.NewChunkedStringColumn(columns.NewColumnDef("status", "Status", ""))
+			for i := 0; i < rows; i++ {
+				c.Append(fmt.Sprintf("s%03d", i/(rows/100)))
+			}
+			c.FinalizeColumn()
+			col = c
+		} else {
+			c := columns.NewStringColumn(columns.NewColumnDef("status", "Status", ""))
+			for i := 0; i < rows; i++ {
+				c.Append(fmt.Sprintf("s%03d", i/(rows/100)))
+			}
+			c.FinalizeColumn()
+			col = c
+		}
+		table.AddColumn(col)
+		return NewTableView(table, "bench_table")
+	}
+	filters := map[string]string{"status": "\"s050\""}
+
+	b.Run("Plain_1M_sorted", func(b *testing.B) {
+		tv := build(false)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			tv.ClearFilters()
+			tv.ApplyFilters(filters)
+		}
+	})
+	b.Run("Chunked_1M_sorted", func(b *testing.B) {
+		tv := build(true)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			tv.ClearFilters()
+			tv.ApplyFilters(filters)
+		}
+	})
+}
+
 // Helper functions to create benchmark tables
 
 func createStringBenchTable(rows int) (*DataTable, *TableView) {

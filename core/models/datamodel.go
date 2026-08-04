@@ -277,39 +277,40 @@ func (dm *DataModel) discoverJoins() {
 }
 
 func (dm *DataModel) createJoiner(fromColumn columns.IDataColumn, toColumn columns.IDataColumn) columns.IJoiner {
-	// Both columns must be the same type to create a joiner
-	switch from := fromColumn.(type) {
-	case *columns.StringColumn:
-		if to, ok := toColumn.(*columns.StringColumn); ok {
-			return &columns.Joiner[string]{
-				FromColumn: from,
-				ToColumn:   to,
-			}
-		}
-	case *columns.Uint32Column:
-		if to, ok := toColumn.(*columns.Uint32Column); ok {
-			return &columns.Joiner[uint32]{
-				FromColumn: from,
-				ToColumn:   to,
-			}
-		}
-	case *columns.Uint64Column:
-		if to, ok := toColumn.(*columns.Uint64Column); ok {
-			return &columns.Joiner[uint64]{
-				FromColumn: from,
-				ToColumn:   to,
-			}
-		}
-	case *columns.Int64Column:
-		if to, ok := toColumn.(*columns.Int64Column); ok {
-			return &columns.Joiner[int64]{
-				FromColumn: from,
-				ToColumn:   to,
-			}
-		}
+	// Both columns must carry the same value type to create a joiner. The
+	// from side is restricted to the storage column types (plain or chunked),
+	// as the concrete-type matching before chunked columns existed already
+	// did; the to side only needs typed access — it is always a key column,
+	// which in practice is also a storage column.
+	switch fromColumn.(type) {
+	case *columns.StringColumn, *columns.ChunkedStringColumn:
+		return typedJoiner[string](fromColumn, toColumn)
+	case *columns.Uint32Column, *columns.ChunkedUint32Column:
+		return typedJoiner[uint32](fromColumn, toColumn)
+	case *columns.Uint64Column, *columns.ChunkedUint64Column:
+		return typedJoiner[uint64](fromColumn, toColumn)
+	case *columns.Int64Column, *columns.ChunkedInt64Column:
+		return typedJoiner[int64](fromColumn, toColumn)
 	}
-	// Type mismatch or unsupported type - cannot create joiner
+	// Unsupported from-column type - cannot create joiner
 	return nil
+}
+
+// typedJoiner builds a Joiner[T] when both columns expose typed access for T.
+// Returns nil on a value-type mismatch, mirroring the historical behaviour.
+func typedJoiner[T any](fromColumn, toColumn columns.IDataColumn) columns.IJoiner {
+	from, ok := fromColumn.(columns.IDataColumnT[T])
+	if !ok {
+		return nil
+	}
+	to, ok := toColumn.(columns.IDataColumnT[T])
+	if !ok {
+		return nil
+	}
+	return &columns.Joiner[T]{
+		FromColumn: from,
+		ToColumn:   to,
+	}
 }
 
 // Join represents a relationship between columns in different tables

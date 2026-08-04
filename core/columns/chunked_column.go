@@ -277,6 +277,26 @@ func (c *chunkedColumn[T, K]) GroupIndices(indices []uint32, columnView *ColumnV
 	return groupedIndices, nil
 }
 
+// CompareRows compares the values at rows i and j in the column's value
+// ordering, satisfying RowComparator so sorts use value order rather than the
+// formatted-string fallback. Values outside the ordering (NaN) sort after
+// everything, matching compareFloat64s on the plain column.
+func (c *chunkedColumn[T, K]) CompareRows(i, j uint32) int {
+	a, b := c.data.at(i), c.data.at(j)
+	if c.neverKey != nil {
+		aOut, bOut := c.neverKey(a), c.neverKey(b)
+		switch {
+		case aOut && bOut:
+			return 0
+		case aOut:
+			return 1
+		case bOut:
+			return -1
+		}
+	}
+	return c.compare(a, b)
+}
+
 // --- IGroupOps ---
 
 func (c *chunkedColumn[T, K]) groupKeyAt(i uint32) (K, bool) {
@@ -511,4 +531,10 @@ var (
 	_ IDataColumnT[float64] = (*ChunkedFloat64Column)(nil)
 	_ IGroupOps             = (*ChunkedFloat64Column)(nil)
 	_ IChunkedColumn        = (*ChunkedFloat64Column)(nil)
+
+	// Sorts compare chunked columns by value, not by formatted string.
+	_ RowComparator = (*ChunkedStringColumn)(nil)
+	_ RowComparator = (*ChunkedFloat64Column)(nil)
+	_ RowComparator = (*ChunkedDatetimeColumn)(nil)
+	_ RowComparator = (*ChunkedDictStringColumn[uint16])(nil)
 )

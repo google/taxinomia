@@ -21,6 +21,8 @@ package csvimport
 import (
 	"strings"
 	"testing"
+
+	"github.com/google/taxinomia/core/columns"
 )
 
 func TestImportBasicCSV(t *testing.T) {
@@ -64,6 +66,13 @@ Charlie,35,Chicago`
 	ageVal, err := ageCol.GetString(0)
 	if err != nil || ageVal != "30" {
 		t.Errorf("expected '30', got '%s'", ageVal)
+	}
+
+	// Phase 3c: loaders build chunked tables.
+	for _, colName := range []string{"name", "age", "city"} {
+		if _, ok := table.GetColumn(colName).(columns.IChunkedColumn); !ok {
+			t.Errorf("column %q: expected chunked storage, got %T", colName, table.GetColumn(colName))
+		}
 	}
 }
 

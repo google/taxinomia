@@ -214,7 +214,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 
 		switch enriched.Type {
 		case TypeBool:
-			col := columns.NewBoolColumn(colDef)
+			col := columns.NewChunkedBoolColumn(colDef)
 			for _, row := range rows {
 				if v, ok := row[i].(bool); ok {
 					col.Append(v)
@@ -226,7 +226,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 			table.AddColumn(col)
 
 		case TypeInt64:
-			col := columns.NewInt64Column(colDef)
+			col := columns.NewChunkedInt64Column(colDef)
 			for _, row := range rows {
 				if v, ok := row[i].(int64); ok {
 					col.Append(v)
@@ -238,7 +238,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 			table.AddColumn(col)
 
 		case TypeUint32:
-			col := columns.NewUint32Column(colDef)
+			col := columns.NewChunkedUint32Column(colDef)
 			for _, row := range rows {
 				if v, ok := row[i].(uint32); ok {
 					col.Append(v)
@@ -250,7 +250,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 			table.AddColumn(col)
 
 		case TypeUint64:
-			col := columns.NewUint64Column(colDef)
+			col := columns.NewChunkedUint64Column(colDef)
 			for _, row := range rows {
 				if v, ok := row[i].(uint64); ok {
 					col.Append(v)
@@ -262,7 +262,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 			table.AddColumn(col)
 
 		case TypeFloat64:
-			col := columns.NewFloat64Column(colDef)
+			col := columns.NewChunkedFloat64Column(colDef)
 			for _, row := range rows {
 				if v, ok := row[i].(float64); ok {
 					col.Append(v)
@@ -274,7 +274,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 			table.AddColumn(col)
 
 		case TypeDatetime:
-			col := columns.NewDatetimeColumn(colDef)
+			col := columns.NewChunkedDatetimeColumn(colDef)
 			for _, row := range rows {
 				if v, ok := row[i].(time.Time); ok {
 					col.Append(v)
@@ -287,7 +287,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 
 		default:
 			// String column (including enums)
-			col := columns.NewStringColumn(colDef)
+			col := columns.NewChunkedStringColumn(colDef)
 			for _, row := range rows {
 				if v, ok := row[i].(string); ok {
 					col.Append(v)

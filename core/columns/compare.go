@@ -146,6 +146,12 @@ func CompareAtIndex(col IDataColumn, i, j uint32) int {
 		}
 		return compareBools(vi, vj)
 
+	// Columns that can compare their own rows in their value ordering —
+	// the chunked columns implement this. Checked after the concrete cases
+	// so the existing fast paths are untouched.
+	case RowComparator:
+		return c.CompareRows(i, j)
+
 	// Joined columns - use string comparison as fallback
 	default:
 		// Fallback: use string representation
@@ -156,6 +162,17 @@ func CompareAtIndex(col IDataColumn, i, j uint32) int {
 		}
 		return strings.Compare(si, sj)
 	}
+}
+
+// RowComparator is an optional interface for columns that can compare two of
+// their own rows in the column's value ordering (not the formatted-string
+// ordering). CompareAtIndex uses it before falling back to string comparison,
+// which would order numeric columns lexicographically ("10" before "9").
+type RowComparator interface {
+	// CompareRows returns a negative value when row i orders before row j,
+	// zero when they are equal, positive when i orders after j. Values outside
+	// the ordering (NaN) sort after everything, matching the plain columns.
+	CompareRows(i, j uint32) int
 }
 
 // compareTimes compares two time.Time values

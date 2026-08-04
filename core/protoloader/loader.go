@@ -382,7 +382,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 
 		switch fd.Kind() {
 		case protoreflect.BoolKind:
-			col := columns.NewBoolColumn(colDef)
+			col := columns.NewChunkedBoolColumn(colDef)
 			for _, row := range rb.rows {
 				if v, ok := row[i].(bool); ok {
 					col.Append(v)
@@ -395,7 +395,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 
 		case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind,
 			protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
-			col := columns.NewInt64Column(colDef)
+			col := columns.NewChunkedInt64Column(colDef)
 			for _, row := range rb.rows {
 				if v, ok := row[i].(int64); ok {
 					col.Append(v)
@@ -407,7 +407,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 			table.AddColumn(col)
 
 		case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
-			col := columns.NewUint32Column(colDef)
+			col := columns.NewChunkedUint32Column(colDef)
 			for _, row := range rb.rows {
 				if v, ok := row[i].(uint32); ok {
 					col.Append(v)
@@ -419,7 +419,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 			table.AddColumn(col)
 
 		case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
-			col := columns.NewUint64Column(colDef)
+			col := columns.NewChunkedUint64Column(colDef)
 			for _, row := range rb.rows {
 				if v, ok := row[i].(uint64); ok {
 					col.Append(v)
@@ -431,7 +431,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 			table.AddColumn(col)
 
 		case protoreflect.FloatKind, protoreflect.DoubleKind:
-			col := columns.NewFloat64Column(colDef)
+			col := columns.NewChunkedFloat64Column(colDef)
 			for _, row := range rb.rows {
 				if v, ok := row[i].(float64); ok {
 					col.Append(v)
@@ -444,7 +444,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 
 		case protoreflect.MessageKind:
 			if isTimestampField(fd) {
-				col := columns.NewDatetimeColumn(colDef)
+				col := columns.NewChunkedDatetimeColumn(colDef)
 				for _, row := range rb.rows {
 					if v, ok := row[i].(time.Time); ok {
 						col.Append(v)
@@ -456,7 +456,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 				table.AddColumn(col)
 			} else {
 				// Fallback to string for other message types
-				col := columns.NewStringColumn(colDef)
+				col := columns.NewChunkedStringColumn(colDef)
 				for _, row := range rb.rows {
 					if v, ok := row[i].(string); ok {
 						col.Append(v)
@@ -470,7 +470,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 
 		default:
 			// String, bytes, enum, and other types use StringColumn
-			col := columns.NewStringColumn(colDef)
+			col := columns.NewChunkedStringColumn(colDef)
 			for _, row := range rb.rows {
 				if v, ok := row[i].(string); ok {
 					col.Append(v)

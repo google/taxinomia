@@ -146,6 +146,22 @@ func getColumnType(col columns.IDataColumn) string {
 		return "datetime"
 	case *columns.DurationColumn:
 		return "duration"
+	// Chunked columns report the same logical types as their plain
+	// counterparts: storage layout is not a schema property.
+	case *columns.ChunkedStringColumn:
+		return "string"
+	case *columns.ChunkedUint32Column:
+		return "uint32"
+	case *columns.ChunkedInt64Column:
+		return "int64"
+	case *columns.ChunkedUint64Column:
+		return "uint64"
+	case *columns.ChunkedFloat64Column:
+		return "float64"
+	case *columns.ChunkedBoolColumn:
+		return "bool"
+	case *columns.ChunkedDatetimeColumn:
+		return "datetime"
 	default:
 		return "unknown"
 	}

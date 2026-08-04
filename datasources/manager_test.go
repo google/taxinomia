@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/google/taxinomia/core/columns"
 )
 
 func TestManagerLoadConfig(t *testing.T) {
@@ -207,6 +209,11 @@ Charlie,35,true`
 	}
 	if nameCol.ColumnDef().EntityType() != "person_name" {
 		t.Errorf("expected entity type 'person_name', got %q", nameCol.ColumnDef().EntityType())
+	}
+
+	// Phase 3c: loaders build chunked tables.
+	if _, ok := nameCol.(columns.IChunkedColumn); !ok {
+		t.Errorf("expected chunked column storage, got %T", nameCol)
 	}
 }
 

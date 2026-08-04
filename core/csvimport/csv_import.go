@@ -145,12 +145,12 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 	table := tables.NewDataTable()
 
 	// Create columns based on detected types
-	stringCols := make(map[int]*columns.StringColumn)
-	uint32Cols := make(map[int]*columns.Uint32Column)
-	boolCols := make(map[int]*columns.BoolColumn)
-	float64Cols := make(map[int]*columns.Float64Column)
-	int64Cols := make(map[int]*columns.Int64Column)
-	uint64Cols := make(map[int]*columns.Uint64Column)
+	stringCols := make(map[int]*columns.ChunkedStringColumn)
+	uint32Cols := make(map[int]*columns.ChunkedUint32Column)
+	boolCols := make(map[int]*columns.ChunkedBoolColumn)
+	float64Cols := make(map[int]*columns.ChunkedFloat64Column)
+	int64Cols := make(map[int]*columns.ChunkedInt64Column)
+	uint64Cols := make(map[int]*columns.ChunkedUint64Column)
 
 	for i, header := range headers {
 		config := getColumnSource(header, options.ColumnSources)
@@ -171,27 +171,27 @@ func ImportFromReader(reader io.Reader, options ImportOptions) (*tables.DataTabl
 		colDef := columns.NewColumnDef(name, displayName, entityType)
 
 		if columnTypes[i] == "bool" || config.Type == CsvColumnTypeBool {
-			col := columns.NewBoolColumn(colDef)
+			col := columns.NewChunkedBoolColumn(colDef)
 			boolCols[i] = col
 			table.AddColumn(col)
 		} else if columnTypes[i] == "float64" || config.Type == CsvColumnTypeFloat64 {
-			col := columns.NewFloat64Column(colDef)
+			col := columns.NewChunkedFloat64Column(colDef)
 			float64Cols[i] = col
 			table.AddColumn(col)
 		} else if columnTypes[i] == "int64" || config.Type == CsvColumnTypeInt64 {
-			col := columns.NewInt64Column(colDef)
+			col := columns.NewChunkedInt64Column(colDef)
 			int64Cols[i] = col
 			table.AddColumn(col)
 		} else if columnTypes[i] == "uint64" || config.Type == CsvColumnTypeUint64 {
-			col := columns.NewUint64Column(colDef)
+			col := columns.NewChunkedUint64Column(colDef)
 			uint64Cols[i] = col
 			table.AddColumn(col)
 		} else if columnTypes[i] == "uint32" && config.Type != CsvColumnTypeString {
-			col := columns.NewUint32Column(colDef)
+			col := columns.NewChunkedUint32Column(colDef)
 			uint32Cols[i] = col
 			table.AddColumn(col)
 		} else {
-			col := columns.NewStringColumn(colDef)
+			col := columns.NewChunkedStringColumn(colDef)
 			stringCols[i] = col
 			table.AddColumn(col)
 		}

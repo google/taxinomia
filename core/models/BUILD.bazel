@@ -16,7 +16,10 @@ go_library(
 
 go_test(
     name = "models_test",
-    srcs = ["system_tables_test.go"],
+    srcs = [
+        "chunked_join_test.go",
+        "system_tables_test.go",
+    ],
     embed = [":models"],
     deps = [
         "//core/columns",

@@ -205,12 +205,12 @@ func (c *JoinedUint32Column) GroupIndices(indices []uint32, columnView *ColumnVi
 // JoinedDatetimeColumn represents a column that gets its data by joining to a datetime column in another table
 type JoinedDatetimeColumn struct {
 	columnDef    *ColumnDef
-	sourceColumn *DatetimeColumn
+	sourceColumn IDataColumnT[time.Time]
 	joiner       IJoiner
 }
 
 // NewJoinedDatetimeColumn creates a new joined column for datetime data
-func NewJoinedDatetimeColumn(columnDef *ColumnDef, joiner IJoiner, sourceColumn *DatetimeColumn) *JoinedDatetimeColumn {
+func NewJoinedDatetimeColumn(columnDef *ColumnDef, joiner IJoiner, sourceColumn IDataColumnT[time.Time]) *JoinedDatetimeColumn {
 	return &JoinedDatetimeColumn{
 		columnDef:    columnDef,
 		joiner:       joiner,

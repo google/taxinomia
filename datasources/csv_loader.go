@@ -154,11 +154,11 @@ func (l *CsvLoader) Load(config map[string]string, enrichedColumns []*EnrichedCo
 	// Create data table
 	table := tables.NewDataTable()
 
-	// Create columns (all string columns for CSV)
-	stringCols := make([]*columns.StringColumn, len(enrichedColumns))
+	// Create columns (all string columns for CSV), chunked storage
+	stringCols := make([]*columns.ChunkedStringColumn, len(enrichedColumns))
 	for i, enriched := range enrichedColumns {
 		colDef := columns.NewColumnDef(enriched.Name, enriched.DisplayName, enriched.EntityType)
-		stringCols[i] = columns.NewStringColumn(colDef)
+		stringCols[i] = columns.NewChunkedStringColumn(colDef)
 	}
 
 	// Populate data
@@ -341,7 +341,7 @@ func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*Enric
 
 		switch enriched.Type {
 		case TypeInt64:
-			col := columns.NewInt64Column(colDef)
+			col := columns.NewChunkedInt64Column(colDef)
 			for _, record := range dataRecords {
 				if i < len(record) {
 					if v, err := strconv.ParseInt(record[i], 10, 64); err == nil {
@@ -356,7 +356,7 @@ func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*Enric
 			table.AddColumn(col)
 
 		case TypeFloat64:
-			col := columns.NewFloat64Column(colDef)
+			col := columns.NewChunkedFloat64Column(colDef)
 			for _, record := range dataRecords {
 				if i < len(record) {
 					if v, err := strconv.ParseFloat(record[i], 64); err == nil {
@@ -371,7 +371,7 @@ func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*Enric
 			table.AddColumn(col)
 
 		case TypeBool:
-			col := columns.NewBoolColumn(colDef)
+			col := columns.NewChunkedBoolColumn(colDef)
 			for _, record := range dataRecords {
 				if i < len(record) {
 					v := record[i] == "true" || record[i] == "1" || record[i] == "yes"
@@ -383,7 +383,7 @@ func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*Enric
 			table.AddColumn(col)
 
 		default: // TypeString
-			col := columns.NewStringColumn(colDef)
+			col := columns.NewChunkedStringColumn(colDef)
 			for _, record := range dataRecords {
 				if i < len(record) {
 					col.Append(record[i])

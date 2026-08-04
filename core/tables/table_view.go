@@ -153,6 +153,15 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 		if strings.Contains(filterValue, "|") {
 			// Multi-value OR filter - match any of the pipe-separated values (exact match)
 			values := strings.Split(filterValue, "|")
+			// Columns with a structured multi-value filter (the chunked
+			// columns) evaluate it themselves, skipping chunks their zone
+			// maps rule out. Same matches as the per-row scan below.
+			if fc, ok := col.(interface {
+				FilterSelectionIn([]string) *columns.Selection
+			}); ok {
+				t.filterSel.And(fc.FilterSelectionIn(values))
+				continue
+			}
 			valueSet := make(map[string]bool, len(values))
 			for _, v := range values {
 				valueSet[v] = true
@@ -170,6 +179,14 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 			if isExactMatch {
 				// Exact match (case-sensitive) - strip quotes
 				exactValue := filterValue[1 : len(filterValue)-1]
+				// Structured equality with chunk pruning, when the column
+				// offers it. Same matches as the per-row scan below.
+				if fc, ok := col.(interface {
+					FilterSelectionEqual(string) *columns.Selection
+				}); ok {
+					t.filterSel.And(fc.FilterSelectionEqual(exactValue))
+					continue
+				}
 				t.filterSel.ForEach(func(i uint32) {
 					rowValue, err := col.GetString(i)
 					if err != nil || rowValue != exactValue {
@@ -1305,6 +1322,14 @@ func (tv *TableView) addNumericValue(state *aggregates.NumericAggState, col colu
 		if val, err := typedCol.GetValue(idx); err == nil {
 			state.Add(float64(val))
 		}
+	case interface{ GetValue(uint32) (uint32, error) }:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.AddUint32(val)
+		}
+	case interface{ GetValue(uint32) (uint64, error) }:
+		if val, err := typedCol.GetValue(idx); err == nil {
+			state.Add(float64(val))
+		}
 	default:
 		// Fallback: try to parse string as number
 		if strVal, err := col.GetString(idx); err == nil {
@@ -1445,6 +1470,21 @@ func (tv *TableView) GetColumnTypeName(colName string) string {
 		return "DurationColumn"
 	case *columns.Float64Column:
 		return "Float64Column"
+	// Chunked column types
+	case *columns.ChunkedStringColumn:
+		return "ChunkedStringColumn"
+	case *columns.ChunkedUint32Column:
+		return "ChunkedUint32Column"
+	case *columns.ChunkedInt64Column:
+		return "ChunkedInt64Column"
+	case *columns.ChunkedUint64Column:
+		return "ChunkedUint64Column"
+	case *columns.ChunkedFloat64Column:
+		return "ChunkedFloat64Column"
+	case *columns.ChunkedBoolColumn:
+		return "ChunkedBoolColumn"
+	case *columns.ChunkedDatetimeColumn:
+		return "ChunkedDatetimeColumn"
 	// Computed column types
 	case *columns.ComputedUint32Column:
 		return "ComputedUint32Column"

@@ -189,6 +189,14 @@ func (c *ChunkedDictStringColumn[K]) buildZones() *zoneMap[string] {
 	return z
 }
 
+// CompareRows compares the values at rows i and j (value order, resolved
+// through the dictionary), satisfying RowComparator. Identical to what the
+// string-fallback comparison produces for this column, without the error
+// handling per row.
+func (c *ChunkedDictStringColumn[K]) CompareRows(i, j uint32) int {
+	return strings.Compare(c.dict[c.codes.at(i)], c.dict[c.codes.at(j)])
+}
+
 // lookupCode returns the dictionary code for a value: via the interning map
 // while it exists (key columns), by dictionary scan otherwise — O(distinct),
 // paid once per filter, never per row.

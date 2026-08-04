@@ -24,6 +24,7 @@ go_test(
         "ascii_demo_test.go",
         "ascii_test.go",
         "benchmark_test.go",
+        "chunked_integration_test.go",
         "filter_bench_test.go",
         "filter_selection_test.go",
         "golden_test.go",
