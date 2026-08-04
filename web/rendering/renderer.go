@@ -23,7 +23,7 @@ import (
 	"io"
 
 	"github.com/google/safehtml/template"
-	"github.com/google/taxinomia/core/views"
+	"github.com/google/taxinomia/web/viewmodel"
 )
 
 //go:embed templates/*
@@ -63,11 +63,11 @@ func NewTableRenderer() (*TableRenderer, error) {
 }
 
 // Render renders a TableViewModel to the provided writer
-func (r *TableRenderer) Render(w io.Writer, vm views.TableViewModel) error {
+func (r *TableRenderer) Render(w io.Writer, vm viewmodel.TableViewModel) error {
 	return r.tableTemplate.Execute(w, vm)
 }
 
 // RenderLanding renders a LandingViewModel to the provided writer
-func (r *TableRenderer) RenderLanding(w io.Writer, vm views.LandingViewModel) error {
+func (r *TableRenderer) RenderLanding(w io.Writer, vm viewmodel.LandingViewModel) error {
 	return r.landingTemplate.Execute(w, vm)
 }

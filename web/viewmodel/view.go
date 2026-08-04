@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package views
+package viewmodel
 
 import (
 	"github.com/google/taxinomia/core/columns"
@@ -24,8 +24,8 @@ import (
 
 // View defines which columns to display and their order
 type View struct {
-	Columns        []string                    // Column names in display order (including joined columns like "fromColumn.toTable.toColumn.selectedColumn")
-	Expanded       map[string]bool             // Set of expanded paths (e.g., "column1", "column1/table2.column2")
-	GroupedColumns []string                    // Column names to group by, in grouping order
+	Columns        []string        // Column names in display order (including joined columns like "fromColumn.toTable.toColumn.selectedColumn")
+	Expanded       map[string]bool // Set of expanded paths (e.g., "column1", "column1/table2.column2")
+	GroupedColumns []string        // Column names to group by, in grouping order
 	columnViews    map[string]*columns.ColumnView
 }

@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/google/taxinomia/core/views"
 	"github.com/google/taxinomia/datasources"
+	"github.com/google/taxinomia/web/viewmodel"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -65,7 +65,7 @@ func (p *Product) GetSubtitle() string {
 }
 
 // GetTables returns tables filtered by the product's domains.
-func (p *Product) GetTables() []views.TableInfo {
+func (p *Product) GetTables() []viewmodel.TableInfo {
 	if p.registry == nil {
 		return nil
 	}
@@ -84,7 +84,7 @@ func (p *Product) GetDefaultColumns(tableName string) []string {
 type ProductRegistry struct {
 	products   map[string]*Product
 	fallback   string // Name of the default product
-	allTables  []views.TableInfo
+	allTables  []viewmodel.TableInfo
 	fileReader datasources.FileReader
 	dirReader  datasources.DirReader
 }
@@ -108,12 +108,12 @@ func (r *ProductRegistry) SetDirReader(reader datasources.DirReader) {
 }
 
 // SetTables sets the global table metadata for all products.
-func (r *ProductRegistry) SetTables(tables []views.TableInfo) {
+func (r *ProductRegistry) SetTables(tables []viewmodel.TableInfo) {
 	r.allTables = tables
 }
 
 // GetTablesForDomains returns tables that match any of the given domains.
-func (r *ProductRegistry) GetTablesForDomains(domains []string) []views.TableInfo {
+func (r *ProductRegistry) GetTablesForDomains(domains []string) []viewmodel.TableInfo {
 	if len(domains) == 0 {
 		return r.allTables
 	}
@@ -123,7 +123,7 @@ func (r *ProductRegistry) GetTablesForDomains(domains []string) []views.TableInf
 		domainSet[d] = true
 	}
 
-	var result []views.TableInfo
+	var result []viewmodel.TableInfo
 	for _, table := range r.allTables {
 		for _, tableDomain := range table.Domains {
 			if domainSet[tableDomain] {

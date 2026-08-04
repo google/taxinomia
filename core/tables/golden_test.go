@@ -28,7 +28,7 @@ import (
 
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/grouping"
-	"github.com/google/taxinomia/core/query"
+	"github.com/google/taxinomia/core/queryspec"
 )
 
 // The golden tests pin the rendered output of grouping: group order, values,
@@ -43,16 +43,16 @@ var updateGolden = flag.Bool("update", false, "rewrite golden files with current
 
 // aggTypesFor returns a fixed, deterministic list of aggregate types to render
 // per column type.
-func aggTypesFor(colType query.ColumnType) []query.AggregateType {
+func aggTypesFor(colType queryspec.ColumnType) []queryspec.AggregateType {
 	switch colType {
-	case query.ColumnTypeNumeric:
-		return []query.AggregateType{query.AggCount, query.AggSum, query.AggAvg, query.AggMin, query.AggMax, query.AggStdDev}
-	case query.ColumnTypeBool:
-		return []query.AggregateType{query.AggCount, query.AggTrue, query.AggFalse, query.AggRatio}
-	case query.ColumnTypeDatetime:
-		return []query.AggregateType{query.AggCount, query.AggMin, query.AggMax, query.AggSpan}
+	case queryspec.ColumnTypeNumeric:
+		return []queryspec.AggregateType{queryspec.AggCount, queryspec.AggSum, queryspec.AggAvg, queryspec.AggMin, queryspec.AggMax, queryspec.AggStdDev}
+	case queryspec.ColumnTypeBool:
+		return []queryspec.AggregateType{queryspec.AggCount, queryspec.AggTrue, queryspec.AggFalse, queryspec.AggRatio}
+	case queryspec.ColumnTypeDatetime:
+		return []queryspec.AggregateType{queryspec.AggCount, queryspec.AggMin, queryspec.AggMax, queryspec.AggSpan}
 	default:
-		return []query.AggregateType{query.AggCount, query.AggUnique}
+		return []queryspec.AggregateType{queryspec.AggCount, queryspec.AggUnique}
 	}
 }
 
@@ -198,8 +198,8 @@ func TestGoldenAggregateSort(t *testing.T) {
 	// after the migration alike).
 	tv.ApplyFilters(map[string]string{"note": "note-1|note-2|note-0"})
 	tv.GroupTable([]string{"status"}, nil, make(map[string]Compare), make(map[string]bool))
-	tv.SortGroupsByAggregate(map[string]*query.GroupAggSort{
-		"status": {GroupedColumn: "status", LeafColumn: "amount", AggType: query.AggSum, Descending: true},
+	tv.SortGroupsByAggregate(map[string]*queryspec.GroupAggSort{
+		"status": {GroupedColumn: "status", LeafColumn: "amount", AggType: queryspec.AggSum, Descending: true},
 	})
 
 	out := dumpGroupTree(tv, tv.GetLeafColumns())

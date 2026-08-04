@@ -23,7 +23,7 @@ import (
 	"sort"
 
 	"github.com/google/taxinomia/core/columns"
-	"github.com/google/taxinomia/core/query"
+	"github.com/google/taxinomia/core/queryspec"
 )
 
 // sortableColumn holds a column reference and its sort direction
@@ -128,7 +128,7 @@ func (h *topKHeap) replaceTop(idx uint32) {
 // per row. Nothing in this repository uses it; it remains for external
 // callers and will be removed in a future major cleanup. GetFilteredRowsSorted
 // performs the same selection directly on the filter bitmap.
-func (t *TableView) GetSortedTopK(indices []uint32, sortOrder []query.SortColumn, limit int) []uint32 {
+func (t *TableView) GetSortedTopK(indices []uint32, sortOrder []queryspec.SortColumn, limit int) []uint32 {
 	if len(indices) == 0 || limit <= 0 {
 		return []uint32{}
 	}
@@ -256,7 +256,7 @@ func (t *TableView) sortedTopK(sel columns.RowSet, sortableCols []sortableColumn
 // GetFilteredRowsSorted returns rows sorted according to sortOrder, limited to top K.
 // This combines filtering, sorting, and limiting into an efficient operation,
 // working directly on the filter selection bitmap.
-func (t *TableView) GetFilteredRowsSorted(columnNames []string, sortOrder []query.SortColumn, limit int) []map[string]string {
+func (t *TableView) GetFilteredRowsSorted(columnNames []string, sortOrder []queryspec.SortColumn, limit int) []map[string]string {
 	sel := t.rowSet()
 
 	// Get top K sorted indices

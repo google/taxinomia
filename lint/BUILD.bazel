@@ -1,0 +1,10 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+# Source-level boundary lint (core must not import web/ or safehtml). Under
+# Bazel the sandbox has no module source tree, so the test skips itself; the
+# Bazel-side enforcement is the visibility allowlist on //web/... targets.
+# Run `go test ./lint/` (part of the health check) for the real check.
+go_test(
+    name = "lint_test",
+    srcs = ["boundary_test.go"],
+)

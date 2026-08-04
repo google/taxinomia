@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/google/taxinomia/core/columns"
-	"github.com/google/taxinomia/core/query"
+	"github.com/google/taxinomia/core/queryspec"
 )
 
 // chunkedDemoTable builds the exact demoTable dataset with chunked columns.
@@ -225,11 +225,11 @@ func TestChunkedSortParity(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		sort []query.SortColumn
+		sort []queryspec.SortColumn
 	}{
-		{"amount desc", []query.SortColumn{{Name: "amount", Descending: true}}},
-		{"score asc amount desc", []query.SortColumn{{Name: "score"}, {Name: "amount", Descending: true}}},
-		{"status asc", []query.SortColumn{{Name: "status"}}},
+		{"amount desc", []queryspec.SortColumn{{Name: "amount", Descending: true}}},
+		{"score asc amount desc", []queryspec.SortColumn{{Name: "score"}, {Name: "amount", Descending: true}}},
+		{"status asc", []queryspec.SortColumn{{Name: "status"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cols := []string{"status", "region", "amount", "score"}

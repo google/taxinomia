@@ -26,7 +26,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/google/taxinomia/core/query"
+	"github.com/google/taxinomia/core/queryspec"
 )
 
 // AggregateState is the interface for all aggregate state types.
@@ -35,9 +35,9 @@ type AggregateState interface {
 	// Combine merges another state into this one (for hierarchical aggregation).
 	Combine(other AggregateState)
 	// Format returns a formatted string for the given aggregate type.
-	Format(aggType query.AggregateType) string
+	Format(aggType queryspec.AggregateType) string
 	// ColumnType returns the column type this state is for.
-	ColumnType() query.ColumnType
+	ColumnType() queryspec.ColumnType
 }
 
 // NumericAggState stores intermediate state for numeric column aggregates.
@@ -117,22 +117,22 @@ func (s *NumericAggState) StdDev() float64 {
 }
 
 // Format returns a formatted string for the given aggregate type.
-func (s *NumericAggState) Format(aggType query.AggregateType) string {
+func (s *NumericAggState) Format(aggType queryspec.AggregateType) string {
 	if s.Count == 0 {
 		return "-"
 	}
 	switch aggType {
-	case query.AggCount:
+	case queryspec.AggCount:
 		return fmt.Sprintf("%d", s.Count)
-	case query.AggSum:
+	case queryspec.AggSum:
 		return formatNumber(s.Sum)
-	case query.AggAvg:
+	case queryspec.AggAvg:
 		return formatNumber(s.Avg())
-	case query.AggStdDev:
+	case queryspec.AggStdDev:
 		return formatNumber(s.StdDev())
-	case query.AggMin:
+	case queryspec.AggMin:
 		return formatNumber(s.Min)
-	case query.AggMax:
+	case queryspec.AggMax:
 		return formatNumber(s.Max)
 	default:
 		return "-"
@@ -140,8 +140,8 @@ func (s *NumericAggState) Format(aggType query.AggregateType) string {
 }
 
 // ColumnType returns the column type this state is for.
-func (s *NumericAggState) ColumnType() query.ColumnType {
-	return query.ColumnTypeNumeric
+func (s *NumericAggState) ColumnType() queryspec.ColumnType {
+	return queryspec.ColumnTypeNumeric
 }
 
 // BoolAggState stores intermediate state for boolean column aggregates.
@@ -187,18 +187,18 @@ func (s *BoolAggState) Ratio() float64 {
 }
 
 // Format returns a formatted string for the given aggregate type.
-func (s *BoolAggState) Format(aggType query.AggregateType) string {
+func (s *BoolAggState) Format(aggType queryspec.AggregateType) string {
 	if s.Count == 0 {
 		return "-"
 	}
 	switch aggType {
-	case query.AggCount:
+	case queryspec.AggCount:
 		return fmt.Sprintf("%d", s.Count)
-	case query.AggTrue:
+	case queryspec.AggTrue:
 		return fmt.Sprintf("%d", s.TrueCount)
-	case query.AggFalse:
+	case queryspec.AggFalse:
 		return fmt.Sprintf("%d", s.FalseCount)
-	case query.AggRatio:
+	case queryspec.AggRatio:
 		return fmt.Sprintf("%.1f%%", s.Ratio()*100)
 	default:
 		return "-"
@@ -206,8 +206,8 @@ func (s *BoolAggState) Format(aggType query.AggregateType) string {
 }
 
 // ColumnType returns the column type this state is for.
-func (s *BoolAggState) ColumnType() query.ColumnType {
-	return query.ColumnTypeBool
+func (s *BoolAggState) ColumnType() queryspec.ColumnType {
+	return queryspec.ColumnTypeBool
 }
 
 // StringAggState stores intermediate state for string column aggregates.
@@ -275,18 +275,18 @@ func (s *StringAggState) UniqueCount() int {
 }
 
 // Format returns a formatted string for the given aggregate type.
-func (s *StringAggState) Format(aggType query.AggregateType) string {
+func (s *StringAggState) Format(aggType queryspec.AggregateType) string {
 	if s.Count == 0 {
 		return "-"
 	}
 	switch aggType {
-	case query.AggCount:
+	case queryspec.AggCount:
 		return fmt.Sprintf("%d", s.Count)
-	case query.AggUnique:
+	case queryspec.AggUnique:
 		return fmt.Sprintf("%d", s.UniqueCount())
-	case query.AggMin:
+	case queryspec.AggMin:
 		return s.Min
-	case query.AggMax:
+	case queryspec.AggMax:
 		return s.Max
 	default:
 		return "-"
@@ -294,8 +294,8 @@ func (s *StringAggState) Format(aggType query.AggregateType) string {
 }
 
 // ColumnType returns the column type this state is for.
-func (s *StringAggState) ColumnType() query.ColumnType {
-	return query.ColumnTypeString
+func (s *StringAggState) ColumnType() queryspec.ColumnType {
+	return queryspec.ColumnTypeString
 }
 
 // DatetimeAggState stores intermediate state for datetime column aggregates.
@@ -395,22 +395,22 @@ func (s *DatetimeAggState) MaxTime() time.Time {
 }
 
 // Format returns a formatted string for the given aggregate type.
-func (s *DatetimeAggState) Format(aggType query.AggregateType) string {
+func (s *DatetimeAggState) Format(aggType queryspec.AggregateType) string {
 	if s.Count == 0 {
 		return "-"
 	}
 	switch aggType {
-	case query.AggCount:
+	case queryspec.AggCount:
 		return fmt.Sprintf("%d", s.Count)
-	case query.AggMin:
+	case queryspec.AggMin:
 		return formatDatetime(s.MinTime())
-	case query.AggMax:
+	case queryspec.AggMax:
 		return formatDatetime(s.MaxTime())
-	case query.AggAvg:
+	case queryspec.AggAvg:
 		return formatDatetime(s.Avg())
-	case query.AggStdDev:
+	case queryspec.AggStdDev:
 		return formatDuration(s.StdDev())
-	case query.AggSpan:
+	case queryspec.AggSpan:
 		return formatDuration(s.Span())
 	default:
 		return "-"
@@ -418,8 +418,8 @@ func (s *DatetimeAggState) Format(aggType query.AggregateType) string {
 }
 
 // ColumnType returns the column type this state is for.
-func (s *DatetimeAggState) ColumnType() query.ColumnType {
-	return query.ColumnTypeDatetime
+func (s *DatetimeAggState) ColumnType() queryspec.ColumnType {
+	return queryspec.ColumnTypeDatetime
 }
 
 // --- Formatting helpers ---
@@ -483,15 +483,15 @@ func formatDuration(d time.Duration) string {
 }
 
 // CreateAggState creates a new aggregate state for the given column type.
-func CreateAggState(colType query.ColumnType) AggregateState {
+func CreateAggState(colType queryspec.ColumnType) AggregateState {
 	switch colType {
-	case query.ColumnTypeNumeric:
+	case queryspec.ColumnTypeNumeric:
 		return NewNumericAggState()
-	case query.ColumnTypeBool:
+	case queryspec.ColumnTypeBool:
 		return NewBoolAggState()
-	case query.ColumnTypeString:
+	case queryspec.ColumnTypeString:
 		return NewStringAggState()
-	case query.ColumnTypeDatetime:
+	case queryspec.ColumnTypeDatetime:
 		return NewDatetimeAggState()
 	default:
 		return NewStringAggState() // Default to string
@@ -501,12 +501,12 @@ func CreateAggState(colType query.ColumnType) AggregateState {
 // ColumnAggregator holds a column reference and its aggregate state for accumulation.
 type ColumnAggregator struct {
 	ColumnName string
-	ColumnType query.ColumnType
+	ColumnType queryspec.ColumnType
 	State      AggregateState
 }
 
 // NewColumnAggregator creates a new aggregator for a column.
-func NewColumnAggregator(colName string, colType query.ColumnType) *ColumnAggregator {
+func NewColumnAggregator(colName string, colType queryspec.ColumnType) *ColumnAggregator {
 	return &ColumnAggregator{
 		ColumnName: colName,
 		ColumnType: colType,
@@ -529,14 +529,14 @@ type ColumnAggregateDisplay struct {
 }
 
 // FormatAggregates returns formatted aggregates for display, based on enabled aggregate types.
-func FormatAggregates(state AggregateState, enabledAggs []query.AggregateType) []FormattedAggregate {
-	return FormatAggregatesWithSort(state, enabledAggs, "", query.AggCount)
+func FormatAggregates(state AggregateState, enabledAggs []queryspec.AggregateType) []FormattedAggregate {
+	return FormatAggregatesWithSort(state, enabledAggs, "", queryspec.AggCount)
 }
 
 // FormatAggregatesWithSort returns formatted aggregates with an optional sorted indicator.
 // If sortedColName matches the column being formatted and sortedAggType matches one of the aggregates,
 // that aggregate will have IsSorted=true.
-func FormatAggregatesWithSort(state AggregateState, enabledAggs []query.AggregateType, sortedColName string, sortedAggType query.AggregateType) []FormattedAggregate {
+func FormatAggregatesWithSort(state AggregateState, enabledAggs []queryspec.AggregateType, sortedColName string, sortedAggType queryspec.AggregateType) []FormattedAggregate {
 	if state == nil || len(enabledAggs) == 0 {
 		return nil
 	}
@@ -544,9 +544,9 @@ func FormatAggregatesWithSort(state AggregateState, enabledAggs []query.Aggregat
 	for _, aggType := range enabledAggs {
 		isSorted := sortedColName != "" && aggType == sortedAggType
 		result = append(result, FormattedAggregate{
-			Symbol:   query.AggregateSymbol(aggType),
+			Symbol:   queryspec.AggregateSymbol(aggType),
 			Value:    state.Format(aggType),
-			Title:    query.AggregateTitle(aggType),
+			Title:    queryspec.AggregateTitle(aggType),
 			IsSorted: isSorted,
 		})
 	}

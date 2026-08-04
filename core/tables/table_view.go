@@ -30,7 +30,7 @@ import (
 	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/grouping"
-	"github.com/google/taxinomia/core/query"
+	"github.com/google/taxinomia/core/queryspec"
 )
 
 // groupHeap implements a max-heap for top-K group selection.
@@ -413,7 +413,7 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 
 	// Compute aggregates for all groups
 	leafColumns := t.GetLeafColumns()
-	columnTypes := make(map[string]query.ColumnType)
+	columnTypes := make(map[string]queryspec.ColumnType)
 	for _, colName := range leafColumns {
 		columnTypes[colName] = t.GetColumnType(colName)
 	}
@@ -460,7 +460,7 @@ func (t *TableView) groupTableLazy(groupingOrder []string, asc map[string]bool, 
 	t.buildExpandedChildren(t.firstBlock, 0, nil, expanded, asc)
 
 	leafColumns := t.GetLeafColumns()
-	columnTypes := make(map[string]query.ColumnType)
+	columnTypes := make(map[string]queryspec.ColumnType)
 	for _, colName := range leafColumns {
 		columnTypes[colName] = t.GetColumnType(colName)
 	}
@@ -484,7 +484,7 @@ func (t *TableView) updateGroupExpansion(asc map[string]bool, expansion GroupExp
 	t.rebuildBlockRegistry()
 
 	leafColumns := t.GetLeafColumns()
-	columnTypes := make(map[string]query.ColumnType)
+	columnTypes := make(map[string]queryspec.ColumnType)
 	for _, colName := range leafColumns {
 		columnTypes[colName] = t.GetColumnType(colName)
 	}
@@ -1210,7 +1210,7 @@ func (tv *TableView) GetOtherLeafColumns() []string {
 // ComputeAggregates computes aggregates for all groups in the hierarchy.
 // It uses bottom-up aggregation: leaf groups compute from data, parent groups combine children.
 // leafColumns specifies which columns to aggregate; columnTypes maps column names to types.
-func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[string]query.ColumnType) {
+func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[string]queryspec.ColumnType) {
 	if tv.firstBlock == nil || len(leafColumns) == 0 {
 		return
 	}
@@ -1221,7 +1221,7 @@ func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[str
 
 // computeAggregatesForBlock recursively computes aggregates for a block and its children.
 // Returns after processing all groups in the block.
-func (tv *TableView) computeAggregatesForBlock(block *grouping.Block, leafColumns []string, columnTypes map[string]query.ColumnType) {
+func (tv *TableView) computeAggregatesForBlock(block *grouping.Block, leafColumns []string, columnTypes map[string]queryspec.ColumnType) {
 	if block == nil {
 		return
 	}
@@ -1253,7 +1253,7 @@ func (tv *TableView) computeAggregatesForBlock(block *grouping.Block, leafColumn
 }
 
 // computeLeafAggregates computes aggregates for a leaf group by iterating over its indices.
-func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]query.ColumnType) {
+func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]queryspec.ColumnType) {
 	for _, colName := range leafColumns {
 		colType := columnTypes[colName]
 		col := tv.GetColumn(colName)
@@ -1266,19 +1266,19 @@ func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []
 		// Add each value from the group's indices
 		for _, idx := range group.Indices {
 			switch colType {
-			case query.ColumnTypeNumeric:
+			case queryspec.ColumnTypeNumeric:
 				if numState, ok := state.(*aggregates.NumericAggState); ok {
 					tv.addNumericValue(numState, col, idx)
 				}
-			case query.ColumnTypeBool:
+			case queryspec.ColumnTypeBool:
 				if boolState, ok := state.(*aggregates.BoolAggState); ok {
 					tv.addBoolValue(boolState, col, idx)
 				}
-			case query.ColumnTypeDatetime:
+			case queryspec.ColumnTypeDatetime:
 				if dtState, ok := state.(*aggregates.DatetimeAggState); ok {
 					tv.addDatetimeValue(dtState, col, idx)
 				}
-			case query.ColumnTypeString:
+			case queryspec.ColumnTypeString:
 				if strState, ok := state.(*aggregates.StringAggState); ok {
 					tv.addStringValue(strState, col, idx)
 				}
@@ -1290,7 +1290,7 @@ func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []
 }
 
 // combineChildAggregates combines aggregates from child groups into a parent group.
-func (tv *TableView) combineChildAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]query.ColumnType) {
+func (tv *TableView) combineChildAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]queryspec.ColumnType) {
 	for _, colName := range leafColumns {
 		colType := columnTypes[colName]
 		parentState := aggregates.CreateAggState(colType)
@@ -1369,7 +1369,9 @@ func (tv *TableView) addDatetimeValue(state *aggregates.DatetimeAggState, col co
 		if val, err := typedCol.GetValue(idx); err == nil {
 			state.Add(val)
 		}
-	case interface{ GetValue(uint32) (time.Time, error) }:
+	case interface {
+		GetValue(uint32) (time.Time, error)
+	}:
 		if val, err := typedCol.GetValue(idx); err == nil {
 			state.Add(val)
 		}
@@ -1391,58 +1393,60 @@ func (tv *TableView) addStringValue(state *aggregates.StringAggState, col column
 }
 
 // GetColumnType determines the column type for aggregate purposes.
-func (tv *TableView) GetColumnType(colName string) query.ColumnType {
+func (tv *TableView) GetColumnType(colName string) queryspec.ColumnType {
 	col := tv.GetColumn(colName)
 	if col == nil {
-		return query.ColumnTypeString
+		return queryspec.ColumnTypeString
 	}
 
 	// Check concrete types
 	switch col.(type) {
 	case *columns.Uint32Column:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case *columns.Int64Column:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case *columns.Uint64Column:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case *columns.Float64Column:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case *columns.BoolColumn:
-		return query.ColumnTypeBool
+		return queryspec.ColumnTypeBool
 	case *columns.DatetimeColumn:
-		return query.ColumnTypeDatetime
+		return queryspec.ColumnTypeDatetime
 	case *columns.StringColumn:
-		return query.ColumnTypeString
+		return queryspec.ColumnTypeString
 	case *columns.DurationColumn:
-		return query.ColumnTypeDatetime // Duration treated like datetime for aggregation
+		return queryspec.ColumnTypeDatetime // Duration treated like datetime for aggregation
 	// Computed column types
 	case *columns.ComputedUint32Column:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case *columns.ComputedFloat64Column:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case *columns.ComputedInt64Column:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case *columns.ComputedStringColumn:
-		return query.ColumnTypeString
+		return queryspec.ColumnTypeString
 	}
 
 	// Check for typed column interfaces (for computed/joined columns)
 	switch col.(type) {
 	case interface{ GetValue(uint32) (uint32, error) }:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case interface{ GetValue(uint32) (int64, error) }:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case interface{ GetValue(uint32) (uint64, error) }:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case interface{ GetValue(uint32) (float64, error) }:
-		return query.ColumnTypeNumeric
+		return queryspec.ColumnTypeNumeric
 	case interface{ GetValue(uint32) (bool, error) }:
-		return query.ColumnTypeBool
-	case interface{ GetValue(uint32) (time.Time, error) }:
-		return query.ColumnTypeDatetime
+		return queryspec.ColumnTypeBool
+	case interface {
+		GetValue(uint32) (time.Time, error)
+	}:
+		return queryspec.ColumnTypeDatetime
 	}
 
-	return query.ColumnTypeString
+	return queryspec.ColumnTypeString
 }
 
 // GetColumnTypeName returns the Go struct name for a column (e.g., "StringColumn", "Uint32Column").
@@ -1508,7 +1512,7 @@ func (tv *TableView) GetColumnTypeName(colName string) string {
 // SortGroupsByAggregate re-sorts groups in a block by their aggregate value.
 // This should be called after ComputeAggregates.
 // groupAggSorts maps grouped column names to their aggregate sort specification.
-func (tv *TableView) SortGroupsByAggregate(groupAggSorts map[string]*query.GroupAggSort) {
+func (tv *TableView) SortGroupsByAggregate(groupAggSorts map[string]*queryspec.GroupAggSort) {
 	if tv.firstBlock == nil || len(groupAggSorts) == 0 {
 		return
 	}
@@ -1518,7 +1522,7 @@ func (tv *TableView) SortGroupsByAggregate(groupAggSorts map[string]*query.Group
 }
 
 // sortBlockByAggregate recursively sorts groups in a block and its children by aggregate values.
-func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts map[string]*query.GroupAggSort) {
+func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts map[string]*queryspec.GroupAggSort) {
 	if block == nil {
 		return
 	}
@@ -1539,7 +1543,7 @@ func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts m
 			var cmp int
 
 			switch aggSort.AggType {
-			case query.AggRowCount:
+			case queryspec.AggRowCount:
 				// Sort by total row count in the group
 				countI := tv.getGroupRowCount(block.Groups[i])
 				countJ := tv.getGroupRowCount(block.Groups[j])
@@ -1548,7 +1552,7 @@ func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts m
 				} else if countI > countJ {
 					cmp = 1
 				}
-			case query.AggSubgroupCount:
+			case queryspec.AggSubgroupCount:
 				// Sort by number of subgroups
 				countI := tv.getGroupSubgroupCount(block.Groups[i])
 				countJ := tv.getGroupSubgroupCount(block.Groups[j])
@@ -1603,7 +1607,7 @@ func (tv *TableView) getGroupSubgroupCount(group *grouping.Group) int {
 
 // compareAggregateValues compares two aggregate states for a specific aggregate type.
 // Returns -1 if a < b, 0 if equal, 1 if a > b.
-func (tv *TableView) compareAggregateValues(a, b aggregates.AggregateState, aggType query.AggregateType) int {
+func (tv *TableView) compareAggregateValues(a, b aggregates.AggregateState, aggType queryspec.AggregateType) int {
 	if a == nil && b == nil {
 		return 0
 	}
@@ -1628,58 +1632,58 @@ func (tv *TableView) compareAggregateValues(a, b aggregates.AggregateState, aggT
 }
 
 // getAggregateNumericValue extracts a numeric value from an aggregate state for comparison.
-func (tv *TableView) getAggregateNumericValue(state aggregates.AggregateState, aggType query.AggregateType) float64 {
+func (tv *TableView) getAggregateNumericValue(state aggregates.AggregateState, aggType queryspec.AggregateType) float64 {
 	switch s := state.(type) {
 	case *aggregates.NumericAggState:
 		switch aggType {
-		case query.AggCount:
+		case queryspec.AggCount:
 			return float64(s.Count)
-		case query.AggSum:
+		case queryspec.AggSum:
 			return s.Sum
-		case query.AggAvg:
+		case queryspec.AggAvg:
 			return s.Avg()
-		case query.AggStdDev:
+		case queryspec.AggStdDev:
 			return s.StdDev()
-		case query.AggMin:
+		case queryspec.AggMin:
 			return s.Min
-		case query.AggMax:
+		case queryspec.AggMax:
 			return s.Max
 		}
 	case *aggregates.BoolAggState:
 		switch aggType {
-		case query.AggCount:
+		case queryspec.AggCount:
 			return float64(s.Count)
-		case query.AggTrue:
+		case queryspec.AggTrue:
 			return float64(s.TrueCount)
-		case query.AggFalse:
+		case queryspec.AggFalse:
 			return float64(s.FalseCount)
-		case query.AggRatio:
+		case queryspec.AggRatio:
 			return s.Ratio()
 		}
 	case *aggregates.StringAggState:
 		switch aggType {
-		case query.AggCount:
+		case queryspec.AggCount:
 			return float64(s.Count)
-		case query.AggUnique:
+		case queryspec.AggUnique:
 			return float64(s.UniqueCount())
 		}
 	case *aggregates.DatetimeAggState:
 		switch aggType {
-		case query.AggCount:
+		case queryspec.AggCount:
 			return float64(s.Count)
-		case query.AggMin:
+		case queryspec.AggMin:
 			return float64(s.Min) // epoch nanoseconds
-		case query.AggMax:
+		case queryspec.AggMax:
 			return float64(s.Max) // epoch nanoseconds
-		case query.AggAvg:
+		case queryspec.AggAvg:
 			// Average time as epoch nanoseconds
 			if s.Count == 0 {
 				return 0
 			}
 			return s.Sum / float64(s.Count)
-		case query.AggStdDev:
+		case queryspec.AggStdDev:
 			return float64(s.StdDev()) // duration in nanoseconds
-		case query.AggSpan:
+		case queryspec.AggSpan:
 			return float64(s.Max - s.Min) // duration in nanoseconds
 		}
 	}

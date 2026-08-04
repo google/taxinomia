@@ -14,7 +14,7 @@ go_library(
         "//core/aggregates",
         "//core/columns",
         "//core/grouping",
-        "//core/query",
+        "//core/queryspec",
     ],
 )
 
@@ -40,6 +40,6 @@ go_test(
         "//core/columns",
         "//core/expr",
         "//core/grouping",
-        "//core/query",
+        "//core/queryspec",
     ],
 )

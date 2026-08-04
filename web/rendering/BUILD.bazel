@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rendering",
+    srcs = ["renderer.go"],
+    embedsrcs = [
+        "templates/landing.html",
+        "templates/table.html",
+    ],
+    importpath = "github.com/google/taxinomia/web/rendering",
+    visibility = [
+        "//core/query:__pkg__",
+        "//core/rendering:__pkg__",
+        "//core/server:__pkg__",
+        "//core/views:__pkg__",
+        "//demo:__pkg__",
+        "//web:__subpackages__",
+    ],
+    deps = [
+        "//web/viewmodel",
+        "@com_github_google_safehtml//template",
+    ],
+)

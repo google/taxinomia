@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# The web/ tree is the presentation side of the boundary: core/** must never
+# depend on it. Visibility is the enforcement — only web itself, the
+# composition roots, and the core/... forwarding packages may depend on
+# these targets.
+go_library(
+    name = "urlquery",
+    srcs = [
+        "query.go",
+        "spec.go",
+    ],
+    importpath = "github.com/google/taxinomia/web/urlquery",
+    visibility = [
+        "//core/query:__pkg__",
+        "//core/rendering:__pkg__",
+        "//core/server:__pkg__",
+        "//core/views:__pkg__",
+        "//demo:__pkg__",
+        "//web:__subpackages__",
+    ],
+    deps = [
+        "//core/queryspec",
+        "@com_github_google_safehtml//:safehtml",
+    ],
+)
+
+go_test(
+    name = "urlquery_test",
+    srcs = ["query_test.go"],
+    embed = [":urlquery"],
+)

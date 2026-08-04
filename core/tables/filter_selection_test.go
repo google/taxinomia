@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/google/taxinomia/core/columns"
-	"github.com/google/taxinomia/core/query"
+	"github.com/google/taxinomia/core/queryspec"
 )
 
 // newFilterTestView builds a small table exercising every filter form:
@@ -229,7 +229,7 @@ func TestRowListingAllocationBoundedByLimit(t *testing.T) {
 		return len(tv.GetFilteredRows([]string{"value"}, limit))
 	})
 	measure("GetFilteredRowsSorted(desc)", func() int {
-		sortOrder := []query.SortColumn{{Name: "value", Descending: true}}
+		sortOrder := []queryspec.SortColumn{{Name: "value", Descending: true}}
 		return len(tv.GetFilteredRowsSorted([]string{"value"}, sortOrder, limit))
 	})
 	measure("GetFilteredRowsSorted(no sort)", func() int {

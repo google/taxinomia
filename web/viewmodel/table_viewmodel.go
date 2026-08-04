@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package views
+package viewmodel
 
 import (
 	"fmt"
@@ -28,30 +28,30 @@ import (
 	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/grouping"
 	"github.com/google/taxinomia/core/models"
-	"github.com/google/taxinomia/core/query"
 	"github.com/google/taxinomia/core/tables"
+	"github.com/google/taxinomia/web/urlquery"
 )
 
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
-	Title                     string
-	PrimaryKeyEntityType      string // The entity type that serves as primary key for this table
-	PrimaryKeyDescription     string // Description of the primary key entity type
-	Headers              []string           // Column display names
-	Columns         []string               // Column names (for data access)
-	ColumnWidths    map[string]int         // Column widths in pixels (from URL)
-	Rows            []map[string]string    // Each row is a map of column name to value (flat table, ungrouped)
-	RowURLs         []map[string]string    // URLs for each cell in flat rows (parallel to Rows)
-	GroupedRows     []GroupedRow           // Hierarchical rows for grouped display
-	IsGrouped       bool                   // Whether the table is currently grouped
-	AllColumns      []ColumnInfo           // All available columns with metadata
-	ComputedColumns []ComputedColumnInfo   // Computed columns defined by the user
-	CurrentQuery    string                 // Current query string
-	CurrentURL      safehtml.URL           // Current URL for building toggle links
-	ColumnStats     []string               // Statistics for each visible column (e.g., "5 groups" or "100 rows")
-	ColumnFilters    map[string]string // Filter values for each column (from URL parameters like filter:columnA=abc)
-	ColumnFormulas   map[string]string // Formula for computed columns (columnName -> formula like "concat(a, b)")
-	IsComputedColumn map[string]bool   // Tracks which columns are computed (for UI, even if formula is empty)
+	Title                 string
+	PrimaryKeyEntityType  string               // The entity type that serves as primary key for this table
+	PrimaryKeyDescription string               // Description of the primary key entity type
+	Headers               []string             // Column display names
+	Columns               []string             // Column names (for data access)
+	ColumnWidths          map[string]int       // Column widths in pixels (from URL)
+	Rows                  []map[string]string  // Each row is a map of column name to value (flat table, ungrouped)
+	RowURLs               []map[string]string  // URLs for each cell in flat rows (parallel to Rows)
+	GroupedRows           []GroupedRow         // Hierarchical rows for grouped display
+	IsGrouped             bool                 // Whether the table is currently grouped
+	AllColumns            []ColumnInfo         // All available columns with metadata
+	ComputedColumns       []ComputedColumnInfo // Computed columns defined by the user
+	CurrentQuery          string               // Current query string
+	CurrentURL            safehtml.URL         // Current URL for building toggle links
+	ColumnStats           []string             // Statistics for each visible column (e.g., "5 groups" or "100 rows")
+	ColumnFilters         map[string]string    // Filter values for each column (from URL parameters like filter:columnA=abc)
+	ColumnFormulas        map[string]string    // Formula for computed columns (columnName -> formula like "concat(a, b)")
+	IsComputedColumn      map[string]bool      // Tracks which columns are computed (for UI, even if formula is empty)
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
@@ -64,7 +64,7 @@ type TableViewModel struct {
 	FilterErrors         map[string]ValidationError // Errors for filters (columnName -> error)
 
 	// Performance metrics
-	RenderTimeMs   string        // Time to render the page in milliseconds (formatted)
+	RenderTimeMs    string        // Time to render the page in milliseconds (formatted)
 	TimingBreakdown []TimingEntry // Detailed timing breakdown of operations
 
 	// Info pane state (controlled via URL)
@@ -86,10 +86,10 @@ type TableViewModel struct {
 	RowIDs           []string // Primary key value for each row (parallel to Rows)
 
 	// Row selection state
-	SelectedRowID           string               // Primary key value of selected row (empty = no selection)
-	SelectedRowData         []SelectedRowField   // Fields of the selected row for detail panel
-	SelectedItemHierarchies []HierarchyContext   // Hierarchy contexts for the selected item's primary key
-	RelatedTables           []RelatedTable       // Tables that can be filtered by the selected item's entity type
+	SelectedRowID           string             // Primary key value of selected row (empty = no selection)
+	SelectedRowData         []SelectedRowField // Fields of the selected row for detail panel
+	SelectedItemHierarchies []HierarchyContext // Hierarchy contexts for the selected item's primary key
+	RelatedTables           []RelatedTable     // Tables that can be filtered by the selected item's entity type
 }
 
 // SelectedRowField represents a single field in the selected row for the detail panel
@@ -143,7 +143,7 @@ type RelatedTable struct {
 // It takes the current query (to preserve non-table-specific state), primary key entity type,
 // value, row data, and column entity types to build the full hierarchy context.
 type HierarchyContextBuilder func(
-	currentQuery *query.Query,
+	currentQuery *urlquery.Query,
 	primaryKeyEntityType string,
 	primaryKeyValue string,
 	rowData map[string]string,
@@ -154,7 +154,7 @@ type HierarchyContextBuilder func(
 // It returns a list of RelatedTable entries for tables that can be filtered by the entity value.
 // Used to populate the "Related Tables" section in the detail pane.
 type RelatedTablesResolver func(
-	currentQuery *query.Query,
+	currentQuery *urlquery.Query,
 	currentTableName string,
 	primaryKeyEntityType string,
 	primaryKeyValue string,
@@ -173,7 +173,7 @@ type EntityTypeDescriptionResolver func(entityType string) string
 
 // TimingEntry represents a single timing measurement
 type TimingEntry struct {
-	Operation string // Name of the operation (e.g., "Parse Query", "Apply Filters")
+	Operation  string // Name of the operation (e.g., "Parse Query", "Apply Filters")
 	DurationMs string // Duration in milliseconds (formatted)
 }
 
@@ -199,10 +199,10 @@ type GroupedRow struct {
 // GroupedCell represents a cell to be rendered in the grouped table
 // Rowspan indicates how many rows this cell spans (1 = no span, >1 = spans multiple rows)
 type GroupedCell struct {
-	Value                 string       // Display value for the cell
-	ValueURL              string       // URL for the cell value (if entity type has default URL)
-	NumRows               int          // Number of rows in this group (for display in brackets)
-	NumSubgroups          int          // Number of subgroups (0 if leaf group)
+	Value                 string // Display value for the cell
+	ValueURL              string // URL for the cell value (if entity type has default URL)
+	NumRows               int    // Number of rows in this group (for display in brackets)
+	NumSubgroups          int    // Number of subgroups (0 if leaf group)
 	Rowspan               int
 	Title                 string       // Tooltip text for hover-over information
 	FilterURL             safehtml.URL // URL to filter on this value and remove grouping
@@ -222,41 +222,41 @@ type GroupedCell struct {
 
 // AggregateToggle represents a single aggregate toggle button for the UI
 type AggregateToggle struct {
-	Type      query.AggregateType // The aggregate type
-	Symbol    string              // Display symbol (e.g., "Σ", "μ")
-	Title     string              // Tooltip text
-	IsEnabled bool                // Whether this aggregate is currently enabled
-	ToggleURL safehtml.URL        // URL to toggle this aggregate
+	Type      urlquery.AggregateType // The aggregate type
+	Symbol    string                 // Display symbol (e.g., "Σ", "μ")
+	Title     string                 // Tooltip text
+	IsEnabled bool                   // Whether this aggregate is currently enabled
+	ToggleURL safehtml.URL           // URL to toggle this aggregate
 }
 
 // ColumnInfo contains information about a column for UI display
 type ColumnInfo struct {
-	Name              string             // Column internal name
-	DisplayName       string             // Column display name
-	IsVisible         bool               // Whether column is currently visible
-	IsGrouped         bool               // Whether column is currently grouped
-	IsFiltered        bool               // Whether column has an active filter
-	HasEntityType     bool               // Whether column defines an entity type
-	IsKey             bool               // Whether column has all unique values
-	JoinTargets       []JoinTarget       // Tables/columns this column can join to
-	IsExpanded        bool               // Whether this column's join list is expanded
-	Path              string             // Path for URL encoding (e.g., "column1")
-	ToggleURL         safehtml.URL       // URL to toggle expansion
-	ToggleColumnURL   safehtml.URL       // URL to toggle column visibility (preserves all query params)
-	ToggleGroupingURL safehtml.URL       // URL to toggle grouping for this column
-	SortIndex         int                // 1-based sort priority (0 = not in sort order)
-	IsSortDescending  bool               // True if sorted descending
-	ToggleSortURL     safehtml.URL       // URL to toggle sort for this column
-	ColumnType        query.ColumnType   // Column data type for determining available aggregates
-	AggregateToggles  []AggregateToggle  // Available aggregate toggles for this column
+	Name              string              // Column internal name
+	DisplayName       string              // Column display name
+	IsVisible         bool                // Whether column is currently visible
+	IsGrouped         bool                // Whether column is currently grouped
+	IsFiltered        bool                // Whether column has an active filter
+	HasEntityType     bool                // Whether column defines an entity type
+	IsKey             bool                // Whether column has all unique values
+	JoinTargets       []JoinTarget        // Tables/columns this column can join to
+	IsExpanded        bool                // Whether this column's join list is expanded
+	Path              string              // Path for URL encoding (e.g., "column1")
+	ToggleURL         safehtml.URL        // URL to toggle expansion
+	ToggleColumnURL   safehtml.URL        // URL to toggle column visibility (preserves all query params)
+	ToggleGroupingURL safehtml.URL        // URL to toggle grouping for this column
+	SortIndex         int                 // 1-based sort priority (0 = not in sort order)
+	IsSortDescending  bool                // True if sorted descending
+	ToggleSortURL     safehtml.URL        // URL to toggle sort for this column
+	ColumnType        urlquery.ColumnType // Column data type for determining available aggregates
+	AggregateToggles  []AggregateToggle   // Available aggregate toggles for this column
 	// Aggregate sort for grouped columns
-	AggSortToggleURL     safehtml.URL       // URL to cycle through aggregate sort options
-	AggSortDirectionURL  safehtml.URL       // URL to toggle aggregate sort direction (asc/desc)
-	HasAggSort           bool               // Whether this grouped column has an aggregate sort
-	AggSortLeafCol       string             // Leaf column being sorted by (if HasAggSort)
-	AggSortAggType       string             // Aggregate type being sorted by (if HasAggSort)
-	AggSortSymbol        string             // Symbol for the aggregate being sorted by
-	IsAggSortDescending  bool               // Whether aggregate sort is descending
+	AggSortToggleURL    safehtml.URL // URL to cycle through aggregate sort options
+	AggSortDirectionURL safehtml.URL // URL to toggle aggregate sort direction (asc/desc)
+	HasAggSort          bool         // Whether this grouped column has an aggregate sort
+	AggSortLeafCol      string       // Leaf column being sorted by (if HasAggSort)
+	AggSortAggType      string       // Aggregate type being sorted by (if HasAggSort)
+	AggSortSymbol       string       // Symbol for the aggregate being sorted by
+	IsAggSortDescending bool         // Whether aggregate sort is descending
 }
 
 // JoinTarget represents a column that can be joined to
@@ -287,22 +287,22 @@ type ColumnSummary struct {
 	IsSelected     bool         // Whether this column is already in the current view
 }
 
-// getColumnType determines the query.ColumnType for a column by checking its actual type.
+// getColumnType determines the urlquery.ColumnType for a column by checking its actual type.
 // It delegates to TableView.GetColumnType which does proper type assertion on the column.
-func getColumnType(colName string, tableView *tables.TableView) query.ColumnType {
+func getColumnType(colName string, tableView *tables.TableView) urlquery.ColumnType {
 	return tableView.GetColumnType(colName)
 }
 
 // buildAggregateToggles creates the aggregate toggle buttons for a column
-func buildAggregateToggles(colName string, colType query.ColumnType, q *query.Query) []AggregateToggle {
-	availableAggs := query.GetAvailableAggregates(colType)
+func buildAggregateToggles(colName string, colType urlquery.ColumnType, q *urlquery.Query) []AggregateToggle {
+	availableAggs := urlquery.GetAvailableAggregates(colType)
 	toggles := make([]AggregateToggle, 0, len(availableAggs))
 
 	for _, aggType := range availableAggs {
 		toggles = append(toggles, AggregateToggle{
 			Type:      aggType,
-			Symbol:    query.AggregateSymbol(aggType),
-			Title:     query.AggregateTitle(aggType),
+			Symbol:    urlquery.AggregateSymbol(aggType),
+			Title:     urlquery.AggregateTitle(aggType),
 			IsEnabled: q.IsAggregateEnabled(colName, aggType),
 			ToggleURL: q.WithAggregateToggled(colName, aggType),
 		})
@@ -335,7 +335,7 @@ func detectCycle(path string, targetTable string, baseTable string) bool {
 // buildJoinTargetsForColumn builds join targets for a column
 // columnNamePrefix is the accumulated column name for chained joins (e.g., "region.regions.region" for a second hop)
 // baseTable is the original table we started from (for cycle detection)
-func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, columnNamePrefix string, baseTable string, expandedPaths map[string]bool, q *query.Query) []JoinTarget {
+func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnName string, basePath string, columnNamePrefix string, baseTable string, expandedPaths map[string]bool, q *urlquery.Query) []JoinTarget {
 
 	var joinTargets []JoinTarget
 	allJoins := dataModel.GetJoins()
@@ -508,7 +508,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 // entityTypeDescResolver is an optional function to resolve entity type descriptions (can be nil)
 // hierarchyContextBuilder builds hierarchy contexts for the selected item (can be nil)
 // relatedTablesResolver finds tables that can be filtered by the selected item's entity type (can be nil)
-func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *query.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver, primaryKeyEntityType string, entityTypeDescResolver EntityTypeDescriptionResolver, hierarchyContextBuilder HierarchyContextBuilder, relatedTablesResolver RelatedTablesResolver) TableViewModel {
+func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *tables.TableView, view View, title string, q *urlquery.Query, computedColErrors, filterErrors map[string]string, urlResolver URLResolver, allURLsResolver AllURLsResolver, primaryKeyEntityType string, entityTypeDescResolver EntityTypeDescriptionResolver, hierarchyContextBuilder HierarchyContextBuilder, relatedTablesResolver RelatedTablesResolver) TableViewModel {
 	// Generate currentURL from Query
 	currentURL := q.ToSafeURL()
 
@@ -519,23 +519,23 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	}
 
 	vm := TableViewModel{
-		Title:                     title,
-		PrimaryKeyEntityType:      primaryKeyEntityType,
-		PrimaryKeyDescription:     primaryKeyDescription,
-		Headers:                   []string{},
-		Columns:              []string{},
-		ColumnWidths:         make(map[string]int),
-		Rows:                 []map[string]string{},
-		RowURLs:              []map[string]string{},
-		AllColumns:           []ColumnInfo{},
-		CurrentURL:           currentURL,
-		ColumnFilters:        make(map[string]string),
-		ColumnFormulas:       make(map[string]string),
-		IsComputedColumn:     make(map[string]bool),
-		ComputedColumnErrors: make(map[string]ValidationError),
-		FilterErrors:         make(map[string]ValidationError),
-		ColumnTypes:          make(map[string]string),
-		ColumnEntityTypes:    make(map[string]string),
+		Title:                 title,
+		PrimaryKeyEntityType:  primaryKeyEntityType,
+		PrimaryKeyDescription: primaryKeyDescription,
+		Headers:               []string{},
+		Columns:               []string{},
+		ColumnWidths:          make(map[string]int),
+		Rows:                  []map[string]string{},
+		RowURLs:               []map[string]string{},
+		AllColumns:            []ColumnInfo{},
+		CurrentURL:            currentURL,
+		ColumnFilters:         make(map[string]string),
+		ColumnFormulas:        make(map[string]string),
+		IsComputedColumn:      make(map[string]bool),
+		ComputedColumnErrors:  make(map[string]ValidationError),
+		FilterErrors:          make(map[string]ValidationError),
+		ColumnTypes:           make(map[string]string),
+		ColumnEntityTypes:     make(map[string]string),
 	}
 
 	// Convert error strings to ValidationError structs
@@ -582,7 +582,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 
 	// Build leaf columns list (visible, non-grouped columns) and enabled aggregates for aggregate sort toggle
 	var leafColumns []string
-	enabledAggs := make(map[string][]query.AggregateType)
+	enabledAggs := make(map[string][]urlquery.AggregateType)
 	for _, colName := range view.Columns {
 		if !groupedColsMap[colName] {
 			leafColumns = append(leafColumns, colName)
@@ -643,7 +643,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					hasAggSort = true
 					aggSortLeafCol = aggSort.LeafColumn
 					aggSortAggType = string(aggSort.AggType)
-					aggSortSymbol = query.AggregateSymbol(aggSort.AggType)
+					aggSortSymbol = urlquery.AggregateSymbol(aggSort.AggType)
 					isAggSortDescending = aggSort.Descending
 					aggSortDirectionURL = q.WithGroupAggSortDirectionToggled(colName)
 				}
@@ -718,7 +718,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 							hasAggSort = true
 							aggSortLeafCol = aggSort.LeafColumn
 							aggSortAggType = string(aggSort.AggType)
-							aggSortSymbol = query.AggregateSymbol(aggSort.AggType)
+							aggSortSymbol = urlquery.AggregateSymbol(aggSort.AggType)
 							isAggSortDescending = aggSort.Descending
 							aggSortDirectionURL = q.WithGroupAggSortDirectionToggled(colName)
 						}
@@ -775,7 +775,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				hasAggSort = true
 				aggSortLeafCol = aggSort.LeafColumn
 				aggSortAggType = string(aggSort.AggType)
-				aggSortSymbol = query.AggregateSymbol(aggSort.AggType)
+				aggSortSymbol = urlquery.AggregateSymbol(aggSort.AggType)
 				isAggSortDescending = aggSort.Descending
 				aggSortDirectionURL = q.WithGroupAggSortDirectionToggled(comp.Name)
 			}
@@ -833,8 +833,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			if numParts >= 4 && (numParts-1)%3 == 0 {
 				// Build a display name from the last hop: "TableName → ColumnName"
 				// For multi-hop, use the final table and column
-				lastTable := parts[numParts-3]    // Second to last triplet's table
-				lastColumn := parts[numParts-1]   // Selected column
+				lastTable := parts[numParts-3]  // Second to last triplet's table
+				lastColumn := parts[numParts-1] // Selected column
 				displayName := fmt.Sprintf("%s → %s", lastTable, lastColumn)
 				vm.Headers = append(vm.Headers, displayName)
 				vm.Columns = append(vm.Columns, colName)
@@ -1043,7 +1043,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 }
 
 // BuildToggleExpansionURL creates a URL that toggles the expansion state of a path
-func BuildToggleExpansionURL(q *query.Query, togglePath string) safehtml.URL {
+func BuildToggleExpansionURL(q *urlquery.Query, togglePath string) safehtml.URL {
 	return q.WithExpandedToggled(togglePath)
 }
 
@@ -1099,7 +1099,7 @@ func ProcessJoinsAndUpdateColumns(tableView *tables.TableView, view *View, dataM
 }
 
 // BuildAddColumnURL creates a URL that toggles a column
-func BuildAddColumnURL(q *query.Query, columnName string) safehtml.URL {
+func BuildAddColumnURL(q *urlquery.Query, columnName string) safehtml.URL {
 	return q.WithColumnToggled(columnName)
 }
 
@@ -1264,27 +1264,27 @@ func BuildToggleJoinedURL(currentURL string, joinPath string) string {
 }
 
 // BuildToggleColumnURL creates a URL that toggles the visibility of a column while preserving all other query parameters
-func BuildToggleColumnURL(q *query.Query, toggleColumn string) safehtml.URL {
+func BuildToggleColumnURL(q *urlquery.Query, toggleColumn string) safehtml.URL {
 	return q.WithColumnToggled(toggleColumn)
 }
 
 // BuildToggleGroupingURL creates a URL that toggles grouping for a column
-func BuildToggleGroupingURL(q *query.Query, columnName string) safehtml.URL {
+func BuildToggleGroupingURL(q *urlquery.Query, columnName string) safehtml.URL {
 	return q.WithGroupedColumnToggled(columnName)
 }
 
 // GroupBuildResult contains the result of building grouped rows
 type GroupBuildResult struct {
-	Rows       []GroupedRow
-	Truncated  bool // True if display row limit was reached
-	TotalRows  int  // Total display rows that would exist without limit
-	ShownRows  int  // Actual display rows shown
+	Rows      []GroupedRow
+	Truncated bool // True if display row limit was reached
+	TotalRows int  // Total display rows that would exist without limit
+	ShownRows int  // Actual display rows shown
 }
 
 // buildGroupedRows converts the hierarchical grouping structure into rows with rowspan
 // It walks the group hierarchy recursively, using group.Height() for rowspan
 // If limit > 0, stops after limit display rows and marks incomplete groups
-func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *query.Query, limit int, columnEntityTypes map[string]string, urlResolver URLResolver) GroupBuildResult {
+func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *urlquery.Query, limit int, columnEntityTypes map[string]string, urlResolver URLResolver) GroupBuildResult {
 	firstBlock := tableView.GetFirstBlock()
 	if firstBlock == nil {
 		return GroupBuildResult{}
@@ -1345,7 +1345,7 @@ func fixRowspans(rows []GroupedRow) {
 // columnEntityTypes maps column names to their entity types for URL resolution
 // urlResolver resolves entity type URLs (can be nil)
 // Returns true if truncated due to limit
-func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *query.Query, limit int, rowCount *int, columnEntityTypes map[string]string, urlResolver URLResolver) bool {
+func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *urlquery.Query, limit int, rowCount *int, columnEntityTypes map[string]string, urlResolver URLResolver) bool {
 	if block == nil {
 		return false
 	}
@@ -1384,7 +1384,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 				if len(enabledAggs) > 0 && state != nil {
 					// Mark the sorted aggregate if this is the sorted leaf column
 					var sortedCol string
-					var sortedAgg query.AggregateType
+					var sortedAgg urlquery.AggregateType
 					if aggSort != nil && leafColName == aggSort.LeafColumn {
 						sortedCol = leafColName
 						sortedAgg = aggSort.AggType
@@ -1401,8 +1401,8 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		// IsValueSorted is true if column is sorted and not using aggregate sort
 		isValueSorted := q.GetSortIndex(colName) > 0 && aggSort == nil
 		// Check if sorting by row count or subgroup count
-		isRowCountSorted := aggSort != nil && aggSort.AggType == query.AggRowCount
-		isSubgroupCountSorted := aggSort != nil && aggSort.AggType == query.AggSubgroupCount
+		isRowCountSorted := aggSort != nil && aggSort.AggType == urlquery.AggRowCount
+		isSubgroupCountSorted := aggSort != nil && aggSort.AggType == urlquery.AggSubgroupCount
 
 		// Resolve URL for the cell value if entity type is defined
 		var valueURL string
@@ -1443,7 +1443,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 					if len(enabledAggs) > 0 && state != nil {
 						// Mark the sorted aggregate if this is the sorted leaf column
 						var sortedCol string
-						var sortedAgg query.AggregateType
+						var sortedAgg urlquery.AggregateType
 						if aggSort != nil && leafColName == aggSort.LeafColumn {
 							sortedCol = leafColName
 							sortedAgg = aggSort.AggType
@@ -1477,7 +1477,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 					if len(enabledAggs) > 0 && state != nil {
 						// Mark the sorted aggregate if this is the sorted leaf column
 						var sortedCol string
-						var sortedAgg query.AggregateType
+						var sortedAgg urlquery.AggregateType
 						if aggSort != nil && leafColName == aggSort.LeafColumn {
 							sortedCol = leafColName
 							sortedAgg = aggSort.AggType

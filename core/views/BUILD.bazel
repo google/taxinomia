@@ -1,21 +1,12 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# Forwarding package: the real code lives in //web/viewmodel. Kept public so
+# existing importers of github.com/google/taxinomia/core/views keep building;
+# removed in CLEAN.
 go_library(
     name = "views",
-    srcs = [
-        "landing_viewmodel.go",
-        "table_viewmodel.go",
-        "view.go",
-    ],
+    srcs = ["views.go"],
     importpath = "github.com/google/taxinomia/core/views",
     visibility = ["//visibility:public"],
-    deps = [
-        "//core/aggregates",
-        "//core/columns",
-        "//core/grouping",
-        "//core/models",
-        "//core/query",
-        "//core/tables",
-        "@com_github_google_safehtml//:safehtml",
-    ],
+    deps = ["//web/viewmodel"],
 )

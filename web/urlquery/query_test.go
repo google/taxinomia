@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package query
+package urlquery
 
 import (
 	"net/url"
@@ -186,6 +186,7 @@ func TestColumnReorderingOnFiltering(t *testing.T) {
 		}
 	})
 }
+
 // TestGroupExpansionParameter tests the gexp parameter: parsing, round-trip,
 // defaults and state clearing. Absence of gexp must keep the historical
 // expand-everything behavior; presence — even empty — switches to explicit

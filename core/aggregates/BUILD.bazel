@@ -5,5 +5,5 @@ go_library(
     srcs = ["aggregates.go"],
     importpath = "github.com/google/taxinomia/core/aggregates",
     visibility = ["//visibility:public"],
-    deps = ["//core/query"],
+    deps = ["//core/queryspec"],
 )

@@ -25,15 +25,15 @@ import (
 	"strings"
 
 	"github.com/google/taxinomia/core/models"
-	"github.com/google/taxinomia/core/query"
-	"github.com/google/taxinomia/core/server"
-	"github.com/google/taxinomia/core/views"
 	"github.com/google/taxinomia/datasources"
+	"github.com/google/taxinomia/web/handlers"
+	"github.com/google/taxinomia/web/urlquery"
+	"github.com/google/taxinomia/web/viewmodel"
 )
 
 // SetupDemoServer creates and configures a server with demo data.
 // fileReader and dirReader are injected to control all file I/O from outside the library.
-func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.DirReader) (*server.Server, *ProductRegistry, error) {
+func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.DirReader) (*handlers.Server, *ProductRegistry, error) {
 	fmt.Println("Starting Taxinomia...")
 
 	// Create a DataModel to manage tables and entity types
@@ -192,7 +192,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	fmt.Println("=== System Tables Created ===")
 
 	// Create the server
-	srv, err := server.NewServer(dataModel)
+	srv, err := handlers.NewServer(dataModel)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -201,14 +201,14 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	srv.SetURLResolver(dsManager.ResolveDefaultURL)
 
 	// Set up all URLs resolver for detail panel
-	srv.SetAllURLsResolver(func(entityType, value string) []views.EntityURL {
+	srv.SetAllURLsResolver(func(entityType, value string) []viewmodel.EntityURL {
 		resolved := dsManager.GetAllURLs(entityType, value)
 		if len(resolved) == 0 {
 			return nil
 		}
-		result := make([]views.EntityURL, len(resolved))
+		result := make([]viewmodel.EntityURL, len(resolved))
 		for i, r := range resolved {
-			result[i] = views.EntityURL{Name: r.Name, URL: r.URL}
+			result[i] = viewmodel.EntityURL{Name: r.Name, URL: r.URL}
 		}
 		return result
 	})
@@ -255,12 +255,12 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	// Shows ALL hierarchies, not just those containing the primary key entity type.
 	// For each hierarchy, finds the deepest level where the item has a column value.
 	srv.SetHierarchyContextBuilder(func(
-		currentQuery *query.Query,
+		currentQuery *urlquery.Query,
 		primaryKeyEntityType string,
 		primaryKeyValue string,
 		rowData map[string]string,
 		columnEntityTypes map[string]string,
-	) []views.HierarchyContext {
+	) []viewmodel.HierarchyContext {
 		// Get ALL hierarchies
 		allHierarchies := dsManager.GetAllHierarchies()
 		if len(allHierarchies) == 0 {
@@ -273,7 +273,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 			entityTypeToColumn[et] = colName
 		}
 
-		var contexts []views.HierarchyContext
+		var contexts []viewmodel.HierarchyContext
 		for _, h := range allHierarchies {
 			levels := h.GetLevels()
 
@@ -308,7 +308,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 				}
 			}
 
-			ctx := views.HierarchyContext{
+			ctx := viewmodel.HierarchyContext{
 				HierarchyName: h.GetName(),
 				Description:   h.GetDescription(),
 			}
@@ -318,7 +318,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 			// Only show as links if the target table has a column for the primary key entity type
 			if currentIdx == -1 {
 				for _, et := range levels {
-					level := views.HierarchyLevel{
+					level := viewmodel.HierarchyLevel{
 						EntityType:  et,
 						DisplayName: formatEntityTypeNamePlural(et),
 						Description: dsManager.GetEntityTypeDescription(et),
@@ -345,7 +345,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 			// Build ancestors (levels above current)
 			for i := 0; i < currentIdx; i++ {
 				et := levels[i]
-				level := views.HierarchyLevel{
+				level := viewmodel.HierarchyLevel{
 					EntityType:  et,
 					DisplayName: formatEntityTypeName(et),
 					Description: dsManager.GetEntityTypeDescription(et),
@@ -364,7 +364,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 			}
 
 			// Build current level
-			ctx.Current = views.HierarchyLevel{
+			ctx.Current = viewmodel.HierarchyLevel{
 				EntityType:  currentEntityType,
 				DisplayName: formatEntityTypeName(currentEntityType),
 				Value:       currentValue,
@@ -378,7 +378,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 			// Build descendants (levels below current)
 			for i := currentIdx + 1; i < len(levels); i++ {
 				et := levels[i]
-				level := views.HierarchyLevel{
+				level := viewmodel.HierarchyLevel{
 					EntityType:  et,
 					Description: dsManager.GetEntityTypeDescription(et),
 				}
@@ -415,12 +415,12 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	// This finds all tables that have a column matching the selected item's primary key entity type
 	// Excludes tables whose primary key is part of a hierarchy (those are shown in hierarchy navigation)
 	srv.SetRelatedTablesResolver(func(
-		currentQuery *query.Query,
+		currentQuery *urlquery.Query,
 		currentTableName string,
 		primaryKeyEntityType string,
 		primaryKeyValue string,
-	) []views.RelatedTable {
-		var relatedTables []views.RelatedTable
+	) []viewmodel.RelatedTable {
+		var relatedTables []viewmodel.RelatedTable
 
 		// Build set of entity types that are part of any hierarchy
 		hierarchyEntityTypes := make(map[string]bool)
@@ -491,7 +491,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 					// Create a nice display name from the table name
 					displayName := formatTableDisplayName(tableName)
 
-					relatedTables = append(relatedTables, views.RelatedTable{
+					relatedTables = append(relatedTables, viewmodel.RelatedTable{
 						TableName:        tableName,
 						DisplayName:      displayName,
 						ColumnName:       colName,
@@ -528,7 +528,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 
 	// Set table metadata for products to filter
 	// URLs are relative so they work with any product path (e.g., /default/table, /analytics/table)
-	products.SetTables([]views.TableInfo{
+	products.SetTables([]viewmodel.TableInfo{
 		{
 			Name:           "Orders Table",
 			Description:    "Track orders with status, region, category, and amount data. Perfect for analyzing sales patterns and order fulfillment.",
@@ -879,7 +879,7 @@ func formatEntityTypeNamePlural(entityType string) string {
 // generateAncestorURL generates a URL to navigate to an ancestor's table with that row selected.
 // For example, if viewing a machine and clicking on its cluster ancestor,
 // this would generate a URL like "table?table=google_clusters&row=us-east-a-c0"
-func generateAncestorURL(currentQuery *query.Query, entityType, value string) string {
+func generateAncestorURL(currentQuery *urlquery.Query, entityType, value string) string {
 	q := currentQuery.Clone()
 	q.Path = "table"
 	q.Table = entityTypeToTableName(entityType)
@@ -896,7 +896,7 @@ func generateAncestorURL(currentQuery *query.Query, entityType, value string) st
 // have columns for their ancestors (e.g., machines has cluster, zone columns).
 // For example, if viewing a cluster (google.cluster) and the descendant is "google.machine",
 // this would generate a URL like "table?table=google_machines&filter:cluster=us-east-a-c0"
-func generateDescendantListURL(currentQuery *query.Query, descendantEntityType, parentEntityType, parentValue string) string {
+func generateDescendantListURL(currentQuery *urlquery.Query, descendantEntityType, parentEntityType, parentValue string) string {
 	// Clone the current query to preserve non-table-specific state (limit, info pane, etc.)
 	q := currentQuery.Clone()
 	q.Path = "table"
