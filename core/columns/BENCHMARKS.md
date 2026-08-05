@@ -292,3 +292,21 @@ filtered column, exact-match filter, `-benchtime 3x -count 3`, medians.
 The chunked path allocates one extra 1M-bit `Selection` (the structured
 filter's result, intersected into the running selection), which is where the
 extra 131 KB comes from — constant per filter, not per row.
+
+### Sorted storage (2026-08-04, phase 4a)
+
+`BenchmarkSortByKey1M` in `core/tables`: load-time cost of sorting a 1M-row
+three-column table (5-value string dimension, unique descending int64 pk,
+float64 measure) into its declared physical order. `-benchtime 3x -count 3`,
+medians. The cost is one permutation sort (`sort.SliceStable` over
+`CompareAtIndex`) plus a reorder-rebuild + finalize of every column.
+
+| Sort key | Time |
+|---|---|
+| `(pk)` | 484 ms |
+| `(dim, pk)` | 622 ms |
+
+Paid once per table at load (rebuild-on-start is the accepted model until
+persistence is built). The interface-call-per-compare permutation sort
+dominates; per-chunk parallel sorting belongs to the 5a/5b executor work if
+load time ever matters.

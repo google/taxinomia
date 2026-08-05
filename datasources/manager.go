@@ -247,6 +247,11 @@ func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 		return nil, fmt.Errorf("failed to load source %q: %w", sourceName, err)
 	}
 
+	// Step 4: Sort the storage into the declared physical order
+	if err := applySortKey(source, table); err != nil {
+		return nil, fmt.Errorf("failed to sort source %q: %w", sourceName, err)
+	}
+
 	// Cache the result
 	m.mu.Lock()
 	m.tables[sourceName] = table

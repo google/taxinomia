@@ -24,6 +24,9 @@ import (
 
 type DataTable struct {
 	columns map[string]columns.IDataColumn
+	// sortKey records the physical sort order of the storage, set by
+	// SortByKey. Nil means unspecified (load order).
+	sortKey []string
 }
 
 func NewDataTable() *DataTable {

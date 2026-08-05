@@ -72,6 +72,17 @@ message DataSource {
   // This identifies the main entity type that this table is about.
   // For example: "region" for a regions table, "customer_id" for a customers table.
   string primary_key_entity_type = 6;
+
+  // Physical sort order for the table's storage: column names, most
+  // significant first. Loaded tables are stored sorted by these columns;
+  // the primary key column (the column whose entity type is
+  // primary_key_entity_type) is appended as the final tie-breaker if not
+  // already listed, making the order total.
+  //
+  // When absent, the table is sorted by the primary key column alone. If no
+  // primary key entity type is declared (or no column carries it), the table
+  // is stored in load order, as before.
+  repeated string sort_key = 7;
 }
 
 // URLTemplate defines a single URL template with a display name.

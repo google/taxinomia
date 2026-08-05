@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/tables"
 )
 
 func TestManagerLoadConfig(t *testing.T) {
@@ -335,5 +336,120 @@ Charlie,35,92.3,true`
 	}
 	if val != "30" {
 		t.Errorf("expected age '30', got %q", val)
+	}
+
+	// No primary key entity type and no sort key declared: the table stays
+	// in load order and records no sort key.
+	if table.SortKey() != nil {
+		t.Errorf("expected no recorded sort key, got %v", table.SortKey())
+	}
+}
+
+// newSortTestManager registers a csv_typed source over an unsorted file,
+// with the name column carrying the primary key entity type.
+func newSortTestManager(t *testing.T, source *DataSource) *Manager {
+	t.Helper()
+	csvPath := filepath.Join(t.TempDir(), "unsorted.csv")
+	csvContent := `name,age,score
+Delta,30,95.5
+Alpha,25,88.0
+Charlie,30,92.3
+Bravo,20,90.1`
+	if err := os.WriteFile(csvPath, []byte(csvContent), 0644); err != nil {
+		t.Fatalf("failed to write test CSV: %v", err)
+	}
+	manager := NewManager()
+	manager.RegisterLoader(NewCsvLoaderTyped())
+	manager.SetFileReader(os.ReadFile)
+	manager.AddAnnotations(&ColumnAnnotations{
+		AnnotationsId: "sort_annotations",
+		Columns: []*ColumnAnnotation{
+			{Name: "name", EntityType: "test.person"},
+		},
+	})
+	source.AnnotationsId = "sort_annotations"
+	source.SourceType = "csv_typed"
+	source.Config = map[string]string{"file_path": csvPath, "has_header": "true"}
+	manager.AddSource(source)
+	return manager
+}
+
+func columnValues(t *testing.T, table *tables.DataTable, name string) []string {
+	t.Helper()
+	col := table.GetColumn(name)
+	if col == nil {
+		t.Fatalf("column %q not found", name)
+	}
+	vals := make([]string, table.Length())
+	for i := range vals {
+		v, err := col.GetString(uint32(i))
+		if err != nil {
+			t.Fatalf("GetString(%s, %d): %v", name, i, err)
+		}
+		vals[i] = v
+	}
+	return vals
+}
+
+// With no sort_key declared, the table is sorted by the primary key column.
+func TestLoadDataDefaultSortByPrimaryKey(t *testing.T) {
+	manager := newSortTestManager(t, &DataSource{
+		Name:                 "people",
+		PrimaryKeyEntityType: "test.person",
+	})
+	table, err := manager.LoadData("people")
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+	got := columnValues(t, table, "name")
+	want := []string{"Alpha", "Bravo", "Charlie", "Delta"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("row %d: name %q, want %q (all: %v)", i, got[i], want[i], got)
+		}
+	}
+	if key := table.SortKey(); len(key) != 1 || key[0] != "name" {
+		t.Errorf("SortKey() = %v, want [name]", key)
+	}
+	// Rows stay aligned across columns.
+	if ages := columnValues(t, table, "age"); ages[0] != "25" || ages[3] != "30" {
+		t.Errorf("age column not aligned after sort: %v", ages)
+	}
+}
+
+// A declared sort_key is honored, with the primary key column appended as
+// the tie-breaker.
+func TestLoadDataDeclaredSortKey(t *testing.T) {
+	manager := newSortTestManager(t, &DataSource{
+		Name:                 "people",
+		PrimaryKeyEntityType: "test.person",
+		SortKey:              []string{"age"},
+	})
+	table, err := manager.LoadData("people")
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+	// age ascending; the age=30 tie broken by name (Charlie before Delta).
+	gotNames := columnValues(t, table, "name")
+	want := []string{"Bravo", "Alpha", "Charlie", "Delta"}
+	for i := range want {
+		if gotNames[i] != want[i] {
+			t.Fatalf("row %d: name %q, want %q (all: %v)", i, gotNames[i], want[i], gotNames)
+		}
+	}
+	if key := table.SortKey(); len(key) != 2 || key[0] != "age" || key[1] != "name" {
+		t.Errorf("SortKey() = %v, want [age name]", key)
+	}
+}
+
+// A declared sort_key naming a column the table does not have is a
+// configuration error, not a silent skip.
+func TestLoadDataBadSortKeyFails(t *testing.T) {
+	manager := newSortTestManager(t, &DataSource{
+		Name:    "people",
+		SortKey: []string{"no_such_column"},
+	})
+	if _, err := manager.LoadData("people"); err == nil {
+		t.Fatal("expected error for sort key naming an unknown column")
 	}
 }
