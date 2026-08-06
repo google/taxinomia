@@ -4,6 +4,7 @@ go_library(
     name = "tables",
     srcs = [
         "data_table.go",
+        "encoding.go",
         "sorted_storage.go",
         "sorting.go",
         "table_view.go",
@@ -26,6 +27,7 @@ go_test(
         "ascii_test.go",
         "benchmark_test.go",
         "chunked_integration_test.go",
+        "encoding_test.go",
         "filter_bench_test.go",
         "filter_selection_test.go",
         "golden_test.go",

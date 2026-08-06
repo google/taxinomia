@@ -220,3 +220,49 @@ func BenchmarkChunkedDict_FilterSelection_Chunked(b *testing.B) {
 		c.FilterSelection(func(s string) bool { return s < "v050" })
 	}
 }
+
+// --- phase 4b: sparse PK index vs reverse-lookup map ---
+
+func buildKeyLookupColumn(n int, sorted bool) *ChunkedInt64Column {
+	c := NewChunkedInt64Column(NewColumnDef("pk", "PK", "bench.pk"))
+	for i := 0; i < n; i++ {
+		v := int64(i)
+		if !sorted {
+			v = int64((i*2_654_435_761 + 13) % n) // fixed-stride permutation
+		}
+		c.Append(v)
+	}
+	c.FinalizeColumn()
+	return c
+}
+
+// BenchmarkChunkedKeyLookup_SparseIndex measures GetIndex on a sorted 1M-row
+// key column: binary search over chunk firsts plus one in-chunk search, no
+// reverse-lookup map retained.
+func BenchmarkChunkedKeyLookup_SparseIndex(b *testing.B) {
+	c := buildKeyLookupColumn(chunkedBenchRows, true)
+	if c.valueIndex != nil {
+		b.Fatal("sorted column unexpectedly kept its map")
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := c.GetIndex(int64((i * 977) % chunkedBenchRows)); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkChunkedKeyLookup_Map is the same lookup against unsorted storage,
+// where the reverse-lookup map remains the path.
+func BenchmarkChunkedKeyLookup_Map(b *testing.B) {
+	c := buildKeyLookupColumn(chunkedBenchRows, false)
+	if c.valueIndex == nil {
+		b.Fatal("unsorted column lost its map")
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := c.GetIndex(int64((i * 977) % chunkedBenchRows)); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

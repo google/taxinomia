@@ -146,9 +146,12 @@ func getColumnType(col columns.IDataColumn) string {
 		return "datetime"
 	case *columns.DurationColumn:
 		return "duration"
-	// Chunked columns report the same logical types as their plain
-	// counterparts: storage layout is not a schema property.
+	// Chunked and dictionary-encoded columns report the same logical types as
+	// their plain counterparts: storage layout is not a schema property.
 	case *columns.ChunkedStringColumn:
+		return "string"
+	case *columns.DictStringColumn[uint8], *columns.DictStringColumn[uint16], *columns.DictStringColumn[uint32],
+		*columns.ChunkedDictStringColumn[uint8], *columns.ChunkedDictStringColumn[uint16], *columns.ChunkedDictStringColumn[uint32]:
 		return "string"
 	case *columns.ChunkedUint32Column:
 		return "uint32"

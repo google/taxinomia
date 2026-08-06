@@ -49,6 +49,7 @@ go_test(
         "reorder_test.go",
         "row_set_test.go",
         "selection_test.go",
+        "sparse_index_test.go",
         "zone_map_test.go",
     ],
     embed = [":columns"],

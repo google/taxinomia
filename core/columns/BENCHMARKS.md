@@ -310,3 +310,37 @@ Paid once per table at load (rebuild-on-start is the accepted model until
 persistence is built). The interface-call-per-compare permutation sort
 dominates; per-chunk parallel sorting belongs to the 5a/5b executor work if
 load time ever matters.
+
+### Sparse PK index + per-role encoding selection (2026-08-06, phase 4b)
+
+`FinalizeColumn` on a 1M-row unique int64 key column (entity-typed, default
+chunk size), measured as heap retained by finalize
+(`TestSortedKeyFinalizeRetainedMemory` in `core/tables`):
+
+| Storage order | Retained by finalize | Holds |
+|---|---|---|
+| Sorted by the key | **384 B** | zone maps only — no reverse-lookup map |
+| Shuffled | 37.7 MB | `map[int64]uint32` reverse index |
+
+Reverse lookup (`GetIndex`), `BenchmarkChunkedKeyLookup_*`, 1M rows,
+`-benchtime 100000x -count 3`, medians:
+
+| Path | Time per lookup |
+|---|---|
+| Sparse index (sorted storage: binary search over chunk firsts + in-chunk) | 180 ns |
+| Reverse-lookup map (unsorted storage) | 63 ns |
+
+The 3x per-lookup cost buys the elimination of the only per-row lookup
+structure (scaling doc §6: joins hit the key index once per distinct FK
+code, detail lookups once per request — at 10^9 rows the map is impossible,
+the search is kilobytes). A string PK's map is several times larger per row
+than int64's; it disappears the same way. Until phase 6a memoizes join
+resolution per code, joined-column row access pays the 3x per row on sorted
+PK targets.
+
+Per-role encoding selection (`DataTable.SelectEncodings`, applied by
+`Manager.LoadData` after the sort) re-encodes string columns by role:
+declared sort-key dimensions are dictionary-encoded regardless of row count,
+other string columns by the existing thresholds, keys never. On sorted
+storage the dictionary comes out sorted, so a dict key column's value
+lookups binary-search the dictionary and its interning map is released too.

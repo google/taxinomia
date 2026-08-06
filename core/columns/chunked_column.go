@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -35,11 +36,17 @@ import (
 // lookup use the same canonical key, so a chunked column's IsKey/GetIndex
 // agree with its grouping semantics by construction.
 type chunkedColumn[T any, K comparable] struct {
-	columnDef  *ColumnDef
-	data       chunkedData[T]
-	isKey      bool
-	valueIndex map[K]uint32 // canon(value) -> row, key entity columns only
-	zones      *zoneMap[T]  // per-chunk min/max, built by FinalizeColumn
+	columnDef *ColumnDef
+	data      chunkedData[T]
+	isKey     bool
+	// valueIndex is the reverse-lookup map for key entity columns whose
+	// storage is NOT sorted by this column. When sortedBySelf is recorded at
+	// finalize the map is never built: reverse lookup is a binary search over
+	// the chunks instead (docs/scaling-to-1b-rows.md §6 — a sparse index
+	// replaces the map; at 10^9 rows the map is impossible).
+	valueIndex   map[K]uint32
+	sortedBySelf bool        // physical order == value order; recorded by FinalizeColumn
+	zones        *zoneMap[T] // per-chunk min/max, built by FinalizeColumn
 
 	canon  func(T) K
 	format func(T) string
@@ -100,10 +107,32 @@ func (c *chunkedColumn[T, K]) GetString(i uint32) (string, error) {
 }
 
 // GetIndex returns the row index holding the given value (key entity columns
-// only). Lookup is by canonical key.
+// only). Lookup is by canonical key: a hash probe when the reverse-lookup map
+// exists, a sparse-index binary search when the storage is sorted by this
+// column — first over the chunks (one comparison per chunk boundary), then
+// within the one chunk that can hold the value.
 func (c *chunkedColumn[T, K]) GetIndex(v T) (uint32, error) {
-	if idx, exists := c.valueIndex[c.canon(v)]; exists {
-		return idx, nil
+	if c.valueIndex != nil {
+		if idx, exists := c.valueIndex[c.canon(v)]; exists {
+			return idx, nil
+		}
+		return 0, fmt.Errorf("value %v not found in column %q", v, c.columnDef.Name())
+	}
+	if c.sortedBySelf && c.isKey && c.columnDef.EntityType() != "" && c.data.len() > 0 {
+		// The last chunk whose first value is <= v is the only chunk that can
+		// hold v: chunk-first values are the sparse index.
+		ci := sort.Search(c.data.numChunks(), func(i int) bool {
+			return c.compare(c.data.chunk(i)[0], v) > 0
+		}) - 1
+		if ci >= 0 {
+			chunk := c.data.chunk(ci)
+			j := sort.Search(len(chunk), func(j int) bool {
+				return c.compare(chunk[j], v) >= 0
+			})
+			if j < len(chunk) && c.canon(chunk[j]) == c.canon(v) {
+				return uint32(ci)<<c.data.shift + uint32(j), nil
+			}
+		}
 	}
 	return 0, fmt.Errorf("value %v not found in column %q", v, c.columnDef.Name())
 }
@@ -112,12 +141,34 @@ func (c *chunkedColumn[T, K]) IsKey() bool {
 	return c.isKey
 }
 
+// SortedBySelf reports whether the column's physical row order is its value
+// order (non-decreasing). It is recorded by FinalizeColumn — after table-level
+// sorting the leading sort-key column is finalized in sorted order — and is
+// what lets a key column serve reverse lookups without a reverse-lookup map.
+func (c *chunkedColumn[T, K]) SortedBySelf() bool {
+	return c.sortedBySelf
+}
+
 // FinalizeColumn builds the per-chunk zone maps, then detects uniqueness (by
-// canonical key) and keeps the reverse index when the column is a unique
-// entity column, mirroring the plain columns. No Append after FinalizeColumn.
+// canonical key) and the storage order. When the rows are in value order the
+// sortedness is recorded and no reverse-lookup map is built — reverse lookup
+// binary-searches the chunks instead, which is what makes a sorted primary
+// key column viable at scale (the map is ~50 bytes per row; the search needs
+// nothing). Only key entity columns whose storage is NOT sorted by this
+// column keep the map, mirroring the plain columns. No Append after
+// FinalizeColumn.
 func (c *chunkedColumn[T, K]) FinalizeColumn() {
 	if c.compare != nil {
 		c.zones = buildZoneMap(&c.data, c.compare, c.neverKey)
+		sorted, unique := c.scanOrder()
+		c.sortedBySelf = sorted
+		if sorted {
+			c.valueIndex = nil
+			if c.autoKey {
+				c.isKey = unique
+			}
+			return
+		}
 	}
 	if !c.autoKey {
 		return
@@ -148,6 +199,37 @@ scan:
 	} else {
 		c.valueIndex = nil
 	}
+}
+
+// scanOrder makes one comparison pass over the values: sorted reports whether
+// they are non-decreasing in the column's value ordering, unique whether they
+// are pairwise distinct by canonical key and free of key-disqualifying values
+// (NaN). unique is only meaningful when sorted is true — for sorted data
+// canon-equal values are adjacent (compare returns 0 exactly when the
+// canonical keys are equal: -0 orders with +0, all NaNs order together), so
+// adjacent comparisons see every duplicate. The pass allocates nothing and
+// exits at the first order violation.
+func (c *chunkedColumn[T, K]) scanOrder() (sorted, unique bool) {
+	unique = true
+	var prev T
+	first := true
+	for ci := 0; ci < c.data.numChunks(); ci++ {
+		for _, v := range c.data.chunk(ci) {
+			if c.neverKey != nil && c.neverKey(v) {
+				unique = false
+			}
+			if !first {
+				switch cc := c.compare(prev, v); {
+				case cc > 0:
+					return false, false
+				case cc == 0:
+					unique = false
+				}
+			}
+			prev, first = v, false
+		}
+	}
+	return true, unique
 }
 
 // FilterSelection returns the rows whose value satisfies the predicate as a

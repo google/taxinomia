@@ -33,13 +33,19 @@ import (
 // parallelism and cancellation their granularity.
 type ChunkedDictStringColumn[K Unsigned] struct {
 	columnDef *ColumnDef
-	dict      []string        // code -> distinct value (global across chunks)
-	codes     chunkedData[K]  // row -> code
-	index     map[string]K    // value -> code (released by FinalizeColumn unless key)
-	isKey     bool
-	zones     *zoneMap[string] // per-chunk min/max value, built by FinalizeColumn
-	ranks     []K              // code -> sort rank, built lazily by Ranks()
-	ranksOnce sync.Once
+	dict      []string       // code -> distinct value (global across chunks)
+	codes     chunkedData[K] // row -> code
+	// index maps value -> code. FinalizeColumn releases it for non-key
+	// columns (nothing reads it) and for key columns whose storage is sorted
+	// by this column — there the dictionary itself is sorted, so value
+	// lookups binary-search it instead (the sparse-index rule of
+	// docs/scaling-to-1b-rows.md §6 applied to the dict shape).
+	index        map[string]K
+	isKey        bool
+	sortedBySelf bool             // physical order == value order; recorded by FinalizeColumn
+	zones        *zoneMap[string] // per-chunk min/max value, built by FinalizeColumn
+	ranks        []K              // code -> sort rank, built lazily by Ranks()
+	ranksOnce    sync.Once
 }
 
 // NewChunkedDictStringColumn creates an empty dictionary-encoded chunked
@@ -104,12 +110,14 @@ func (c *ChunkedDictStringColumn[K]) GetString(i uint32) (string, error) {
 // GetIndex returns the row index holding the given value.
 //
 // Only meaningful for key columns. When every value is distinct the n-th
-// appended value receives code n, so the code is also the row index.
+// appended value receives code n, so the code is also the row index; on
+// sorted storage the dictionary is additionally sorted, so the lookup is a
+// binary search over it instead of a map probe.
 func (c *ChunkedDictStringColumn[K]) GetIndex(v string) (uint32, error) {
 	if !c.isKey {
 		return 0, fmt.Errorf("column %q is not a key column and doesn't support reverse lookups", c.columnDef.Name())
 	}
-	if code, exists := c.index[v]; exists {
+	if code, ok := c.lookupCode(v); ok {
 		return uint32(code), nil
 	}
 	return 0, fmt.Errorf("value %q not found in column %q", v, c.columnDef.Name())
@@ -135,18 +143,51 @@ func (c *ChunkedDictStringColumn[K]) CreateJoinedColumn(columnDef *ColumnDef, jo
 	return NewJoinedStringColumn(columnDef, joiner, c)
 }
 
-// FinalizeColumn detects whether the column happens to be unique and builds
-// the per-chunk zone maps. The dictionary and its index are already built by
-// Append, so uniqueness needs no second pass over the rows.
+// FinalizeColumn detects whether the column happens to be unique, whether the
+// rows are stored in value order, and builds the per-chunk zone maps. The
+// dictionary and its index are already built by Append, so uniqueness needs
+// no second pass over the rows.
 //
-// For non-key columns the interning map is released. No Append after
-// FinalizeColumn.
+// The interning map is released for non-key columns (nothing reads it) and
+// for key columns stored in value order — a unique column's codes are
+// first-encounter order, so code == row, and sorted storage additionally
+// makes the dictionary itself sorted: reverse lookup is a binary search over
+// the dictionary, no map needed. No Append after FinalizeColumn.
 func (c *ChunkedDictStringColumn[K]) FinalizeColumn() {
 	c.isKey = len(c.dict) == c.codes.len()
-	if !c.isKey {
+	c.sortedBySelf = c.scanOrder()
+	if !c.isKey || c.sortedBySelf {
 		c.index = nil
 	}
 	c.zones = c.buildZones()
+}
+
+// scanOrder reports whether the rows are stored in value order
+// (non-decreasing). Codes are assigned in first-encounter order, so the rows
+// are sorted exactly when the dictionary is sorted and the code sequence is
+// non-decreasing; both checks together are one pass over the dictionary plus
+// one over the codes, allocating nothing and exiting at the first violation.
+func (c *ChunkedDictStringColumn[K]) scanOrder() bool {
+	if !sort.StringsAreSorted(c.dict) {
+		return false
+	}
+	var prev K
+	first := true
+	for ci := 0; ci < c.codes.numChunks(); ci++ {
+		for _, code := range c.codes.chunk(ci) {
+			if !first && code < prev {
+				return false
+			}
+			prev, first = code, false
+		}
+	}
+	return true
+}
+
+// SortedBySelf reports whether the column's physical row order is its value
+// order (non-decreasing), recorded by FinalizeColumn.
+func (c *ChunkedDictStringColumn[K]) SortedBySelf() bool {
+	return c.sortedBySelf
 }
 
 // buildZones records each chunk's min/max value. Codes are ranked by value
@@ -198,12 +239,20 @@ func (c *ChunkedDictStringColumn[K]) CompareRows(i, j uint32) int {
 }
 
 // lookupCode returns the dictionary code for a value: via the interning map
-// while it exists (key columns), by dictionary scan otherwise — O(distinct),
-// paid once per filter, never per row.
+// while it exists (unsorted key columns), by binary search when the
+// dictionary is sorted (sorted storage), by dictionary scan otherwise —
+// O(distinct), paid once per filter, never per row.
 func (c *ChunkedDictStringColumn[K]) lookupCode(v string) (K, bool) {
 	if c.index != nil {
 		code, ok := c.index[v]
 		return code, ok
+	}
+	if c.sortedBySelf {
+		i := sort.SearchStrings(c.dict, v)
+		if i < len(c.dict) && c.dict[i] == v {
+			return K(i), true
+		}
+		return 0, false
 	}
 	for code, s := range c.dict {
 		if s == v {
@@ -517,10 +566,23 @@ func (c *ChunkedDictStringColumn[K]) CodesChunk(chunk int) []K {
 // It reports whether compaction happened; when it returns false the original
 // column is returned unchanged.
 func CompactChunkedStringColumn(c *ChunkedStringColumn) (IDataColumn, bool) {
-	n := c.Length()
-	if n < minDictRows {
+	if c.Length() < minDictRows {
 		return c, false
 	}
+	return compactChunkedString(c)
+}
+
+// CompactDeclaredDimension is CompactChunkedStringColumn without the
+// minimum-row-count gate: the caller's role declaration replaces the size
+// heuristic. A column declared as a sort-key dimension is low-cardinality by
+// role (docs/scaling-to-1b-rows.md §5), so it is dictionary-encoded even when
+// the table is small. The cardinality cap and the key-column short-circuit
+// still apply — a declaration cannot make d = n repetitive.
+func CompactDeclaredDimension(c *ChunkedStringColumn) (IDataColumn, bool) {
+	return compactChunkedString(c)
+}
+
+func compactChunkedString(c *ChunkedStringColumn) (IDataColumn, bool) {
 	// A primary key is the guaranteed-worst case: every value distinct. Decline
 	// up front instead of burning a full counting scan.
 	if c.IsKey() {
@@ -539,7 +601,12 @@ func CompactChunkedStringColumn(c *ChunkedStringColumn) (IDataColumn, bool) {
 		}
 	}
 
-	if d := len(seen); d <= 1<<8 {
+	// Every value distinct is the key-column case even when the column was
+	// never finalized (IsKey unset): the dictionary would hold every value
+	// AND pay for codes on top.
+	if d := len(seen); d == c.Length() {
+		return c, false
+	} else if d <= 1<<8 {
 		return buildChunkedDict[uint8](c), true
 	}
 	return buildChunkedDict[uint16](c), true

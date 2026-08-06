@@ -442,6 +442,76 @@ func TestLoadDataDeclaredSortKey(t *testing.T) {
 	}
 }
 
+// Per-role encoding selection at load (phase 4b): a string column declared
+// as a sort-key dimension is dictionary-encoded even on a tiny table, the
+// primary key column stays plain, and reverse lookup on the sorted primary
+// key works — served by the sparse-index binary search, since sorted storage
+// builds no reverse-lookup map.
+func TestLoadDataSelectsEncodings(t *testing.T) {
+	csvPath := filepath.Join(t.TempDir(), "teams.csv")
+	csvContent := `team,name
+red,Delta
+blue,Alpha
+red,Charlie
+blue,Bravo`
+	if err := os.WriteFile(csvPath, []byte(csvContent), 0644); err != nil {
+		t.Fatalf("failed to write test CSV: %v", err)
+	}
+	manager := NewManager()
+	manager.RegisterLoader(NewCsvLoaderTyped())
+	manager.SetFileReader(os.ReadFile)
+	manager.AddAnnotations(&ColumnAnnotations{
+		AnnotationsId: "team_annotations",
+		Columns: []*ColumnAnnotation{
+			{Name: "name", EntityType: "test.person"},
+		},
+	})
+	manager.AddSource(&DataSource{
+		Name:                 "teams",
+		SourceType:           "csv_typed",
+		Config:               map[string]string{"file_path": csvPath, "has_header": "true"},
+		AnnotationsId:        "team_annotations",
+		PrimaryKeyEntityType: "test.person",
+		SortKey:              []string{"team"},
+	})
+	table, err := manager.LoadData("teams")
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+
+	// The declared dimension is dictionary-encoded: only dict columns have a
+	// dictionary cardinality.
+	team, ok := table.GetColumn("team").(interface{ Cardinality() int })
+	if !ok {
+		t.Fatalf("declared sort-key dimension not dictionary-encoded; got %T", table.GetColumn("team"))
+	}
+	if team.Cardinality() != 2 {
+		t.Errorf("team dictionary cardinality = %d, want 2", team.Cardinality())
+	}
+
+	// The string primary key stays plain and serves reverse lookups from its
+	// sorted storage.
+	name, ok := table.GetColumn("name").(columns.IDataColumnT[string])
+	if !ok {
+		t.Fatalf("name column has no typed string access; got %T", table.GetColumn("name"))
+	}
+	if _, isDict := table.GetColumn("name").(interface{ Cardinality() int }); isDict {
+		t.Errorf("primary key column was dictionary-encoded; got %T", table.GetColumn("name"))
+	}
+	for _, want := range []string{"Alpha", "Bravo", "Charlie", "Delta"} {
+		row, err := name.GetIndex(want)
+		if err != nil {
+			t.Fatalf("GetIndex(%q): %v", want, err)
+		}
+		if got, _ := name.GetValue(row); got != want {
+			t.Errorf("GetIndex(%q) = row %d holding %q", want, row, got)
+		}
+	}
+	if _, err := name.GetIndex("Nobody"); err == nil {
+		t.Error("GetIndex on an absent key should error")
+	}
+}
+
 // A declared sort_key naming a column the table does not have is a
 // configuration error, not a silent skip.
 func TestLoadDataBadSortKeyFails(t *testing.T) {

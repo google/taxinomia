@@ -49,6 +49,15 @@ func TestCreateJoinerChunked(t *testing.T) {
 	plainU32.FinalizeColumn()
 	chunkedU32.FinalizeColumn()
 
+	// Dictionary-encoded from-side: per-role encoding selection (phase 4b)
+	// turns repetitive string columns — foreign keys prominently — into dict
+	// columns, which must keep joining.
+	dictStr := columns.NewChunkedDictStringColumn[uint16](columns.NewColumnDef("id", "ID", "thing"))
+	for _, v := range []string{"a", "b", "c"} {
+		dictStr.Append(v)
+	}
+	dictStr.FinalizeColumn()
+
 	cases := []struct {
 		name     string
 		from, to columns.IDataColumn
@@ -59,8 +68,11 @@ func TestCreateJoinerChunked(t *testing.T) {
 		{"chunked-plain string", chunkedStr, plainStr, true},
 		{"chunked-chunked uint32", chunkedU32, chunkedU32, true},
 		{"plain-chunked uint32", plainU32, chunkedU32, true},
+		{"dict-chunked string", dictStr, chunkedStr, true},
+		{"dict-plain string", dictStr, plainStr, true},
 		{"type mismatch", chunkedStr, chunkedU32, false},
 		{"type mismatch reversed", chunkedU32, plainStr, false},
+		{"dict-uint32 mismatch", dictStr, chunkedU32, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -96,6 +108,8 @@ func TestGetColumnTypeChunked(t *testing.T) {
 		{columns.NewChunkedFloat64Column(def), "float64"},
 		{columns.NewChunkedBoolColumn(def), "bool"},
 		{columns.NewChunkedDatetimeColumn(def), "datetime"},
+		{columns.NewDictStringColumn[uint8](def), "string"},
+		{columns.NewChunkedDictStringColumn[uint16](def), "string"},
 	}
 	for _, tc := range cases {
 		if got := getColumnType(tc.col); got != tc.want {

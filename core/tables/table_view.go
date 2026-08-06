@@ -1489,6 +1489,11 @@ func (tv *TableView) GetColumnTypeName(colName string) string {
 		return "ChunkedBoolColumn"
 	case *columns.ChunkedDatetimeColumn:
 		return "ChunkedDatetimeColumn"
+	// Dictionary-encoded string columns (all code widths)
+	case *columns.DictStringColumn[uint8], *columns.DictStringColumn[uint16], *columns.DictStringColumn[uint32]:
+		return "DictStringColumn"
+	case *columns.ChunkedDictStringColumn[uint8], *columns.ChunkedDictStringColumn[uint16], *columns.ChunkedDictStringColumn[uint32]:
+		return "ChunkedDictStringColumn"
 	// Computed column types
 	case *columns.ComputedUint32Column:
 		return "ComputedUint32Column"

@@ -252,6 +252,9 @@ func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 		return nil, fmt.Errorf("failed to sort source %q: %w", sourceName, err)
 	}
 
+	// Step 5: choose per-role storage encodings for the sorted table
+	table.SelectEncodings()
+
 	// Cache the result
 	m.mu.Lock()
 	m.tables[sourceName] = table
