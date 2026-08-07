@@ -449,6 +449,23 @@ func (c *chunkedColumn[T, K]) GroupMembers(sel RowSet, code uint32, offset, n in
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
+// partitionGroups implements groupPartitioner: the grouping pass as per-chunk
+// partials on the executor pool, with the same first-appearance code
+// assignment as the sequential IGroupOps operations.
+func (c *chunkedColumn[T, K]) partitionGroups(ctx context.Context, sel RowSet) (*GroupPartition, bool, error) {
+	rs, ok := sel.(rangeRowSet)
+	nc := c.data.numChunks()
+	chunkSize := c.data.chunkSize()
+	if !ok || nc < 2 || chunkSize%64 != 0 || disableParallelScan {
+		return nil, false, nil
+	}
+	part, err := parallelHashPartition(ctx, nc, chunkSize, c.groupKeyAt, rs)
+	if err != nil {
+		return nil, false, err
+	}
+	return part, true, nil
+}
+
 // --- IChunkedColumn ---
 
 func (c *chunkedColumn[T, K]) ChunkSize() int {

@@ -53,6 +53,22 @@ func (r allRows) NumRows() int {
 	return int(r)
 }
 
+// forEachRowIn implements rangeRowSet: the rows in [lo, hi) capped to the
+// universe.
+func (r allRows) forEachRowIn(lo, hi int, f func(i uint32) bool) {
+	if hi > int(r) {
+		hi = int(r)
+	}
+	if lo < 0 {
+		lo = 0
+	}
+	for i := lo; i < hi; i++ {
+		if !f(uint32(i)) {
+			return
+		}
+	}
+}
+
 // RowIndices is an explicit index list viewed as a RowSet. It bridges
 // pre-materialised row lists — group membership, join results — into
 // RowSet-consuming operations; rows are visited in slice order.

@@ -410,31 +410,59 @@ var groupsBuilt atomic.Uint64
 // call, the cached level-0 state is kept and child blocks are built or
 // dropped incrementally, without rescanning the table.
 func (t *TableView) GroupTableWindowed(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool, displayLimit int, expansion GroupExpansion) {
+	// context.Background is never cancelled, so the error is impossible.
+	_ = t.GroupTableWindowedContext(context.Background(), groupingOrder, aggregatedColumns, compare, asc, displayLimit, expansion)
+}
+
+// GroupTableWindowedContext is GroupTableWindowed under a context: the
+// grouping build runs its level-0 partition as per-chunk partials on the
+// shared executor pool and observes ctx at chunk granularity there, at group
+// granularity elsewhere. On cancellation it returns ctx's error with every
+// grouping state dropped — nothing half-built is cached, and the next request
+// regroups from scratch.
+func (t *TableView) GroupTableWindowedContext(ctx context.Context, groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool, displayLimit int, expansion GroupExpansion) error {
 	// Check if grouping inputs are unchanged - skip recomputation
 	if t.groupingEqual(groupingOrder, asc) && t.lastExpansion != nil {
 		if expansionEqual(*t.lastExpansion, expansion) {
-			return
+			return nil
 		}
 		if !t.lastExpansion.ExpandAll && !expansion.ExpandAll {
 			// Same grouping, different expansion: reuse the level-0 state
 			// and adjust only the affected subtrees.
-			t.updateGroupExpansion(asc, expansion)
-			return
+			if err := t.updateGroupExpansion(ctx, asc, expansion); err != nil {
+				t.dropGroupingState()
+				return err
+			}
+			return nil
 		}
 		// Switching between expand-all and explicit expansion falls through
 		// to a full rebuild.
 	}
 
+	var err error
 	if expansion.ExpandAll {
-		t.groupTableEager(groupingOrder, asc, displayLimit)
+		err = t.groupTableEager(ctx, groupingOrder, asc, displayLimit)
 	} else {
-		t.groupTableLazy(groupingOrder, asc, displayLimit, expansion)
+		err = t.groupTableLazy(ctx, groupingOrder, asc, displayLimit, expansion)
 	}
+	if err != nil {
+		t.dropGroupingState()
+		return err
+	}
+	return nil
+}
+
+// dropGroupingState resets every piece of grouping state, including the block
+// registry an interrupted incremental update may have left inconsistent. A
+// cancelled build caches nothing.
+func (t *TableView) dropGroupingState() {
+	t.ClearGroupings()
+	t.blocksByColumn = make(map[string][]*grouping.Block)
 }
 
 // groupTableEager builds the full grouping tree: every group of every level.
 // This is the historical behavior and the byte-identical default.
-func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool, displayLimit int) {
+func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string, asc map[string]bool, displayLimit int) error {
 	// clear current groups
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
@@ -446,7 +474,10 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 
 	// Process first column
 	// groupedTable.columns = columns
-	parentBlocks := t.groupFirstColumnInTable(sel)
+	parentBlocks, err := t.groupFirstColumnInTable(ctx, sel)
+	if err != nil {
+		return err
+	}
 	t.firstBlock = parentBlocks[0]
 
 	// Sort first column groups with top-K optimization
@@ -456,7 +487,9 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 	t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
 
 	// Process subsequent columns
-	t.groupSubsequentColumnsInTable(t.groupingOrder[1:], parentBlocks, asc)
+	if err := t.groupSubsequentColumnsInTable(ctx, t.groupingOrder[1:], parentBlocks, asc); err != nil {
+		return err
+	}
 
 	// Compute aggregates for all groups
 	leafColumns := t.GetLeafColumns()
@@ -464,7 +497,9 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 	for _, colName := range leafColumns {
 		columnTypes[colName] = t.GetColumnType(colName)
 	}
-	t.ComputeAggregates(leafColumns, columnTypes)
+	if err := t.computeAggregates(ctx, leafColumns, columnTypes); err != nil {
+		return err
+	}
 
 	// Membership lists were only needed to build child levels and leaf
 	// aggregates; drop them so retained grouping state is O(distinct), not
@@ -473,18 +508,22 @@ func (t *TableView) groupTableEager(groupingOrder []string, asc map[string]bool,
 
 	t.saveGroupingState(groupingOrder, asc)
 	t.lastExpansion = &GroupExpansion{ExpandAll: true}
+	return nil
 }
 
 // groupTableLazy builds level 0 in full (O(distinct) retained state) and
 // deeper levels only underneath groups opened by expansion.
-func (t *TableView) groupTableLazy(groupingOrder []string, asc map[string]bool, displayLimit int, expansion GroupExpansion) {
+func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, asc map[string]bool, displayLimit int, expansion GroupExpansion) error {
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
 	t.blocksByColumn = make(map[string][]*grouping.Block)
 
 	t.groupingOrder = groupingOrder
 
-	parentBlocks := t.groupFirstColumnInTable(t.rowSet())
+	parentBlocks, err := t.groupFirstColumnInTable(ctx, t.rowSet())
+	if err != nil {
+		return err
+	}
 	t.firstBlock = parentBlocks[0]
 
 	firstColumn := groupingOrder[0]
@@ -504,20 +543,25 @@ func (t *TableView) groupTableLazy(groupingOrder []string, asc map[string]bool, 
 	}
 
 	expanded := normalizeExpansion(expansion.Paths)
-	t.buildExpandedChildren(t.firstBlock, 0, nil, expanded, asc)
+	if err := t.buildExpandedChildren(ctx, t.firstBlock, 0, nil, expanded, asc); err != nil {
+		return err
+	}
 
 	leafColumns := t.GetLeafColumns()
 	columnTypes := make(map[string]queryspec.ColumnType)
 	for _, colName := range leafColumns {
 		columnTypes[colName] = t.GetColumnType(colName)
 	}
-	t.ComputeAggregates(leafColumns, columnTypes)
+	if err := t.computeAggregates(ctx, leafColumns, columnTypes); err != nil {
+		return err
+	}
 
 	releaseGroupMembership(t.firstBlock)
 
 	t.saveGroupingState(groupingOrder, asc)
 	exp := expansion
 	t.lastExpansion = &exp
+	return nil
 }
 
 // updateGroupExpansion adjusts an existing lazy grouping to a new expansion
@@ -525,9 +569,11 @@ func (t *TableView) groupTableLazy(groupingOrder []string, asc map[string]bool, 
 // column's GroupMembers operation), closed ones are dropped. The cached
 // level-0 state — counts, representative rows, aggregates, sort order — is
 // reused untouched.
-func (t *TableView) updateGroupExpansion(asc map[string]bool, expansion GroupExpansion) {
+func (t *TableView) updateGroupExpansion(ctx context.Context, asc map[string]bool, expansion GroupExpansion) error {
 	expanded := normalizeExpansion(expansion.Paths)
-	t.syncExpansion(t.firstBlock, 0, nil, expanded, asc)
+	if err := t.syncExpansion(ctx, t.firstBlock, 0, nil, expanded, asc); err != nil {
+		return err
+	}
 	t.rebuildBlockRegistry()
 
 	leafColumns := t.GetLeafColumns()
@@ -535,54 +581,68 @@ func (t *TableView) updateGroupExpansion(asc map[string]bool, expansion GroupExp
 	for _, colName := range leafColumns {
 		columnTypes[colName] = t.GetColumnType(colName)
 	}
-	t.ComputeAggregates(leafColumns, columnTypes)
+	if err := t.computeAggregates(ctx, leafColumns, columnTypes); err != nil {
+		return err
+	}
 
 	releaseGroupMembership(t.firstBlock)
 
 	exp := expansion
 	t.lastExpansion = &exp
+	return nil
 }
 
 // buildExpandedChildren descends from block into every group opened by
 // expanded, building child blocks from the still-transient membership lists
 // of the initial build.
-func (t *TableView) buildExpandedChildren(block *grouping.Block, level int, prefix []string, expanded map[string]bool, asc map[string]bool) {
+func (t *TableView) buildExpandedChildren(ctx context.Context, block *grouping.Block, level int, prefix []string, expanded map[string]bool, asc map[string]bool) error {
 	if block == nil || level+1 >= len(t.groupingOrder) {
-		return
+		return nil
 	}
 	for _, g := range block.Groups {
 		path := appendPath(prefix, g.GetValue())
 		if !expanded[expansionKey(path)] {
 			continue
 		}
-		child := t.buildChildBlock(g, level+1, g.Indices, asc)
-		t.buildExpandedChildren(child, level+1, path, expanded, asc)
+		child, err := t.buildChildBlock(ctx, g, level+1, g.Indices, asc)
+		if err != nil {
+			return err
+		}
+		if err := t.buildExpandedChildren(ctx, child, level+1, path, expanded, asc); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // syncExpansion walks an existing tree and reconciles it with the requested
 // expansion: builds missing child blocks, drops no-longer-open ones.
-func (t *TableView) syncExpansion(block *grouping.Block, level int, prefix []string, expanded map[string]bool, asc map[string]bool) {
+func (t *TableView) syncExpansion(ctx context.Context, block *grouping.Block, level int, prefix []string, expanded map[string]bool, asc map[string]bool) error {
 	if block == nil {
-		return
+		return nil
 	}
 	lastLevel := level+1 >= len(t.groupingOrder)
 	for _, g := range block.Groups {
 		path := appendPath(prefix, g.GetValue())
 		want := !lastLevel && expanded[expansionKey(path)]
 		if want && g.ChildBlock == nil {
-			t.buildChildBlock(g, level+1, t.membersForGroup(g), asc)
+			if _, err := t.buildChildBlock(ctx, g, level+1, t.membersForGroup(g), asc); err != nil {
+				return err
+			}
 		} else if !want && g.ChildBlock != nil {
 			g.ChildBlock = nil
 		}
-		t.syncExpansion(g.ChildBlock, level+1, path, expanded, asc)
+		if err := t.syncExpansion(ctx, g.ChildBlock, level+1, path, expanded, asc); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // buildChildBlock groups members (the parent group's rows) by the column at
 // the given level, attaches the resulting block to the parent group, and
 // sorts its groups by value.
-func (t *TableView) buildChildBlock(parentGroup *grouping.Group, level int, members []uint32, asc map[string]bool) *grouping.Block {
+func (t *TableView) buildChildBlock(ctx context.Context, parentGroup *grouping.Group, level int, members []uint32, asc map[string]bool) (*grouping.Block, error) {
 	col := t.groupingOrder[level]
 	gcol := t.groupedColumns[col]
 	b := &grouping.Block{
@@ -593,11 +653,13 @@ func (t *TableView) buildChildBlock(parentGroup *grouping.Group, level int, memb
 	t.blocksByColumn[col] = append(t.blocksByColumn[col], b)
 	parentGroup.ChildBlock = b
 
-	buildGroupsForBlock(gcol.DataColumn, gcol.ColumnView, columns.RowIndices(members), b, parentGroup)
+	if err := buildGroupsForBlock(ctx, gcol.DataColumn, gcol.ColumnView, columns.RowIndices(members), b, parentGroup); err != nil {
+		return nil, err
+	}
 
 	ascending, hasSort := asc[col]
 	t.sortGroupsInBlock(b, hasSort && !ascending)
-	return b
+	return b, nil
 }
 
 // membersForGroup re-resolves a group's membership after the transient build
@@ -811,49 +873,29 @@ func (t *TableView) groupingEqual(groupingOrder []string, asc map[string]bool) b
 	return true
 }
 
-// scatterAccumulator lays group members out contiguously in one backing
-// array, one cursor per group code. It implements columns.GroupAccumulator.
-type scatterAccumulator struct {
-	backing []uint32
-	cursor  []uint32
-}
-
-func (a *scatterAccumulator) Add(code uint32, row uint32) {
-	a.backing[a.cursor[code]] = row
-	a.cursor[code]++
-}
-
-// buildGroupsForBlock partitions sel with the column's narrow grouping
-// operations (columns.IGroupOps) and creates one Group per non-empty code, in
-// code order. Count and First are final; Indices holds the group's members
-// only transiently — sliced from a single backing array — until
-// releaseGroupMembership drops them at the end of the grouping build.
-func buildGroupsForBlock(dataColumn columns.IDataColumn, columnView *columns.ColumnView, sel columns.RowSet, block *grouping.Block, parent *grouping.Group) {
-	ops := columns.GroupOpsFor(dataColumn, columnView)
-	counts, firsts := ops.GroupCounts(sel)
-
-	offsets := make([]uint32, len(counts))
-	var total uint32
-	for code, n := range counts {
-		offsets[code] = total
-		total += n
+// buildGroupsForBlock partitions sel with the column's grouping operations —
+// per-chunk partials on the executor pool where the column supports it, the
+// sequential columns.IGroupOps passes otherwise — and creates one Group per
+// non-empty code, in code order. Count and First are final; Indices holds the
+// group's members only transiently — sliced from a single backing array —
+// until releaseGroupMembership drops them at the end of the grouping build.
+func buildGroupsForBlock(ctx context.Context, dataColumn columns.IDataColumn, columnView *columns.ColumnView, sel columns.RowSet, block *grouping.Block, parent *grouping.Group) error {
+	part, err := columns.PartitionGroups(ctx, dataColumn, columnView, sel)
+	if err != nil {
+		return err
 	}
-	backing := make([]uint32, total)
-	cursor := make([]uint32, len(counts))
-	copy(cursor, offsets)
-	ops.GroupAggregates(sel, &scatterAccumulator{backing: backing, cursor: cursor})
 
 	created := uint64(0)
-	for code, n := range counts {
+	for code, n := range part.Counts {
 		if n == 0 {
 			continue
 		}
-		start := offsets[code]
+		start := part.Offsets[code]
 		block.Groups = append(block.Groups, &grouping.Group{
 			GroupKey:    uint32(code),
-			Indices:     backing[start : start+n : start+n],
+			Indices:     part.Backing[start : start+n : start+n],
 			Count:       n,
-			First:       firsts[code],
+			First:       part.Firsts[code],
 			ParentGroup: parent,
 			Block:       block,
 			IsComplete:  true,
@@ -861,6 +903,7 @@ func buildGroupsForBlock(dataColumn columns.IDataColumn, columnView *columns.Col
 		created++
 	}
 	groupsBuilt.Add(created)
+	return nil
 }
 
 // releaseGroupMembership drops the transient membership lists of every group
@@ -876,7 +919,7 @@ func releaseGroupMembership(block *grouping.Block) {
 	}
 }
 
-func (t *TableView) groupFirstColumnInTable(sel columns.RowSet) []*grouping.Block {
+func (t *TableView) groupFirstColumnInTable(ctx context.Context, sel columns.RowSet) ([]*grouping.Block, error) {
 	firstColumn := t.groupingOrder[0]
 	columnView := t.columnViews[firstColumn]
 	dataColumn := t.GetColumn(firstColumn)
@@ -898,14 +941,16 @@ func (t *TableView) groupFirstColumnInTable(sel columns.RowSet) []*grouping.Bloc
 	g.Blocks = append(g.Blocks, b)
 	t.blocksByColumn[firstColumn] = append(t.blocksByColumn[firstColumn], b)
 
-	buildGroupsForBlock(dataColumn, columnView, sel, b, nil)
+	if err := buildGroupsForBlock(ctx, dataColumn, columnView, sel, b, nil); err != nil {
+		return nil, err
+	}
 
-	return []*grouping.Block{b}
+	return []*grouping.Block{b}, nil
 }
 
-func (t *TableView) groupSubsequentColumnsInTable(cols []string, parentBlocks []*grouping.Block, asc map[string]bool) {
+func (t *TableView) groupSubsequentColumnsInTable(ctx context.Context, cols []string, parentBlocks []*grouping.Block, asc map[string]bool) error {
 	if len(cols) == 0 {
-		return
+		return nil
 	}
 
 	// for following columns, each parent group spawns a child block
@@ -940,7 +985,9 @@ func (t *TableView) groupSubsequentColumnsInTable(cols []string, parentBlocks []
 				parentGroup.ChildBlock = b
 
 				// now group within the parent group
-				buildGroupsForBlock(dataColumn, columnView, columns.RowIndices(parentGroup.Indices), b, parentGroup)
+				if err := buildGroupsForBlock(ctx, dataColumn, columnView, columns.RowIndices(parentGroup.Indices), b, parentGroup); err != nil {
+					return err
+				}
 
 				// Sort groups within this block
 				t.sortGroupsInBlock(b, descending)
@@ -948,6 +995,7 @@ func (t *TableView) groupSubsequentColumnsInTable(cols []string, parentBlocks []
 		}
 		parentBlocks = g.Blocks
 	}
+	return nil
 }
 
 // NewTableView creates a new TableView wrapping a DataTable
@@ -1258,25 +1306,37 @@ func (tv *TableView) GetOtherLeafColumns() []string {
 // It uses bottom-up aggregation: leaf groups compute from data, parent groups combine children.
 // leafColumns specifies which columns to aggregate; columnTypes maps column names to types.
 func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[string]queryspec.ColumnType) {
+	// context.Background is never cancelled, so the error is impossible.
+	_ = tv.computeAggregates(context.Background(), leafColumns, columnTypes)
+}
+
+// computeAggregates is ComputeAggregates under a context, observed at group
+// granularity: the per-row aggregate work of one group runs uninterrupted.
+func (tv *TableView) computeAggregates(ctx context.Context, leafColumns []string, columnTypes map[string]queryspec.ColumnType) error {
 	if tv.firstBlock == nil || len(leafColumns) == 0 {
-		return
+		return nil
 	}
 
 	// Walk the hierarchy bottom-up, starting from leaves
-	tv.computeAggregatesForBlock(tv.firstBlock, leafColumns, columnTypes)
+	return tv.computeAggregatesForBlock(ctx, tv.firstBlock, leafColumns, columnTypes)
 }
 
 // computeAggregatesForBlock recursively computes aggregates for a block and its children.
 // Returns after processing all groups in the block.
-func (tv *TableView) computeAggregatesForBlock(block *grouping.Block, leafColumns []string, columnTypes map[string]queryspec.ColumnType) {
+func (tv *TableView) computeAggregatesForBlock(ctx context.Context, block *grouping.Block, leafColumns []string, columnTypes map[string]queryspec.ColumnType) error {
 	if block == nil {
-		return
+		return nil
 	}
 
 	for _, group := range block.Groups {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// First, process child block (if any) - bottom-up
 		if group.ChildBlock != nil {
-			tv.computeAggregatesForBlock(group.ChildBlock, leafColumns, columnTypes)
+			if err := tv.computeAggregatesForBlock(ctx, group.ChildBlock, leafColumns, columnTypes); err != nil {
+				return err
+			}
 		}
 
 		// Leaf membership is released once the grouping build finishes; a
@@ -1297,6 +1357,7 @@ func (tv *TableView) computeAggregatesForBlock(block *grouping.Block, leafColumn
 			tv.combineChildAggregates(group, leafColumns, columnTypes)
 		}
 	}
+	return nil
 }
 
 // computeLeafAggregates computes aggregates for a leaf group by iterating over its indices.

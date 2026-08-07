@@ -397,3 +397,28 @@ map pruning, which removes chunks before they are scheduled at all. The
 same pool serves every concurrent query (per-job round-robin plus the
 submitting goroutine draining its own job), and cancellation is observed
 between spans, so a superseded request stops at chunk granularity.
+
+## Per-chunk grouping partials (2026-08-07, phase 5b)
+
+The level-0 grouping pass — group counts plus the scatter of every selected
+row into a contiguous per-group layout — now runs as per-chunk partials on
+the same worker pool, merged in span order (`PartitionGroups`,
+docs/scaling-to-1b-rows.md section 8). Dictionary-coded columns merge dense
+partial count arrays by array addition (the global dictionary makes codes
+comparable across chunks); hash-grouped columns merge keyed partials in
+first-appearance order, so codes, counts, firsts and member order are
+bit-identical to the sequential pass. `BenchmarkPartitionGroups`, 1M rows
+(16 chunks), 1000 groups, 8 hardware threads, `-benchtime 5x -count 3`,
+medians:
+
+| Partition (counts + scatter) | Sequential | Parallel | Speedup |
+|---|---|---|---|
+| Hash grouping (chunked int64) | 44.6 ms | 21.4 ms | 2.1x |
+| Dense dictionary codes | 16.5 ms | 4.0 ms | 4.1x |
+
+The sequential leg is exactly the pre-5b grouping build (GroupCounts plus
+the GroupAggregates scatter), so the comparison is the honest before/after.
+The dense path parallelises better because its per-row work is an array
+increment with no hashing; both stay below the thread count for the section
+9 bandwidth reasons. Explicit index-list selections (child-level grouping)
+and non-chunked columns keep the sequential path unchanged.

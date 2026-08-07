@@ -558,6 +558,28 @@ func (c *ChunkedDictStringColumn[K]) GroupAggregates(sel RowSet, acc GroupAccumu
 	})
 }
 
+// partitionGroups implements groupPartitioner. The cutover between the dense
+// dictionary-code scheme and the hash fallback is smallGroupSubset — the same
+// predicate the sequential operations use, so partition codes stay valid for
+// later GroupMembers calls. The dense path is §8's global-dictionary case:
+// per-span partial counts merge by array addition.
+func (c *ChunkedDictStringColumn[K]) partitionGroups(ctx context.Context, sel RowSet) (*GroupPartition, bool, error) {
+	rs, ok := sel.(rangeRowSet)
+	nc := c.codes.numChunks()
+	chunkSize := c.codes.chunkSize()
+	if !ok || nc < 2 || chunkSize%64 != 0 || disableParallelScan {
+		return nil, false, nil
+	}
+	if c.smallGroupSubset(sel) {
+		part, err := parallelHashPartition(ctx, nc, chunkSize, c.groupKeyAt, rs)
+		if err != nil {
+			return nil, false, err
+		}
+		return part, true, nil
+	}
+	return parallelDensePartition(ctx, &c.codes, len(c.dict), rs)
+}
+
 func (c *ChunkedDictStringColumn[K]) GroupMembers(sel RowSet, code uint32, offset, n int) []uint32 {
 	if c.smallGroupSubset(sel) {
 		return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)

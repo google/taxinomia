@@ -450,6 +450,23 @@ func (c *ChunkedArenaStringColumn) GroupMembers(sel RowSet, code uint32, offset,
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
+// partitionGroups implements groupPartitioner: the grouping pass as per-chunk
+// partials on the executor pool. The partial maps key zero-copy views into the
+// blobs, which is safe transiently for the same reason valueIndex's keys are.
+func (c *ChunkedArenaStringColumn) partitionGroups(ctx context.Context, sel RowSet) (*GroupPartition, bool, error) {
+	rs, ok := sel.(rangeRowSet)
+	nc := len(c.chunks)
+	chunkSize := 1 << c.shift
+	if !ok || nc < 2 || chunkSize%64 != 0 || disableParallelScan {
+		return nil, false, nil
+	}
+	part, err := parallelHashPartition(ctx, nc, chunkSize, c.groupKeyAt, rs)
+	if err != nil {
+		return nil, false, err
+	}
+	return part, true, nil
+}
+
 // --- IChunkedColumn ---
 
 func (c *ChunkedArenaStringColumn) ChunkSize() int {

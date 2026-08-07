@@ -151,6 +151,38 @@ func (s *Selection) NumRows() int {
 	return s.Count()
 }
 
+// forEachRowIn implements rangeRowSet: ForEachRow restricted to rows in
+// [lo, hi). Word-aligned ranges (chunk boundaries with a chunk size divisible
+// by 64) touch only whole words; unaligned edges are masked.
+func (s *Selection) forEachRowIn(lo, hi int, f func(i uint32) bool) {
+	if hi > s.n {
+		hi = s.n
+	}
+	if lo < 0 {
+		lo = 0
+	}
+	if lo >= hi {
+		return
+	}
+	wLo, wLast := lo/64, (hi-1)/64
+	for w := wLo; w <= wLast; w++ {
+		word := s.words[w]
+		if w == wLo && lo%64 != 0 {
+			word &= ^uint64(0) << uint(lo%64)
+		}
+		if w == wLast && hi%64 != 0 {
+			word &= (uint64(1) << uint(hi%64)) - 1
+		}
+		for word != 0 {
+			tz := bits.TrailingZeros64(word)
+			if !f(uint32(w*64 + tz)) {
+				return
+			}
+			word &^= uint64(1) << tz
+		}
+	}
+}
+
 // ToIndices materialises the selection as a sorted []uint32 index list. It is
 // the compatibility adapter for callers that predate Selection: the result
 // costs four bytes per selected row, which is exactly the cost Selection
