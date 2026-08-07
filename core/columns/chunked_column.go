@@ -20,6 +20,7 @@ package columns
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -235,19 +236,33 @@ func (c *chunkedColumn[T, K]) scanOrder() (sorted, unique bool) {
 // FilterSelection returns the rows whose value satisfies the predicate as a
 // bitmap, scanning chunk by chunk. A chunk's bit range is word-aligned
 // whenever the chunk size is a multiple of 64, which every public constructor
-// guarantees — that is what lets a later parallel executor fill the same
-// bitmap from concurrent per-chunk scans without locking.
+// guarantees — that is what lets the executor pool fill the same bitmap from
+// concurrent per-chunk scans without locking. The predicate must be safe for
+// concurrent calls (a pure function of its argument, as every in-repo
+// predicate is).
 func (c *chunkedColumn[T, K]) FilterSelection(predicate func(T) bool) *Selection {
+	s, _ := c.FilterSelectionContext(context.Background(), predicate)
+	return s
+}
+
+// FilterSelectionContext is FilterSelection under a context: chunks are
+// scanned in parallel on the executor pool, no new chunk is started once ctx
+// is cancelled, and a cancelled scan returns (nil, ctx.Err()) —
+// docs/scaling-to-1b-rows.md §3, "everything is cancellable".
+func (c *chunkedColumn[T, K]) FilterSelectionContext(ctx context.Context, predicate func(T) bool) (*Selection, error) {
 	s := NewSelection(c.data.len())
-	for ci := 0; ci < c.data.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.data.numChunks(), c.data.chunkSize(), func(ci int) {
 		base := uint32(ci) << c.data.shift
 		for j, v := range c.data.chunk(ci) {
 			if predicate(v) {
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionEqual returns the rows whose value equals v, equality being
@@ -259,11 +274,19 @@ func (c *chunkedColumn[T, K]) FilterSelection(predicate func(T) bool) *Selection
 // On a column that was never finalized there are no zone maps and every chunk
 // is scanned; the result is identical either way.
 func (c *chunkedColumn[T, K]) FilterSelectionEqual(v T) *Selection {
+	s, _ := c.FilterSelectionEqualContext(context.Background(), v)
+	return s
+}
+
+// FilterSelectionEqualContext is FilterSelectionEqual under a context, with
+// the surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *chunkedColumn[T, K]) FilterSelectionEqualContext(ctx context.Context, v T) (*Selection, error) {
 	s := NewSelection(c.data.len())
 	key := c.canon(v)
-	for ci := 0; ci < c.data.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.data.numChunks(), c.data.chunkSize(), func(ci int) {
 		if !c.zones.mayContainPoint(ci, v) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.data.shift
 		for j, x := range c.data.chunk(ci) {
@@ -271,25 +294,36 @@ func (c *chunkedColumn[T, K]) FilterSelectionEqual(v T) *Selection {
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionIn returns the rows whose value equals any of the given
 // values (the multi-value OR filter), with the same chunk pruning and
 // equality semantics as FilterSelectionEqual.
 func (c *chunkedColumn[T, K]) FilterSelectionIn(values []T) *Selection {
+	s, _ := c.FilterSelectionInContext(context.Background(), values)
+	return s
+}
+
+// FilterSelectionInContext is FilterSelectionIn under a context, with the
+// surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *chunkedColumn[T, K]) FilterSelectionInContext(ctx context.Context, values []T) (*Selection, error) {
 	s := NewSelection(c.data.len())
 	if len(values) == 0 {
-		return s
+		return s, nil
 	}
 	keys := make(map[K]struct{}, len(values))
 	for _, v := range values {
 		keys[c.canon(v)] = struct{}{}
 	}
-	for ci := 0; ci < c.data.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.data.numChunks(), c.data.chunkSize(), func(ci int) {
 		if !c.zones.mayContainAny(ci, values) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.data.shift
 		for j, x := range c.data.chunk(ci) {
@@ -297,18 +331,29 @@ func (c *chunkedColumn[T, K]) FilterSelectionIn(values []T) *Selection {
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionRange returns the rows whose value lies in [lo, hi]
 // (inclusive; a nil bound is unbounded), with chunk pruning. Values outside
 // the ordering (NaN) never match a range.
 func (c *chunkedColumn[T, K]) FilterSelectionRange(lo, hi *T) *Selection {
+	s, _ := c.FilterSelectionRangeContext(context.Background(), lo, hi)
+	return s
+}
+
+// FilterSelectionRangeContext is FilterSelectionRange under a context, with
+// the surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *chunkedColumn[T, K]) FilterSelectionRangeContext(ctx context.Context, lo, hi *T) (*Selection, error) {
 	s := NewSelection(c.data.len())
-	for ci := 0; ci < c.data.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.data.numChunks(), c.data.chunkSize(), func(ci int) {
 		if !c.zones.mayContainRange(ci, lo, hi) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.data.shift
 		for j, x := range c.data.chunk(ci) {
@@ -323,8 +368,11 @@ func (c *chunkedColumn[T, K]) FilterSelectionRange(lo, hi *T) *Selection {
 			}
 			s.Add(base + uint32(j))
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // ChunkBounds returns chunk ci's zone-map bounds. ok is false when no zone

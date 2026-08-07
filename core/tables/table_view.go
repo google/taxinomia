@@ -20,6 +20,7 @@ package tables
 
 import (
 	"container/heap"
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -125,16 +126,28 @@ type TableView struct {
 //
 // Caching: Skips recomputation if filters are identical to the previous call.
 func (t *TableView) ApplyFilters(filters map[string]string) {
+	// context.Background never cancels, so the error is impossible.
+	_ = t.ApplyFiltersContext(context.Background(), filters)
+}
+
+// ApplyFiltersContext is ApplyFilters under a context: the structured filter
+// scans run in parallel on the executor pool and stop at chunk granularity
+// once ctx is cancelled (docs/scaling-to-1b-rows.md §3, "everything is
+// cancellable"). On cancellation it returns ctx.Err() and caches nothing —
+// the view is left as if the filters had never been applied, so a later call
+// recomputes them. Filters on columns without structured filter support are
+// scanned per row; those scans observe the context only between columns.
+func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]string) error {
 	// Check if filters are unchanged - skip recomputation
 	if t.filtersEqual(filters) {
-		return
+		return nil
 	}
 
 	// If no filters, clear the selection
 	if len(filters) == 0 {
 		t.filterSel = nil
 		t.lastFilters = nil
-		return
+		return nil
 	}
 
 	// Initialize the selection - start with all rows passing
@@ -142,11 +155,15 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 
 	// Apply each filter one column at a time
 	for colName, filterValue := range filters {
+		if err := ctx.Err(); err != nil {
+			t.abandonFilters()
+			return err
+		}
 		col := t.GetColumn(colName)
 		if col == nil {
 			// Column not found - no rows pass
 			t.filterSel = columns.NewSelection(t.baseTable.Length())
-			return
+			return nil
 		}
 
 		// Check for multi-value filter (pipe-separated exact matches)
@@ -156,6 +173,17 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 			// Columns with a structured multi-value filter (the chunked
 			// columns) evaluate it themselves, skipping chunks their zone
 			// maps rule out. Same matches as the per-row scan below.
+			if fc, ok := col.(interface {
+				FilterSelectionInContext(context.Context, []string) (*columns.Selection, error)
+			}); ok {
+				sel, err := fc.FilterSelectionInContext(ctx, values)
+				if err != nil {
+					t.abandonFilters()
+					return err
+				}
+				t.filterSel.And(sel)
+				continue
+			}
 			if fc, ok := col.(interface {
 				FilterSelectionIn([]string) *columns.Selection
 			}); ok {
@@ -181,6 +209,17 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 				exactValue := filterValue[1 : len(filterValue)-1]
 				// Structured equality with chunk pruning, when the column
 				// offers it. Same matches as the per-row scan below.
+				if fc, ok := col.(interface {
+					FilterSelectionEqualContext(context.Context, string) (*columns.Selection, error)
+				}); ok {
+					sel, err := fc.FilterSelectionEqualContext(ctx, exactValue)
+					if err != nil {
+						t.abandonFilters()
+						return err
+					}
+					t.filterSel.And(sel)
+					continue
+				}
 				if fc, ok := col.(interface {
 					FilterSelectionEqual(string) *columns.Selection
 				}); ok {
@@ -211,6 +250,14 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 	for k, v := range filters {
 		t.lastFilters[k] = v
 	}
+	return nil
+}
+
+// abandonFilters discards a partially built filter selection so a cancelled
+// ApplyFiltersContext caches nothing: the next call starts fresh.
+func (t *TableView) abandonFilters() {
+	t.filterSel = nil
+	t.lastFilters = nil
 }
 
 // filtersEqual checks if the provided filters match the last applied filters

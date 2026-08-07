@@ -377,3 +377,23 @@ walks zero-copy restart values and decodes at most one restart span.
 Structured filters on the front-coded key never scan: equality and IN are
 sparse-index lookups, range is two binary searches over a contiguous row
 range (sorted storage).
+
+## Parallel executor (2026-08-07, phase 5a)
+
+Filter scans now run on the process-wide worker pool (`core/executor`,
+docs/scaling-to-1b-rows.md section 8): chunks are batched into spans and
+scanned concurrently, each span writing its own word-aligned range of the
+shared Selection bitmap without locking. `BenchmarkParallelFilter`, 1M rows
+(16 chunks), 8 hardware threads, `-benchtime 20x -count 3`, medians:
+
+| Scan (unpruned worst case) | Sequential | Parallel | Speedup |
+|---|---|---|---|
+| Opaque predicate (`FilterSelection`) | 2.13 ms | 0.85 ms | 2.5x |
+| Equality on unsorted data | 1.60 ms | 0.59 ms | 2.7x |
+
+The speedup is below the thread count because the scans are
+memory-bandwidth-bound (section 9's argument); the win compounds with zone
+map pruning, which removes chunks before they are scheduled at all. The
+same pool serves every concurrent query (per-job round-robin plus the
+submitting goroutine draining its own job), and cancellation is observed
+between spans, so a superseded request stops at chunk granularity.

@@ -19,6 +19,7 @@ limitations under the License.
 package columns
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math/bits"
@@ -204,9 +205,18 @@ func (c *ChunkedFrontCodedStringColumn) rowLowerBound(v string) uint32 {
 // its own string (the decode buffer is reused, so a copy per row is the price
 // of an opaque predicate; the structured filters below never decode per row).
 func (c *ChunkedFrontCodedStringColumn) FilterSelection(predicate func(string) bool) *Selection {
+	s, _ := c.FilterSelectionContext(context.Background(), predicate)
+	return s
+}
+
+// FilterSelectionContext is FilterSelection under a context: chunks are
+// decoded and scanned in parallel on the executor pool, each with its own
+// decode buffer. The predicate must be safe for concurrent calls. A
+// cancelled scan returns (nil, ctx.Err()).
+func (c *ChunkedFrontCodedStringColumn) FilterSelectionContext(ctx context.Context, predicate func(string) bool) (*Selection, error) {
 	s := NewSelection(c.n)
-	var buf []byte
-	for ci := range c.chunks {
+	err := forEachChunk(ctx, len(c.chunks), 1<<c.shift, func(ci int) {
+		var buf []byte
 		base := uint32(ci) << c.shift
 		for j := 0; j < c.chunks[ci].rows(); j++ {
 			pl, sfx := c.chunks[ci].entry(uint32(j))
@@ -215,8 +225,11 @@ func (c *ChunkedFrontCodedStringColumn) FilterSelection(predicate func(string) b
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionEqual returns the rows whose value is exactly v: at most one
@@ -229,6 +242,16 @@ func (c *ChunkedFrontCodedStringColumn) FilterSelectionEqual(v string) *Selectio
 	return s
 }
 
+// FilterSelectionEqualContext is FilterSelectionEqual under a context. The
+// search is a handful of index probes, so the context is only checked once —
+// there is no scan to interrupt.
+func (c *ChunkedFrontCodedStringColumn) FilterSelectionEqualContext(ctx context.Context, v string) (*Selection, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return c.FilterSelectionEqual(v), nil
+}
+
 // FilterSelectionIn returns the rows whose value equals any of the given
 // values: one sparse-index search per value.
 func (c *ChunkedFrontCodedStringColumn) FilterSelectionIn(values []string) *Selection {
@@ -239,6 +262,21 @@ func (c *ChunkedFrontCodedStringColumn) FilterSelectionIn(values []string) *Sele
 		}
 	}
 	return s
+}
+
+// FilterSelectionInContext is FilterSelectionIn under a context: one index
+// probe per value, with the context checked between probes.
+func (c *ChunkedFrontCodedStringColumn) FilterSelectionInContext(ctx context.Context, values []string) (*Selection, error) {
+	s := NewSelection(c.n)
+	for _, v := range values {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if i, ok := c.findRow(v); ok {
+			s.Add(i)
+		}
+	}
+	return s, nil
 }
 
 // FilterSelectionRange returns the rows whose value lies in [lo, hi]
@@ -261,6 +299,16 @@ func (c *ChunkedFrontCodedStringColumn) FilterSelectionRange(lo, hi *string) *Se
 		s.Add(i)
 	}
 	return s
+}
+
+// FilterSelectionRangeContext is FilterSelectionRange under a context. The
+// range is found by two binary searches, so the context is only checked
+// once — there is no scan to interrupt.
+func (c *ChunkedFrontCodedStringColumn) FilterSelectionRangeContext(ctx context.Context, lo, hi *string) (*Selection, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return c.FilterSelectionRange(lo, hi), nil
 }
 
 // ChunkBounds returns chunk ci's zone-map bounds (its first and last value —

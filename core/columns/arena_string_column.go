@@ -19,6 +19,7 @@ limitations under the License.
 package columns
 
 import (
+	"context"
 	"fmt"
 	"math/bits"
 	"sort"
@@ -271,25 +272,44 @@ func (c *ChunkedArenaStringColumn) buildZones() *zoneMap[string] {
 // bitmap, scanning chunk by chunk. Values are passed to the predicate as
 // zero-copy views into the arena.
 func (c *ChunkedArenaStringColumn) FilterSelection(predicate func(string) bool) *Selection {
+	s, _ := c.FilterSelectionContext(context.Background(), predicate)
+	return s
+}
+
+// FilterSelectionContext is FilterSelection under a context: chunks are
+// scanned in parallel on the executor pool. The predicate must be safe for
+// concurrent calls. A cancelled scan returns (nil, ctx.Err()).
+func (c *ChunkedArenaStringColumn) FilterSelectionContext(ctx context.Context, predicate func(string) bool) (*Selection, error) {
 	s := NewSelection(c.n)
-	for ci := range c.chunks {
+	err := forEachChunk(ctx, len(c.chunks), 1<<c.shift, func(ci int) {
 		base := uint32(ci) << c.shift
 		for j := 0; j < c.chunks[ci].rows(); j++ {
 			if predicate(c.chunks[ci].str(uint32(j))) {
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionEqual returns the rows whose value is exactly v, skipping
 // chunks whose zone map rules v out.
 func (c *ChunkedArenaStringColumn) FilterSelectionEqual(v string) *Selection {
+	s, _ := c.FilterSelectionEqualContext(context.Background(), v)
+	return s
+}
+
+// FilterSelectionEqualContext is FilterSelectionEqual under a context, with
+// the surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *ChunkedArenaStringColumn) FilterSelectionEqualContext(ctx context.Context, v string) (*Selection, error) {
 	s := NewSelection(c.n)
-	for ci := range c.chunks {
+	err := forEachChunk(ctx, len(c.chunks), 1<<c.shift, func(ci int) {
 		if !c.zones.mayContainPoint(ci, v) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.shift
 		for j := 0; j < c.chunks[ci].rows(); j++ {
@@ -297,25 +317,36 @@ func (c *ChunkedArenaStringColumn) FilterSelectionEqual(v string) *Selection {
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionIn returns the rows whose value equals any of the given
 // values (the multi-value OR filter), with the same chunk pruning as
 // FilterSelectionEqual.
 func (c *ChunkedArenaStringColumn) FilterSelectionIn(values []string) *Selection {
+	s, _ := c.FilterSelectionInContext(context.Background(), values)
+	return s
+}
+
+// FilterSelectionInContext is FilterSelectionIn under a context, with the
+// surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *ChunkedArenaStringColumn) FilterSelectionInContext(ctx context.Context, values []string) (*Selection, error) {
 	s := NewSelection(c.n)
 	if len(values) == 0 {
-		return s
+		return s, nil
 	}
 	keys := make(map[string]struct{}, len(values))
 	for _, v := range values {
 		keys[v] = struct{}{}
 	}
-	for ci := range c.chunks {
+	err := forEachChunk(ctx, len(c.chunks), 1<<c.shift, func(ci int) {
 		if !c.zones.mayContainAny(ci, values) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.shift
 		for j := 0; j < c.chunks[ci].rows(); j++ {
@@ -323,17 +354,28 @@ func (c *ChunkedArenaStringColumn) FilterSelectionIn(values []string) *Selection
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionRange returns the rows whose value lies in [lo, hi]
 // (inclusive; a nil bound is unbounded), with chunk pruning.
 func (c *ChunkedArenaStringColumn) FilterSelectionRange(lo, hi *string) *Selection {
+	s, _ := c.FilterSelectionRangeContext(context.Background(), lo, hi)
+	return s
+}
+
+// FilterSelectionRangeContext is FilterSelectionRange under a context, with
+// the surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *ChunkedArenaStringColumn) FilterSelectionRangeContext(ctx context.Context, lo, hi *string) (*Selection, error) {
 	s := NewSelection(c.n)
-	for ci := range c.chunks {
+	err := forEachChunk(ctx, len(c.chunks), 1<<c.shift, func(ci int) {
 		if !c.zones.mayContainRange(ci, lo, hi) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.shift
 		for j := 0; j < c.chunks[ci].rows(); j++ {
@@ -346,8 +388,11 @@ func (c *ChunkedArenaStringColumn) FilterSelectionRange(lo, hi *string) *Selecti
 			}
 			s.Add(base + uint32(j))
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // ChunkBounds returns chunk ci's zone-map bounds (min and max value). ok is

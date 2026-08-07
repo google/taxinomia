@@ -19,6 +19,7 @@ limitations under the License.
 package columns
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -267,14 +268,22 @@ func (c *ChunkedDictStringColumn[K]) lookupCode(v string) (K, bool) {
 // chunk; a present one scans only the chunks whose zone map admits it,
 // comparing codes.
 func (c *ChunkedDictStringColumn[K]) FilterSelectionEqual(v string) *Selection {
+	s, _ := c.FilterSelectionEqualContext(context.Background(), v)
+	return s
+}
+
+// FilterSelectionEqualContext is FilterSelectionEqual under a context, with
+// the surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *ChunkedDictStringColumn[K]) FilterSelectionEqualContext(ctx context.Context, v string) (*Selection, error) {
 	s := NewSelection(c.codes.len())
 	code, ok := c.lookupCode(v)
 	if !ok {
-		return s
+		return s, nil
 	}
-	for ci := 0; ci < c.codes.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.codes.numChunks(), c.codes.chunkSize(), func(ci int) {
 		if !c.zones.mayContainPoint(ci, v) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.codes.shift
 		for j, cd := range c.codes.chunk(ci) {
@@ -282,14 +291,25 @@ func (c *ChunkedDictStringColumn[K]) FilterSelectionEqual(v string) *Selection {
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionIn returns the rows whose value equals any of the given
 // values (the multi-value OR filter), pruning chunks by zone map. Values
 // absent from the dictionary are dropped up front.
 func (c *ChunkedDictStringColumn[K]) FilterSelectionIn(values []string) *Selection {
+	s, _ := c.FilterSelectionInContext(context.Background(), values)
+	return s
+}
+
+// FilterSelectionInContext is FilterSelectionIn under a context, with the
+// surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *ChunkedDictStringColumn[K]) FilterSelectionInContext(ctx context.Context, values []string) (*Selection, error) {
 	s := NewSelection(c.codes.len())
 	keep := make([]bool, len(c.dict))
 	present := make([]string, 0, len(values))
@@ -300,11 +320,11 @@ func (c *ChunkedDictStringColumn[K]) FilterSelectionIn(values []string) *Selecti
 		}
 	}
 	if len(present) == 0 {
-		return s
+		return s, nil
 	}
-	for ci := 0; ci < c.codes.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.codes.numChunks(), c.codes.chunkSize(), func(ci int) {
 		if !c.zones.mayContainAny(ci, present) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.codes.shift
 		for j, cd := range c.codes.chunk(ci) {
@@ -312,14 +332,25 @@ func (c *ChunkedDictStringColumn[K]) FilterSelectionIn(values []string) *Selecti
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // FilterSelectionRange returns the rows whose value lies in [lo, hi]
 // (inclusive; a nil bound is unbounded). The range test runs once per
 // distinct value; chunks outside the range are skipped by zone map.
 func (c *ChunkedDictStringColumn[K]) FilterSelectionRange(lo, hi *string) *Selection {
+	s, _ := c.FilterSelectionRangeContext(context.Background(), lo, hi)
+	return s
+}
+
+// FilterSelectionRangeContext is FilterSelectionRange under a context, with
+// the surviving chunks scanned in parallel on the executor pool; a cancelled
+// scan returns (nil, ctx.Err()).
+func (c *ChunkedDictStringColumn[K]) FilterSelectionRangeContext(ctx context.Context, lo, hi *string) (*Selection, error) {
 	s := NewSelection(c.codes.len())
 	keep := make([]bool, len(c.dict))
 	any := false
@@ -329,11 +360,11 @@ func (c *ChunkedDictStringColumn[K]) FilterSelectionRange(lo, hi *string) *Selec
 		any = any || in
 	}
 	if !any {
-		return s
+		return s, nil
 	}
-	for ci := 0; ci < c.codes.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.codes.numChunks(), c.codes.chunkSize(), func(ci int) {
 		if !c.zones.mayContainRange(ci, lo, hi) {
-			continue
+			return
 		}
 		base := uint32(ci) << c.codes.shift
 		for j, cd := range c.codes.chunk(ci) {
@@ -341,8 +372,11 @@ func (c *ChunkedDictStringColumn[K]) FilterSelectionRange(lo, hi *string) *Selec
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // ChunkBounds returns chunk ci's zone-map bounds (min and max value). ok is
@@ -355,20 +389,31 @@ func (c *ChunkedDictStringColumn[K]) ChunkBounds(ci int) (min, max string, ok bo
 // bitmap. The predicate runs once per distinct value, not once per row; the
 // codes are then scanned chunk by chunk.
 func (c *ChunkedDictStringColumn[K]) FilterSelection(predicate func(string) bool) *Selection {
+	s, _ := c.FilterSelectionContext(context.Background(), predicate)
+	return s
+}
+
+// FilterSelectionContext is FilterSelection under a context: the predicate
+// still runs once per distinct value, then the code chunks are scanned in
+// parallel on the executor pool. A cancelled scan returns (nil, ctx.Err()).
+func (c *ChunkedDictStringColumn[K]) FilterSelectionContext(ctx context.Context, predicate func(string) bool) (*Selection, error) {
 	keep := make([]bool, len(c.dict))
 	for code, value := range c.dict {
 		keep[code] = predicate(value)
 	}
 	s := NewSelection(c.codes.len())
-	for ci := 0; ci < c.codes.numChunks(); ci++ {
+	err := forEachChunk(ctx, c.codes.numChunks(), c.codes.chunkSize(), func(ci int) {
 		base := uint32(ci) << c.codes.shift
 		for j, code := range c.codes.chunk(ci) {
 			if keep[code] {
 				s.Add(base + uint32(j))
 			}
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 // Ranks returns, per dictionary code, the position of its value in sorted

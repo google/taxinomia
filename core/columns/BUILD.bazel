@@ -20,6 +20,7 @@ go_library(
         "group_ops.go",
         "int64_column.go",
         "joined_columns.go",
+        "parallel_scan.go",
         "reorder.go",
         "row_set.go",
         "selection.go",
@@ -30,6 +31,7 @@ go_library(
     ],
     importpath = "github.com/google/taxinomia/core/columns",
     visibility = ["//visibility:public"],
+    deps = ["//core/executor"],
 )
 
 go_test(
@@ -51,6 +53,7 @@ go_test(
         "dict_column_test.go",
         "duration_column_test.go",
         "group_ops_test.go",
+        "parallel_scan_test.go",
         "reorder_test.go",
         "row_set_test.go",
         "selection_test.go",

@@ -19,6 +19,7 @@ limitations under the License.
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -209,6 +210,17 @@ func (tc *TimingCollector) TotalMs() string {
 // HandleTableRequest processes a table request and writes the response
 // Returns an error result if the request is invalid, nil on success
 func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
+	return s.HandleTableRequestContext(context.Background(), w, requestURL, product, setHeader)
+}
+
+// HandleTableRequestContext is HandleTableRequest under a context, normally
+// the http.Request's: query work runs on the shared executor pool and stops
+// at chunk granularity when the context is cancelled — a superseded request
+// (the user scrolled or refined the filter before the response arrived)
+// releases the pool to its successor instead of competing with it
+// (docs/scaling-to-1b-rows.md §8). A cancelled request returns status 499
+// (client closed request) without writing to w.
+func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
 	timing := NewTimingCollector()
 
 	// Parse URL into Query
@@ -295,7 +307,9 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 
 	// Apply filters to the table view (even with errors, apply valid filters)
 	filterStart := time.Now()
-	tableView.ApplyFilters(q.Filters)
+	if err := tableView.ApplyFiltersContext(ctx, q.Filters); err != nil {
+		return &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
+	}
 	timing.Record("Apply Filters", time.Since(filterStart))
 
 	// Apply grouping if grouped columns are specified
