@@ -489,8 +489,9 @@ blue,Bravo`
 		t.Errorf("team dictionary cardinality = %d, want 2", team.Cardinality())
 	}
 
-	// The string primary key stays plain and serves reverse lookups from its
-	// sorted storage.
+	// The string primary key is never dictionary-encoded (it happens to be in
+	// value order after the (team, name) sort, so it takes front-coded arena
+	// storage) and serves reverse lookups from its sorted storage.
 	name, ok := table.GetColumn("name").(columns.IDataColumnT[string])
 	if !ok {
 		t.Fatalf("name column has no typed string access; got %T", table.GetColumn("name"))

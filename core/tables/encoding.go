@@ -32,17 +32,18 @@ import (
 //
 // Roles recognized today:
 //
+//   - String primary key on sorted storage (unique, in value order):
+//     front-coded arena — prefix-shared bytes plus the sparse index, the §5
+//     "String PK" row. Dictionary encoding is strictly negative there
+//     (d = n).
 //   - Sort-key dimension (a column of the recorded sort key): dictionary
 //     encoded regardless of row count — a declared dimension is
 //     low-cardinality by role, so the size heuristic does not apply. The
 //     cardinality cap still does.
 //   - Other string columns: dictionary encoded when the size thresholds say
-//     it pays (CompactChunkedStringColumn).
-//   - Key columns (the primary key): left as-is — with every value distinct,
-//     dictionary encoding is strictly negative. Their reverse-lookup map is
-//     already replaced by the sparse-index binary search at FinalizeColumn
-//     when the storage is sorted by them; front-coded arena storage is a
-//     later phase.
+//     it pays (CompactChunkedStringColumn); otherwise a plain byte arena —
+//     the high-cardinality fallback is never []string (§5), so no loaded
+//     string column keeps per-row string headers.
 //   - Numeric measures: plain chunked storage (bitpacked and delta encodings
 //     are not built; they need a packed chunk representation first).
 //
@@ -54,6 +55,10 @@ func (dt *DataTable) SelectEncodings() {
 		if !ok {
 			continue
 		}
+		if fc, ok := columns.FrontCodeChunkedStringColumn(sc); ok {
+			dt.columns[name] = fc
+			continue
+		}
 		var encoded columns.IDataColumn
 		var changed bool
 		if slices.Contains(dt.sortKey, name) {
@@ -63,6 +68,8 @@ func (dt *DataTable) SelectEncodings() {
 		}
 		if changed {
 			dt.columns[name] = encoded
+			continue
 		}
+		dt.columns[name] = columns.ArenaEncodeChunkedStringColumn(sc)
 	}
 }

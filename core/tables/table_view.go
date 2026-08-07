@@ -1494,6 +1494,11 @@ func (tv *TableView) GetColumnTypeName(colName string) string {
 		return "DictStringColumn"
 	case *columns.ChunkedDictStringColumn[uint8], *columns.ChunkedDictStringColumn[uint16], *columns.ChunkedDictStringColumn[uint32]:
 		return "ChunkedDictStringColumn"
+	// Arena-backed string storage (phase 4c)
+	case *columns.ChunkedArenaStringColumn:
+		return "ChunkedArenaStringColumn"
+	case *columns.ChunkedFrontCodedStringColumn:
+		return "ChunkedFrontCodedStringColumn"
 	// Computed column types
 	case *columns.ComputedUint32Column:
 		return "ComputedUint32Column"

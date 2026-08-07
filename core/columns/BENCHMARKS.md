@@ -344,3 +344,36 @@ declared sort-key dimensions are dictionary-encoded regardless of row count,
 other string columns by the existing thresholds, keys never. On sorted
 storage the dictionary comes out sorted, so a dict key column's value
 lookups binary-search the dictionary and its interning map is released too.
+
+### Arena + front-coded string storage (2026-08-07, phase 4c)
+
+String storage retained at 1M rows, 12-byte sorted keys, each column owning
+its content (`TestStringStorageRetainedMemory` in `core/tables`):
+
+| Representation | Retained | Per row |
+|---|---|---|
+| `[]string` chunks (ChunkedStringColumn) | 32.7 MB | ~33 B (16 B header + individual content allocs) |
+| Arena (blob + offsets) | 17.8 MB | ~18 B (4 B offset + packed bytes) |
+| Front-coded arena (sorted key) | **7.5 MB** | **~7.5 B** (offset + shared-prefix suffixes) |
+
+The front-coded figure lands inside the scaling doc's 5-10 B/row budget for
+a string PK (docs/scaling-to-1b-rows.md, section 5). Arena blobs and offset
+arrays are pointer-free: the collector no longer traces a header per row.
+
+Operations, 1M rows, `-benchtime 3x -count 3`, medians:
+
+| Operation | Plain / arena | Front-coded |
+|---|---|---|
+| Substring scan (`FilterSelection`) | plain 4.9 ms, arena 5.1 ms | (sequential decode, not benched) |
+| Random `GetString` | arena 300 ns (zero-copy) | 933 ns (decodes <= 15 entries) |
+| `GetIndex` on sorted key | plain sparse search 2.2 us | **1.4 us** (restart-aware search) |
+
+Scan parity is the point: arena reads are zero-copy `unsafe.String` views,
+so eliminating the headers costs the scan path nothing. Front-coded random
+access pays a decode from the nearest restart (interval 16); its reverse
+lookup is faster than the plain sparse search because the binary search
+walks zero-copy restart values and decodes at most one restart span.
+
+Structured filters on the front-coded key never scan: equality and IN are
+sparse-index lookups, range is two binary searches over a contiguous row
+range (sorted storage).

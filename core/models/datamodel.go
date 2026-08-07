@@ -285,10 +285,12 @@ func (dm *DataModel) createJoiner(fromColumn columns.IDataColumn, toColumn colum
 	switch fromColumn.(type) {
 	case *columns.StringColumn, *columns.ChunkedStringColumn,
 		*columns.DictStringColumn[uint8], *columns.DictStringColumn[uint16], *columns.DictStringColumn[uint32],
-		*columns.ChunkedDictStringColumn[uint8], *columns.ChunkedDictStringColumn[uint16], *columns.ChunkedDictStringColumn[uint32]:
-		// Dictionary-encoded columns are storage columns too: per-role
-		// encoding selection at load turns repetitive string columns —
-		// foreign keys prominently among them — into dict columns.
+		*columns.ChunkedDictStringColumn[uint8], *columns.ChunkedDictStringColumn[uint16], *columns.ChunkedDictStringColumn[uint32],
+		*columns.ChunkedArenaStringColumn, *columns.ChunkedFrontCodedStringColumn:
+		// Dictionary-encoded, arena and front-coded columns are storage
+		// columns too: per-role encoding selection at load turns loaded
+		// string columns — foreign keys and primary keys prominently among
+		// them — into these representations.
 		return typedJoiner[string](fromColumn, toColumn)
 	case *columns.Uint32Column, *columns.ChunkedUint32Column:
 		return typedJoiner[uint32](fromColumn, toColumn)

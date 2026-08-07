@@ -151,7 +151,8 @@ func getColumnType(col columns.IDataColumn) string {
 	case *columns.ChunkedStringColumn:
 		return "string"
 	case *columns.DictStringColumn[uint8], *columns.DictStringColumn[uint16], *columns.DictStringColumn[uint32],
-		*columns.ChunkedDictStringColumn[uint8], *columns.ChunkedDictStringColumn[uint16], *columns.ChunkedDictStringColumn[uint32]:
+		*columns.ChunkedDictStringColumn[uint8], *columns.ChunkedDictStringColumn[uint16], *columns.ChunkedDictStringColumn[uint32],
+		*columns.ChunkedArenaStringColumn, *columns.ChunkedFrontCodedStringColumn:
 		return "string"
 	case *columns.ChunkedUint32Column:
 		return "uint32"

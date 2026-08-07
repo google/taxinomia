@@ -58,6 +58,23 @@ func TestCreateJoinerChunked(t *testing.T) {
 	}
 	dictStr.FinalizeColumn()
 
+	// Arena and front-coded columns (phase 4c): encoding selection turns
+	// loaded string columns into arenas and sorted string primary keys into
+	// front-coded storage; both must keep joining, in both directions — the
+	// front-coded PK is the common to-side of an FK join.
+	arenaStr := columns.NewChunkedArenaStringColumn(columns.NewColumnDef("id", "ID", "thing"))
+	fcSrc := columns.NewChunkedStringColumn(columns.NewColumnDef("id", "ID", "thing"))
+	for _, v := range []string{"a", "b", "c"} {
+		arenaStr.Append(v)
+		fcSrc.Append(v)
+	}
+	arenaStr.FinalizeColumn()
+	fcSrc.FinalizeColumn()
+	fcStr, ok := columns.FrontCodeChunkedStringColumn(fcSrc)
+	if !ok {
+		t.Fatal("front coding declined the sorted key test column")
+	}
+
 	cases := []struct {
 		name     string
 		from, to columns.IDataColumn
@@ -70,9 +87,14 @@ func TestCreateJoinerChunked(t *testing.T) {
 		{"plain-chunked uint32", plainU32, chunkedU32, true},
 		{"dict-chunked string", dictStr, chunkedStr, true},
 		{"dict-plain string", dictStr, plainStr, true},
+		{"arena-frontcoded string", arenaStr, fcStr, true},
+		{"frontcoded-arena string", fcStr, arenaStr, true},
+		{"dict-frontcoded string", dictStr, fcStr, true},
+		{"plain-arena string", plainStr, arenaStr, true},
 		{"type mismatch", chunkedStr, chunkedU32, false},
 		{"type mismatch reversed", chunkedU32, plainStr, false},
 		{"dict-uint32 mismatch", dictStr, chunkedU32, false},
+		{"arena-uint32 mismatch", arenaStr, chunkedU32, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -110,6 +132,8 @@ func TestGetColumnTypeChunked(t *testing.T) {
 		{columns.NewChunkedDatetimeColumn(def), "datetime"},
 		{columns.NewDictStringColumn[uint8](def), "string"},
 		{columns.NewChunkedDictStringColumn[uint16](def), "string"},
+		{columns.NewChunkedArenaStringColumn(def), "string"},
+		{&columns.ChunkedFrontCodedStringColumn{}, "string"},
 	}
 	for _, tc := range cases {
 		if got := getColumnType(tc.col); got != tc.want {

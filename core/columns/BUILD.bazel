@@ -3,8 +3,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "columns",
     srcs = [
+        "arena_string_column.go",
         "bool_column.go",
         "chunk.go",
+        "front_coded_column.go",
         "chunked_column.go",
         "chunked_datetime_column.go",
         "chunked_dict_column.go",
@@ -33,7 +35,10 @@ go_library(
 go_test(
     name = "columns_test",
     srcs = [
+        "arena_bench_test.go",
+        "arena_string_column_test.go",
         "chunk_test.go",
+        "front_coded_column_test.go",
         "chunked_bench_test.go",
         "chunked_column_test.go",
         "chunked_datetime_column_test.go",

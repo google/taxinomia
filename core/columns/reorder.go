@@ -31,10 +31,15 @@ import "fmt"
 // leave their tables unsorted (sorting is an optimization, never a
 // correctness requirement).
 type Reorderable interface {
-	// Reorder returns a new column of the same concrete type and column
-	// definition whose row i holds the receiver's value at perm[i]. perm must
-	// be a permutation of [0, Length()); Reorder panics if the lengths differ
-	// and silently produces a corrupt column if perm repeats indices.
+	// Reorder returns a new column with the same column definition and value
+	// type whose row i holds the receiver's value at perm[i]. The copy is
+	// usually of the receiver's concrete type; a representation that only
+	// exists under an ordering invariant returns an equivalent general
+	// storage type instead (front-coded storage requires rows in value order,
+	// which an arbitrary permutation destroys, so its copy is an arena
+	// column). perm must be a permutation of [0, Length()); Reorder panics if
+	// the lengths differ and silently produces a corrupt column if perm
+	// repeats indices.
 	//
 	// The copy is finalized (loaded columns are immutable once in sorted
 	// storage — the append-only contract), so its zone maps describe the
