@@ -41,7 +41,6 @@ go_library(
         "//core/csvimport",
         "//core/models",
         "//core/protoloader",
-        "//web/urlquery",
         "//web/handlers",
         "//core/tables",
         "//core/users",
@@ -72,14 +71,18 @@ filegroup(
 
 go_test(
     name = "demo_test",
-    srcs = ["protoloader_test.go"],
-    data = [":runtime_data"],  # keep
+    srcs = [
+        "protoloader_test.go",
+        "server_test.go",
+    ],
+    data = [":runtime_data"] + glob(["testdata/**"]),  # keep
     embed = [":demo"],
     # Tests resolve data paths relative to the workspace root (via runtime.Caller),
     # so run from there instead of the default package directory.
     rundir = ".",  # keep
     deps = [
         "//datasources",
+        "//web/handlers",
         "@org_golang_google_protobuf//proto",
     ],
 )

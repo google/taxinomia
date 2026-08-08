@@ -18,6 +18,7 @@ go_proto_library(
 go_library(
     name = "datasources",
     srcs = [
+        "catalog.go",
         "csv_loader.go",
         "loader.go",
         "manager.go",
@@ -29,6 +30,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//core/columns",
+        "//core/engine",
         "//core/protoloader",
         "//core/tables",
         "@org_golang_google_protobuf//encoding/prototext",
@@ -42,7 +44,10 @@ go_library(
 
 go_test(
     name = "datasources_test",
-    srcs = ["manager_test.go"],
+    srcs = [
+        "catalog_test.go",
+        "manager_test.go",
+    ],
     # Tests read the demo config tree (//demo/data) via runtime.Caller paths.
     data = ["//demo:runtime_data"],  # keep
     embed = [":datasources"],

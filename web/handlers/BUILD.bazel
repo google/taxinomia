@@ -14,10 +14,12 @@ go_library(
     ],
     deps = [
         "//core/columns",
+        "//core/engine",
         "//core/expr",
         "//core/models",
         "//core/tables",
         "//core/users",
+        "//web/navigation",
         "//web/rendering",
         "//web/urlquery",
         "//web/viewmodel",

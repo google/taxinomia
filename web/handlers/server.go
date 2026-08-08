@@ -29,10 +29,12 @@ import (
 	"time"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/engine"
 	"github.com/google/taxinomia/core/expr"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/tables"
 	"github.com/google/taxinomia/core/users"
+	"github.com/google/taxinomia/web/navigation"
 	"github.com/google/taxinomia/web/rendering"
 	"github.com/google/taxinomia/web/urlquery"
 	"github.com/google/taxinomia/web/viewmodel"
@@ -63,10 +65,14 @@ type EntityTypeDescriptionResolver func(entityType string) string
 
 // Server represents the application server with all its dependencies
 type Server struct {
-	dataModel               *models.DataModel
-	renderer                *rendering.TableRenderer
-	tableViewCache          map[string]*tables.TableView
-	userStore               users.UserStore
+	dataModel      *models.DataModel
+	renderer       *rendering.TableRenderer
+	tableViewCache map[string]*tables.TableView
+	userStore      users.UserStore
+
+	// navigator provides the catalog-driven navigation defaults (SetCatalog).
+	// The Set*Resolver callbacks below override it individually where set.
+	navigator               *navigation.Navigator
 	urlResolver             viewmodel.URLResolver             // Optional resolver for entity type URLs
 	allURLsResolver         viewmodel.AllURLsResolver         // Optional resolver for all entity type URLs (for detail panel)
 	primaryKeyResolver      PrimaryKeyResolver                // Optional resolver for table primary key entity types
@@ -102,34 +108,98 @@ func (s *Server) SetUserStore(store users.UserStore) {
 	s.userStore = store
 }
 
-// SetURLResolver sets the URL resolver for entity type links
+// SetCatalog installs the catalog-driven navigation defaults: entity URL
+// resolution, primary key and description lookups, hierarchy contexts and
+// related tables are all answered from the catalog by web/navigation. Any
+// resolver installed through a Set*Resolver method overrides its
+// catalog-driven default individually.
+func (s *Server) SetCatalog(catalog *engine.Catalog) {
+	if catalog == nil {
+		s.navigator = nil
+		return
+	}
+	s.navigator = navigation.NewNavigator(catalog)
+}
+
+// SetURLResolver sets the URL resolver for entity type links.
+//
+// Deprecated: prefer SetCatalog; the catalog-driven default replaces this
+// callback, which remains as an override seam.
 func (s *Server) SetURLResolver(resolver viewmodel.URLResolver) {
 	s.urlResolver = resolver
 }
 
-// SetAllURLsResolver sets the resolver for all entity type URLs (used in detail panel)
+// SetAllURLsResolver sets the resolver for all entity type URLs (used in detail panel).
+//
+// Deprecated: prefer SetCatalog; the catalog-driven default replaces this
+// callback, which remains as an override seam.
 func (s *Server) SetAllURLsResolver(resolver viewmodel.AllURLsResolver) {
 	s.allURLsResolver = resolver
 }
 
-// SetPrimaryKeyResolver sets the resolver for table primary key entity types
+// SetPrimaryKeyResolver sets the resolver for table primary key entity types.
+//
+// Deprecated: prefer SetCatalog; the catalog-driven default replaces this
+// callback, which remains as an override seam.
 func (s *Server) SetPrimaryKeyResolver(resolver PrimaryKeyResolver) {
 	s.primaryKeyResolver = resolver
 }
 
-// SetEntityTypeDescriptionResolver sets the resolver for entity type descriptions
+// SetEntityTypeDescriptionResolver sets the resolver for entity type descriptions.
+//
+// Deprecated: prefer SetCatalog; the catalog-driven default replaces this
+// callback, which remains as an override seam.
 func (s *Server) SetEntityTypeDescriptionResolver(resolver EntityTypeDescriptionResolver) {
 	s.entityTypeDescResolver = resolver
 }
 
-// SetHierarchyContextBuilder sets the builder for hierarchy contexts in the detail panel
+// SetHierarchyContextBuilder sets the builder for hierarchy contexts in the detail panel.
+//
+// Deprecated: prefer SetCatalog; the catalog-driven default replaces this
+// callback, which remains as an override seam.
 func (s *Server) SetHierarchyContextBuilder(builder viewmodel.HierarchyContextBuilder) {
 	s.hierarchyContextBuilder = builder
 }
 
-// SetRelatedTablesResolver sets the resolver for finding related tables in the detail panel
+// SetRelatedTablesResolver sets the resolver for finding related tables in the detail panel.
+//
+// Deprecated: prefer SetCatalog; the catalog-driven default replaces this
+// callback, which remains as an override seam.
 func (s *Server) SetRelatedTablesResolver(resolver viewmodel.RelatedTablesResolver) {
 	s.relatedTablesResolver = resolver
+}
+
+// effectiveResolvers returns the resolver set for view-model building:
+// explicitly installed resolvers first, the navigator's catalog-driven
+// defaults where none is installed, nil where neither exists.
+func (s *Server) effectiveResolvers() (viewmodel.URLResolver, viewmodel.AllURLsResolver, PrimaryKeyResolver, EntityTypeDescriptionResolver, viewmodel.HierarchyContextBuilder, viewmodel.RelatedTablesResolver) {
+	urlRes := s.urlResolver
+	allURLs := s.allURLsResolver
+	pkRes := s.primaryKeyResolver
+	descRes := s.entityTypeDescResolver
+	hierarchies := s.hierarchyContextBuilder
+	related := s.relatedTablesResolver
+	if s.navigator != nil {
+		if urlRes == nil {
+			urlRes = s.navigator.ResolveDefaultURL
+		}
+		if allURLs == nil {
+			allURLs = s.navigator.AllURLs
+		}
+		if pkRes == nil {
+			pkRes = s.navigator.PrimaryKeyEntityType
+		}
+		if descRes == nil {
+			descRes = s.navigator.EntityTypeDescription
+		}
+		if hierarchies == nil {
+			hierarchies = s.navigator.HierarchyContexts
+		}
+		if related == nil {
+			related = s.navigator.RelatedTables
+		}
+	}
+	return urlRes, allURLs, pkRes, descRes, hierarchies, related
 }
 
 // makeCacheKey creates a cache key combining user and table name
@@ -344,15 +414,16 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	// Build the view model from the table view
 	vmStart := time.Now()
 	title := strings.Title(q.Table)
+	urlResolver, allURLsResolver, primaryKeyResolver, descResolver, hierarchyContextBuilder, relatedTablesResolver := s.effectiveResolvers()
 	var primaryKeyEntityType string
-	if s.primaryKeyResolver != nil {
-		primaryKeyEntityType = s.primaryKeyResolver(q.Table)
+	if primaryKeyResolver != nil {
+		primaryKeyEntityType = primaryKeyResolver(q.Table)
 	}
 	var entityTypeDescResolver viewmodel.EntityTypeDescriptionResolver
-	if s.entityTypeDescResolver != nil {
-		entityTypeDescResolver = viewmodel.EntityTypeDescriptionResolver(s.entityTypeDescResolver)
+	if descResolver != nil {
+		entityTypeDescResolver = viewmodel.EntityTypeDescriptionResolver(descResolver)
 	}
-	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, s.urlResolver, s.allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, s.hierarchyContextBuilder, s.relatedTablesResolver)
+	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
 	timing.Record("Build ViewModel", time.Since(vmStart))
 
 	// Set timing information

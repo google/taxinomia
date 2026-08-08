@@ -46,14 +46,27 @@ type TableMeta struct {
 // Hierarchy is an ordered chain of entity types, root first, e.g.
 // zone → cluster → rack → machine.
 type Hierarchy struct {
-	Name   string
-	Levels []string // entity type per level, root first
+	Name        string
+	Description string
+	Levels      []string // entity type per level, root first
 }
 
 // EntityTypeMeta describes one entity type.
 type EntityTypeMeta struct {
 	Name        string
 	Description string
+
+	// URLs are the external link templates declared for values of this
+	// entity type, in declaration order.
+	URLs []URLTemplate
+}
+
+// URLTemplate is one external link template for an entity type. Template may
+// contain the placeholders {value} and {entity_type}.
+type URLTemplate struct {
+	Name      string
+	Template  string
+	IsDefault bool // preferred template for single-link contexts
 }
 
 // JoinMeta describes one declared join between two tables, by name — the

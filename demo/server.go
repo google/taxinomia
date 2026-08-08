@@ -22,12 +22,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/datasources"
 	"github.com/google/taxinomia/web/handlers"
-	"github.com/google/taxinomia/web/urlquery"
 	"github.com/google/taxinomia/web/viewmodel"
 )
 
@@ -197,24 +195,16 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 		return nil, nil, err
 	}
 
-	// Set up URL resolver for entity type links
-	srv.SetURLResolver(dsManager.ResolveDefaultURL)
+	// Build the navigation catalog: tables (with primary keys and column
+	// entity types), hierarchies, entity type descriptions and URL templates,
+	// all as plain data. The server derives every navigation default from it
+	// (web/navigation); the former Set*Resolver callbacks are gone.
+	catalog := dsManager.BuildCatalog(dataModel.GetAllTables())
 
-	// Set up all URLs resolver for detail panel
-	srv.SetAllURLsResolver(func(entityType, value string) []viewmodel.EntityURL {
-		resolved := dsManager.GetAllURLs(entityType, value)
-		if len(resolved) == 0 {
-			return nil
-		}
-		result := make([]viewmodel.EntityURL, len(resolved))
-		for i, r := range resolved {
-			result[i] = viewmodel.EntityURL{Name: r.Name, URL: r.URL}
-		}
-		return result
-	})
-
-	// Set up primary key resolver for table metadata
-	// First try the datasources config, then programmatic tables, then IsKey columns
+	// The programmatic Google tables have no datasources config entry, so
+	// declare their primary key entity types directly on the catalog. This
+	// takes precedence over the key-column detection BuildCatalog fell back
+	// to, matching the old resolver's config → this map → IsKey order.
 	googleTablePrimaryKeys := map[string]string{
 		"google_regions":  "google.region",
 		"google_zones":    "google.zone",
@@ -226,287 +216,13 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 		"google_tasks":    "google.task",
 		"google_allocs":   "google.alloc",
 	}
-	srv.SetPrimaryKeyResolver(func(tableName string) string {
-		// Try datasources config first
-		if pk := dsManager.GetPrimaryKeyEntityType(tableName); pk != "" {
-			return pk
+	for i := range catalog.Tables {
+		if pk, ok := googleTablePrimaryKeys[catalog.Tables[i].Name]; ok {
+			catalog.Tables[i].PrimaryKeyEntityType = pk
 		}
-		// Try programmatic Google tables
-		if pk, ok := googleTablePrimaryKeys[tableName]; ok {
-			return pk
-		}
-		// Fall back to detecting from IsKey column in the table
-		if table := dataModel.GetTable(tableName); table != nil {
-			for _, colName := range table.GetColumnNames() {
-				if col := table.GetColumn(colName); col != nil && col.IsKey() {
-					if et := col.ColumnDef().EntityType(); et != "" {
-						return et
-					}
-				}
-			}
-		}
-		return ""
-	})
+	}
 
-	// Set up entity type description resolver
-	srv.SetEntityTypeDescriptionResolver(dsManager.GetEntityTypeDescription)
-
-	// Set up hierarchy context builder for the detail panel
-	// Shows ALL hierarchies, not just those containing the primary key entity type.
-	// For each hierarchy, finds the deepest level where the item has a column value.
-	srv.SetHierarchyContextBuilder(func(
-		currentQuery *urlquery.Query,
-		primaryKeyEntityType string,
-		primaryKeyValue string,
-		rowData map[string]string,
-		columnEntityTypes map[string]string,
-	) []viewmodel.HierarchyContext {
-		// Get ALL hierarchies
-		allHierarchies := dsManager.GetAllHierarchies()
-		if len(allHierarchies) == 0 {
-			return nil
-		}
-
-		// Build reverse map: entity type -> column name
-		entityTypeToColumn := make(map[string]string)
-		for colName, et := range columnEntityTypes {
-			entityTypeToColumn[et] = colName
-		}
-
-		var contexts []viewmodel.HierarchyContext
-		for _, h := range allHierarchies {
-			levels := h.GetLevels()
-
-			// Find the deepest level in this hierarchy where the item has a value
-			// This determines the "current" position in the hierarchy
-			currentIdx := -1
-			var currentEntityType string
-			var currentValue string
-
-			// First, check if the primary key entity type is in this hierarchy
-			for i, level := range levels {
-				if level == primaryKeyEntityType {
-					currentIdx = i
-					currentEntityType = primaryKeyEntityType
-					currentValue = primaryKeyValue
-					break
-				}
-			}
-
-			// If primary key isn't in this hierarchy, find the deepest column that is
-			if currentIdx == -1 {
-				for i := len(levels) - 1; i >= 0; i-- {
-					et := levels[i]
-					if colName, ok := entityTypeToColumn[et]; ok {
-						if value, ok := rowData[colName]; ok && value != "" {
-							currentIdx = i
-							currentEntityType = et
-							currentValue = value
-							break
-						}
-					}
-				}
-			}
-
-			ctx := viewmodel.HierarchyContext{
-				HierarchyName: h.GetName(),
-				Description:   h.GetDescription(),
-			}
-
-			// Handle case where item has no direct position in this hierarchy
-			// Show all levels as potential navigation (filtered by primary key)
-			// Only show as links if the target table has a column for the primary key entity type
-			if currentIdx == -1 {
-				for _, et := range levels {
-					level := viewmodel.HierarchyLevel{
-						EntityType:  et,
-						DisplayName: formatEntityTypeNamePlural(et),
-						Description: dsManager.GetEntityTypeDescription(et),
-					}
-					// Check if the target table has a column with the primary key entity type
-					// Only generate a link if it does (otherwise the filter won't work)
-					targetTableName := entityTypeToTableName(et)
-					if targetTable := dataModel.GetTable(targetTableName); targetTable != nil {
-						for _, colName := range targetTable.GetColumnNames() {
-							col := targetTable.GetColumn(colName)
-							if col != nil && col.ColumnDef().EntityType() == primaryKeyEntityType {
-								// Target table has a column we can filter by
-								level.ListURL = generateDescendantListURL(currentQuery, et, primaryKeyEntityType, primaryKeyValue)
-								break
-							}
-						}
-					}
-					ctx.Descendants = append(ctx.Descendants, level)
-				}
-				contexts = append(contexts, ctx)
-				continue
-			}
-
-			// Build ancestors (levels above current)
-			for i := 0; i < currentIdx; i++ {
-				et := levels[i]
-				level := viewmodel.HierarchyLevel{
-					EntityType:  et,
-					DisplayName: formatEntityTypeName(et),
-					Description: dsManager.GetEntityTypeDescription(et),
-				}
-
-				// Find the value from row data
-				if colName, ok := entityTypeToColumn[et]; ok {
-					if value, ok := rowData[colName]; ok && value != "" {
-						level.Value = value
-						// Generate internal navigation URL to select this ancestor in its table
-						level.ValueURL = generateAncestorURL(currentQuery, et, value)
-					}
-				}
-
-				ctx.Ancestors = append(ctx.Ancestors, level)
-			}
-
-			// Build current level
-			ctx.Current = viewmodel.HierarchyLevel{
-				EntityType:  currentEntityType,
-				DisplayName: formatEntityTypeName(currentEntityType),
-				Value:       currentValue,
-				Description: dsManager.GetEntityTypeDescription(currentEntityType),
-			}
-			// If current level is not the item's primary key, make it a clickable link
-			if currentEntityType != primaryKeyEntityType {
-				ctx.Current.ValueURL = generateAncestorURL(currentQuery, currentEntityType, currentValue)
-			}
-
-			// Build descendants (levels below current)
-			for i := currentIdx + 1; i < len(levels); i++ {
-				et := levels[i]
-				level := viewmodel.HierarchyLevel{
-					EntityType:  et,
-					Description: dsManager.GetEntityTypeDescription(et),
-				}
-
-				// Check if row has a specific value for this descendant entity type
-				// (e.g., a task row has a machine column)
-				if colName, ok := entityTypeToColumn[et]; ok {
-					if value, ok := rowData[colName]; ok && value != "" {
-						// Row has a specific value - make it a direct link
-						level.DisplayName = formatEntityTypeName(et) // Singular
-						level.Value = value
-						level.ValueURL = generateAncestorURL(currentQuery, et, value)
-					} else {
-						// No specific value - show as list link
-						level.DisplayName = formatEntityTypeNamePlural(et)
-						level.ListURL = generateDescendantListURL(currentQuery, et, currentEntityType, currentValue)
-					}
-				} else {
-					// No column for this entity type - show as list link
-					level.DisplayName = formatEntityTypeNamePlural(et)
-					level.ListURL = generateDescendantListURL(currentQuery, et, currentEntityType, currentValue)
-				}
-
-				ctx.Descendants = append(ctx.Descendants, level)
-			}
-
-			contexts = append(contexts, ctx)
-		}
-
-		return contexts
-	})
-
-	// Set up related tables resolver for the detail panel
-	// This finds all tables that have a column matching the selected item's primary key entity type
-	// Excludes tables whose primary key is part of a hierarchy (those are shown in hierarchy navigation)
-	srv.SetRelatedTablesResolver(func(
-		currentQuery *urlquery.Query,
-		currentTableName string,
-		primaryKeyEntityType string,
-		primaryKeyValue string,
-	) []viewmodel.RelatedTable {
-		var relatedTables []viewmodel.RelatedTable
-
-		// Build set of entity types that are part of any hierarchy
-		hierarchyEntityTypes := make(map[string]bool)
-		for _, h := range dsManager.GetAllHierarchies() {
-			for _, level := range h.GetLevels() {
-				hierarchyEntityTypes[level] = true
-			}
-		}
-
-		// Helper to get a table's primary key entity type
-		// Uses the same resolution logic as the primary key resolver
-		getTablePKEntityType := func(tableName string) string {
-			// Try datasources config first
-			if pk := dsManager.GetPrimaryKeyEntityType(tableName); pk != "" {
-				return pk
-			}
-			// Try programmatic Google tables
-			if pk, ok := googleTablePrimaryKeys[tableName]; ok {
-				return pk
-			}
-			// Fall back to detecting from IsKey column
-			if table := dataModel.GetTable(tableName); table != nil {
-				for _, colName := range table.GetColumnNames() {
-					if col := table.GetColumn(colName); col != nil && col.IsKey() {
-						if et := col.ColumnDef().EntityType(); et != "" {
-							return et
-						}
-					}
-				}
-			}
-			return ""
-		}
-
-		// Find all tables that have a column with this entity type
-		for tableName, table := range dataModel.GetAllTables() {
-			// Skip the current table and system tables
-			if tableName == currentTableName || strings.HasPrefix(tableName, "_") {
-				continue
-			}
-
-			// Get the table's primary key entity type using the same logic as primary key resolver
-			tablePKEntityType := getTablePKEntityType(tableName)
-
-			// Skip tables whose primary key is part of a hierarchy
-			// (those are already shown in hierarchy navigation)
-			if hierarchyEntityTypes[tablePKEntityType] {
-				continue
-			}
-
-			// Check each column for a matching entity type
-			for _, colName := range table.GetColumnNames() {
-				col := table.GetColumn(colName)
-				if col == nil {
-					continue
-				}
-
-				colEntityType := col.ColumnDef().EntityType()
-				if colEntityType == primaryKeyEntityType {
-					// Found a matching column - create a related table entry
-					// Generate the filter URL
-					q := currentQuery.Clone()
-					q.Path = "table"
-					q.Table = tableName
-					q.ClearTableSpecificState()
-					q.Filters[colName] = `"` + primaryKeyValue + `"`
-					filterURL := q.ToURL()
-
-					// Create a nice display name from the table name
-					displayName := formatTableDisplayName(tableName)
-
-					relatedTables = append(relatedTables, viewmodel.RelatedTable{
-						TableName:        tableName,
-						DisplayName:      displayName,
-						ColumnName:       colName,
-						ColumnEntityType: colEntityType,
-						FilterURL:        filterURL,
-					})
-
-					// Only add one entry per table (even if multiple columns match)
-					break
-				}
-			}
-		}
-
-		return relatedTables
-	})
+	srv.SetCatalog(catalog)
 
 	// Load user profiles
 	usersDir := filepath.Join(filepath.Dir(currentFile), "users")
@@ -849,109 +565,4 @@ func printJoinDiscoveryReport(dm *models.DataModel) {
 	}
 
 	fmt.Printf("Auto-discovered %d joins across %d entity types\n", len(allJoins), len(joinsByEntityType))
-}
-
-// formatEntityTypeName extracts a display name from an entity type.
-// For example, "google.cluster" becomes "Cluster", "demo.order_id" becomes "Order Id".
-func formatEntityTypeName(entityType string) string {
-	// Remove prefix (e.g., "google." or "demo.")
-	name := entityType
-	if idx := strings.LastIndex(entityType, "."); idx != -1 {
-		name = entityType[idx+1:]
-	}
-
-	// Convert underscores to spaces and title case
-	name = strings.ReplaceAll(name, "_", " ")
-	return strings.Title(name)
-}
-
-// formatEntityTypeNamePlural extracts a pluralized display name from an entity type.
-// For example, "google.cluster" becomes "Clusters", "google.machine" becomes "Machines".
-func formatEntityTypeNamePlural(entityType string) string {
-	name := formatEntityTypeName(entityType)
-	// Simple pluralization
-	if strings.HasSuffix(name, "s") {
-		return name + "es"
-	}
-	return name + "s"
-}
-
-// generateAncestorURL generates a URL to navigate to an ancestor's table with that row selected.
-// For example, if viewing a machine and clicking on its cluster ancestor,
-// this would generate a URL like "table?table=google_clusters&row=us-east-a-c0"
-func generateAncestorURL(currentQuery *urlquery.Query, entityType, value string) string {
-	q := currentQuery.Clone()
-	q.Path = "table"
-	q.Table = entityTypeToTableName(entityType)
-	q.ClearTableSpecificState()
-	q.SelectedRowID = value
-
-	return q.ToURL()
-}
-
-// generateDescendantListURL generates a URL to list items of a descendant entity type
-// filtered by the current item's value. Preserves non-table-specific query state.
-//
-// Uses the column name derived from the entity type for filtering. Most tables already
-// have columns for their ancestors (e.g., machines has cluster, zone columns).
-// For example, if viewing a cluster (google.cluster) and the descendant is "google.machine",
-// this would generate a URL like "table?table=google_machines&filter:cluster=us-east-a-c0"
-func generateDescendantListURL(currentQuery *urlquery.Query, descendantEntityType, parentEntityType, parentValue string) string {
-	// Clone the current query to preserve non-table-specific state (limit, info pane, etc.)
-	q := currentQuery.Clone()
-	q.Path = "table"
-	q.Table = entityTypeToTableName(descendantEntityType)
-	q.ClearTableSpecificState()
-
-	// Use the column name derived from entity type (e.g., "google.cluster" -> "cluster")
-	// Tables typically have columns named after their ancestors directly
-	columnName := entityTypeToColumnName(parentEntityType)
-	q.Filters[columnName] = `"` + parentValue + `"`
-
-	return q.ToURL()
-}
-
-// entityTypeToTableName converts an entity type to a table name.
-// Convention: "google.cluster" -> "google_clusters", "google.machine" -> "google_machines"
-func entityTypeToTableName(entityType string) string {
-	// Remove prefix and add 's' for plural
-	name := entityType
-	if idx := strings.LastIndex(entityType, "."); idx != -1 {
-		prefix := entityType[:idx]
-		suffix := entityType[idx+1:]
-		// Handle special pluralization
-		if strings.HasSuffix(suffix, "s") {
-			name = prefix + "_" + suffix + "es"
-		} else {
-			name = prefix + "_" + suffix + "s"
-		}
-	}
-	return strings.ReplaceAll(name, ".", "_")
-}
-
-// entityTypeToColumnName extracts a column name from an entity type.
-// Convention: "google.cluster" -> "cluster", "demo.order_id" -> "order_id"
-func entityTypeToColumnName(entityType string) string {
-	if idx := strings.LastIndex(entityType, "."); idx != -1 {
-		return entityType[idx+1:]
-	}
-	return entityType
-}
-
-// formatTableDisplayName creates a user-friendly display name from a table name.
-// Examples: "google_clusters" -> "Clusters", "customer_orders" -> "Customer Orders"
-func formatTableDisplayName(tableName string) string {
-	// Remove common prefixes
-	name := tableName
-	if idx := strings.Index(name, "_"); idx != -1 {
-		// Check if the prefix looks like a namespace (e.g., "google_")
-		prefix := name[:idx]
-		if prefix == "google" || prefix == "demo" {
-			name = name[idx+1:]
-		}
-	}
-
-	// Replace underscores with spaces and title case
-	name = strings.ReplaceAll(name, "_", " ")
-	return strings.Title(name)
 }
