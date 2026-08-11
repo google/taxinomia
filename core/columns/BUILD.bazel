@@ -22,6 +22,7 @@ go_library(
         "joined_columns.go",
         "parallel_group.go",
         "parallel_scan.go",
+        "per_code_joiner.go",
         "reorder.go",
         "row_set.go",
         "selection.go",

@@ -115,6 +115,33 @@ func TestCreateJoinerChunked(t *testing.T) {
 	}
 }
 
+// TestCreateJoinerPerCode pins that a dictionary-encoded from side gets the
+// per-code joiner (phase 6a: the join resolves once per distinct FK value)
+// while other string representations stay on the per-row joiner.
+func TestCreateJoinerPerCode(t *testing.T) {
+	dm := NewDataModel()
+
+	dictStr := columns.NewChunkedDictStringColumn[uint16](columns.NewColumnDef("id", "ID", "thing"))
+	plainStr := columns.NewStringColumn(columns.NewColumnDef("id", "ID", "thing"))
+	for _, v := range []string{"a", "b", "c"} {
+		dictStr.Append(v)
+		plainStr.Append(v)
+	}
+	dictStr.FinalizeColumn()
+	plainStr.FinalizeColumn()
+
+	if j := dm.createJoiner(dictStr, plainStr); j == nil {
+		t.Fatal("no joiner for dict->plain")
+	} else if _, ok := j.(*columns.PerCodeJoiner[uint16]); !ok {
+		t.Errorf("dict from side: got %T, want *columns.PerCodeJoiner[uint16]", j)
+	}
+	if j := dm.createJoiner(plainStr, dictStr); j == nil {
+		t.Fatal("no joiner for plain->dict")
+	} else if _, ok := j.(*columns.Joiner[string]); !ok {
+		t.Errorf("plain from side: got %T, want *columns.Joiner[string]", j)
+	}
+}
+
 // TestGetColumnTypeChunked pins that the system columns table reports the
 // same logical data types for chunked columns as for plain ones.
 func TestGetColumnTypeChunked(t *testing.T) {

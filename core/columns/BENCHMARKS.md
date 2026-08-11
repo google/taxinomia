@@ -422,3 +422,28 @@ The dense path parallelises better because its per-row work is an array
 increment with no hashing; both stay below the thread count for the section
 9 bandwidth reasons. Explicit index-list selections (child-level grouping)
 and non-chunked columns keep the sequential path unchanged.
+
+## Per-code join tables (2026-08-10, phase 6a)
+
+Joins with a dictionary-encoded FK column now resolve once per distinct FK
+value instead of once per row (`PerCodeJoiner`, docs/scaling-to-1b-rows.md
+section 6: joins hit the key index d times, not n times). The first lookup
+builds a code -> target-row table with one `GetIndex` per dictionary entry;
+every lookup after that is two array reads. `BenchmarkJoin_*`, 1M-row dict
+FK (d=1000) against a 100k-row front-coded sorted PK, `-benchtime 3x
+-count 3`, medians:
+
+| Join over 1M rows | Per-row joiner | Per-code joiner | Speedup |
+|---|---|---|---|
+| `Lookup` sweep | 587 ms | 10.1 ms | 58x |
+| Joined-column `GroupCounts` | 488 ms | 47.1 ms | 10.4x |
+| Allocations (sweep) | 12 MB, 750k allocs | 5.4 KB, 250 allocs | — |
+
+The per-row path pays string materialization plus the section 6 O(log n)
+restart-aware search on every row; the per-code path pays that d times at
+build and then reads `codes[row]` and `targets[code]`. The joined
+GroupCounts residue (47 ms) is the per-row hash grouping of resolved
+values, not the join — that shape is 6b's per-chunk pre-aggregation work.
+The memo builds lazily under `sync.Once`, so concurrent queries share one
+build and unqueried joins never pay it; codes interned after the build
+(append-only growth) fall back to direct resolution.

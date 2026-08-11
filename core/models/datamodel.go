@@ -291,6 +291,14 @@ func (dm *DataModel) createJoiner(fromColumn columns.IDataColumn, toColumn colum
 		// columns too: per-role encoding selection at load turns loaded
 		// string columns — foreign keys and primary keys prominently among
 		// them — into these representations.
+		//
+		// A dictionary-encoded from side gets the per-code joiner: the join
+		// resolves once per distinct FK value instead of once per row
+		// (docs/scaling-to-1b-rows.md §6). Other representations stay on the
+		// per-row typed joiner.
+		if j := columns.PerCodeJoinerFor(fromColumn, toColumn); j != nil {
+			return j
+		}
 		return typedJoiner[string](fromColumn, toColumn)
 	case *columns.Uint32Column, *columns.ChunkedUint32Column:
 		return typedJoiner[uint32](fromColumn, toColumn)
