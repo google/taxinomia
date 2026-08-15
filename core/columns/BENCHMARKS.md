@@ -447,3 +447,38 @@ values, not the join — that shape is 6b's per-chunk pre-aggregation work.
 The memo builds lazily under `sync.Once`, so concurrent queries share one
 build and unqueried joins never pay it; codes interned after the build
 (append-only growth) fall back to direct resolution.
+
+## Per-chunk pre-aggregation (2026-08-15, phase 6b)
+
+Level-0 leaf aggregates over a dictionary-encoded grouping dimension now
+merge cached per-chunk (code, partial) summaries instead of rescanning every
+row (`PerCodeAggs`, docs/scaling-to-1b-rows.md section 4). The summary is
+built once per (dimension, measure) pair in one parallel pass; after that a
+selection that covers a chunk entirely takes the chunk's cached partials
+without touching a row, and only chunks the selection cuts through are
+scanned. `BenchmarkPerCodeAggs`, 1M rows, d=1000 dict dimension in runs (the
+sorted-storage shape), float64 measure, `-benchtime 10x -count 3`, medians:
+
+| Per-code aggregate pass | Time |
+|---|---|
+| Per-row reference (the old leaf accumulation shape) | 5.5 ms |
+| First call (parallel summary build + merge) | 1.5 ms |
+| Warm merge of cached chunk summaries | **19 µs** |
+
+End to end, `BenchmarkGroupAggregates1M` in `core/tables`: a full grouping
+request (level-0 partition + leaf aggregates) on 1M rows, 1000 groups, two
+numeric measures, same flags, medians:
+
+| Full grouping request | Per-row leaves | Pre-aggregated | Speedup |
+|---|---|---|---|
+| 1M rows, 1000 groups, 2 measures | 21.7 ms | 1.9 ms | **11.2x** |
+
+Even the first bulk request beats the per-row pass (the summary build is a
+parallel chunk sweep on the worker pool; per-row accumulation is a
+sequential interface-call-per-row walk). States assembled from partials
+format identically to per-row accumulation; float sums may differ in the
+last ulp because chunk subtotals associate differently. A dimension whose
+chunks each hold too many distinct codes (high cardinality in random order)
+declines permanently under the entry budget rather than retaining
+O(chunks × distinct) state; small-subset selections keep the per-row path,
+whose cost is proportional to the subset.

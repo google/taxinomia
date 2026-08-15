@@ -47,6 +47,11 @@ type ChunkedDictStringColumn[K Unsigned] struct {
 	zones        *zoneMap[string] // per-chunk min/max value, built by FinalizeColumn
 	ranks        []K              // code -> sort rank, built lazily by Ranks()
 	ranksOnce    sync.Once
+	// preAggs caches per-chunk aggregate summaries per measure column (§4
+	// pre-aggregation), built lazily by PerCodeAggs. preAggMu guards the map;
+	// each entry serializes its own build.
+	preAggMu sync.Mutex
+	preAggs  map[IDataColumn]*preAggEntry
 }
 
 // NewChunkedDictStringColumn creates an empty dictionary-encoded chunked

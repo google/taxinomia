@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "data_table.go",
         "encoding.go",
+        "preagg_aggregates.go",
         "sorted_storage.go",
         "sorting.go",
         "table_view.go",
@@ -35,6 +36,8 @@ go_test(
         "golden_test.go",
         "grouping_release_test.go",
         "lazy_grouping_test.go",
+        "preagg_aggregates_test.go",
+        "preagg_bench_test.go",
         "race_off_test.go",
         "race_on_test.go",
         "sorted_storage_test.go",

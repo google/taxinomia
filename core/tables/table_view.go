@@ -1317,13 +1317,21 @@ func (tv *TableView) computeAggregates(ctx context.Context, leafColumns []string
 		return nil
 	}
 
+	// Level-0 leaf aggregates merge per-chunk pre-aggregated partials where
+	// the grouping column supports it; columns absent from bulk take the
+	// per-row path below.
+	bulk, err := tv.bulkLevel0Aggregates(ctx, leafColumns, columnTypes)
+	if err != nil {
+		return err
+	}
+
 	// Walk the hierarchy bottom-up, starting from leaves
-	return tv.computeAggregatesForBlock(ctx, tv.firstBlock, leafColumns, columnTypes)
+	return tv.computeAggregatesForBlock(ctx, tv.firstBlock, leafColumns, columnTypes, bulk)
 }
 
 // computeAggregatesForBlock recursively computes aggregates for a block and its children.
 // Returns after processing all groups in the block.
-func (tv *TableView) computeAggregatesForBlock(ctx context.Context, block *grouping.Block, leafColumns []string, columnTypes map[string]queryspec.ColumnType) error {
+func (tv *TableView) computeAggregatesForBlock(ctx context.Context, block *grouping.Block, leafColumns []string, columnTypes map[string]queryspec.ColumnType, bulk level0CodeAggs) error {
 	if block == nil {
 		return nil
 	}
@@ -1334,7 +1342,7 @@ func (tv *TableView) computeAggregatesForBlock(ctx context.Context, block *group
 		}
 		// First, process child block (if any) - bottom-up
 		if group.ChildBlock != nil {
-			if err := tv.computeAggregatesForBlock(ctx, group.ChildBlock, leafColumns, columnTypes); err != nil {
+			if err := tv.computeAggregatesForBlock(ctx, group.ChildBlock, leafColumns, columnTypes, bulk); err != nil {
 				return err
 			}
 		}
@@ -1350,8 +1358,13 @@ func (tv *TableView) computeAggregatesForBlock(ctx context.Context, block *group
 		group.Aggregates = make(map[string]aggregates.AggregateState)
 
 		if group.ChildBlock == nil {
-			// Leaf group: compute from indices
-			tv.computeLeafAggregates(group, leafColumns, columnTypes)
+			// Leaf group: compute from indices. The pre-aggregated partials
+			// are keyed by the level-0 group keys, so they apply only there.
+			groupBulk := bulk
+			if group.ParentGroup != nil {
+				groupBulk = nil
+			}
+			tv.computeLeafAggregates(group, leafColumns, columnTypes, groupBulk)
 		} else {
 			// Parent group: combine from children
 			tv.combineChildAggregates(group, leafColumns, columnTypes)
@@ -1360,13 +1373,22 @@ func (tv *TableView) computeAggregatesForBlock(ctx context.Context, block *group
 	return nil
 }
 
-// computeLeafAggregates computes aggregates for a leaf group by iterating over its indices.
-func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]queryspec.ColumnType) {
+// computeLeafAggregates computes aggregates for a leaf group by iterating over
+// its indices; columns present in bulk take their state from the merged
+// per-code partials instead.
+func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []string, columnTypes map[string]queryspec.ColumnType, bulk level0CodeAggs) {
 	for _, colName := range leafColumns {
 		colType := columnTypes[colName]
 		col := tv.GetColumn(colName)
 		if col == nil {
 			continue
+		}
+
+		if aggs := bulk[colName]; aggs != nil {
+			if state := codeAggState(aggs, group.GroupKey); state != nil {
+				group.Aggregates[colName] = state
+				continue
+			}
 		}
 
 		state := aggregates.CreateAggState(colType)
