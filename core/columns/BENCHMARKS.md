@@ -482,3 +482,46 @@ chunks each hold too many distinct codes (high cardinality in random order)
 declines permanently under the entry budget rather than retaining
 O(chunks × distinct) state; small-subset selections keep the per-row path,
 whose cost is proportional to the subset.
+
+## C++ kernel evaluation (2026-08-15, phase 7)
+
+Phase 7's gate was measurement: adopt C++ kernels only if something is
+compute-bound. Profiling after 6b (i7-1185G7, 8 threads, 1M rows unless
+noted):
+
+- **Hash partition grouping is compute-bound**, not bandwidth-bound: ~60% of
+  CPU samples sit in runtime map machinery (`mapaccess*_fast64`, `matchH2`,
+  `memhash64`); the sequential path streams ~8 MB of keys in ~30 ms
+  (~0.27 GB/s, far below DRAM bandwidth). `BenchmarkPartitionGroups`
+  hash-int64: ~30–32 ms sequential, ~10–15 ms parallel.
+- **Joined GroupCounts** (~21 ms) is per-row string hashing plus interface
+  dispatch — the 6a note's FK-code→groupID mapping is the (Go-level) fix.
+- **Substring filtering** is a non-issue warm: 1.6 ms/1M (earlier larger
+  numbers were benchmark table-construction noise).
+- **SortByKey1M** (292–536 ms) is comparison-sort compute, but it is a
+  load/convert-time cost, not a query-time one.
+
+The evaluation experiment (`experimental/kerneleval`, standalone nested
+module, excluded from both builds): the identical partition kernel — dense
+first-appearance codes + per-code counts over int64 keys — three ways.
+Parity-tested byte-identical. Medians of 3 × `-benchtime 20x`, g++ 16.1.0
+-O2, cgo batch = 64k rows:
+
+| 1M rows | Go map (today's shape) | Go open-addressing | C++ via cgo |
+|---|---|---|---|
+| d=1,000 | 8.11 ms | 6.56 ms | 5.80 ms |
+| d=100,000 | 18.77 ms | 9.05 ms | 8.45 ms |
+
+Raw cgo call overhead ~75 ns/call (~1.2 µs per 1M rows at 64k batches —
+batch-granularity cgo works exactly as the design assumed).
+
+**Verdict: C++ kernels not adopted.** C++ beats the *same algorithm* in pure
+Go by only ~1.07–1.13x — the kernel is bound by dependent probe-table loads
+the language cannot remove. The real headroom is algorithmic and stays in
+Go: a specialized open-addressing table over the runtime map (1.2–2.1x), and
+the in-repo partition path's second probing pass + per-row closure dispatch
+(~30 ms vs the ~8 ms bare loop). A cgo dependency (per-builder C toolchain,
+MSVC/MinGW divergence on Windows, no `-race` inside kernels, two-language
+maintenance) is not worth ≤ ~13%. Follow-up candidate if partition time
+matters at larger scale: pure-Go specialized partition table with a fused
+counts+scatter pass.
