@@ -525,3 +525,87 @@ MSVC/MinGW divergence on Windows, no `-race` inside kernels, two-language
 maintenance) is not worth ≤ ~13%. Follow-up candidate if partition time
 matters at larger scale: pure-Go specialized partition table with a fused
 counts+scatter pass.
+
+## C++ memory evaluation (2026-08-16, open question 1)
+
+Phase 7 answered the compute question (no C++ kernels); this answers the
+follow-up recorded as Open question 1 in `docs/execution-plan.md`: what
+memory would moving to C++ reclaim? Harness: `experimental/memeval`
+(standalone nested module, excluded from both builds, like kerneleval).
+Same machine (i7-1185G7, 8 threads, 32 GB). Retained = `HeapAlloc` after two
+forced GCs; flat = the analytic C struct-of-arrays minimum for the same data.
+
+### Retained bytes/row, finalized columns, 10^8 rows
+
+| representation | B/row | flat | overhead |
+|---|---|---|---|
+| int64 / float64 chunks | 8.001 | 8 | +0.0% |
+| uint32 chunks | 4.001 | 4 | +0.0% |
+| bool chunks | 1.001 | 1 | +0.1% |
+| dict16 codes (d=1,000, 9 B values) | 2.001 | 2 | +0.1% |
+| arena strings (24 B, non-key) | 30.88 | 28 | +10.3% |
+| []string, same data (the pre-4c shape) | 40.00 | 28 | +42.9% |
+| front-coded sorted PK (11 B keys) | 7.50 | 11 | -31.8% |
+| arena sorted PK (11 B keys) | 17.63 | 15 | +17.5% |
+| unsorted key retaining map[string]uint32 (16 B, 10^7 rows) | 65.88 | 20 | +229% |
+
+- Fixed-width chunks and dict codes sit at the C minimum to three decimals:
+  the flat layout already exists in Go, there is nothing for C++ to reclaim.
+  (At small row counts a partial last chunk shows as apparent overhead -
+  ~5% at 1M rows - which is capacity, not per-row cost; measure at scale.)
+- The arena/front-coded overheads are append-growth overshoot of the blob
+  (Go grows large slices by ~1.25x; the offsets arrays are exact). This is
+  Go-fixable - size the blob exactly or compact it in FinalizeColumn - and
+  is not a language floor. Front coding stores a sorted PK 32% *below* the
+  raw payload.
+- The reverse-lookup map of an unsorted key column costs ~46 B/row over
+  flat - the largest Go-only overhead, exactly the "~50 B/row" the 4a/4b
+  design assumed. Per-role encoding already avoids it wherever storage is
+  sorted by the key (the PK default); and a C++ hash index would pay a
+  comparable 30-40 B/row, so even here the language delta is small.
+- The dict interning map pending FinalizeColumn retains 3.8 KiB at d=1,000
+  (released on finalize); the []string row shows what 4c already bought:
+  -30% and the removal of 10^8 GC pointers.
+
+### GC cost of a large live heap, 10^8 rows
+
+| dataset | live heap | forced full GC | GC CPU (build) | peak Sys |
+|---|---|---|---|---|
+| pointer-free (int64+float64+uint32+dict16+arena) | 4.93 GiB | 0-7 ms | 0.01% | 7.57 GiB |
+| []string (one column) | 3.73 GiB | 389-408 ms | 4.45% | 3.87 GiB |
+
+- The collector does not scan pointer-free spans: a full GC over a 4.93 GiB
+  chunked dataset takes single-digit milliseconds (gctrace concurs), and STW
+  totals ~0. The scan-cost argument for C++ is void for the current storage.
+  []string is the counterexample the design replaced: ~400 ms per cycle for
+  10^8 string headers.
+- Headroom is a knob, not a rewrite: default GOGC let the build peak at
+  7.57 GiB Sys for 4.93 GiB live; `GOMEMLIMIT=6e9` capped peak Sys at
+  5.49 GiB with identical build time (13.1s vs 13.8s); GOGC=25 landed at
+  5.71 GiB with 108 cycles and still 0.1% GC CPU.
+
+### Transient query allocations, dict16 at 10^8 rows
+
+| op | time/op | alloc/op | retained after drop |
+|---|---|---|---|
+| GroupCounts, full universe | 53-70 ms | 8.05 KiB | +0 B |
+| FilterSelection, substring | 22-34 ms | 11.92 MiB | +10 KiB |
+| filter + GroupCounts | 73-110 ms | 11.93 MiB | +15 KiB |
+
+Query allocation is O(distinct) for grouping and exactly rows/8 for a
+selection bitmap, independent of match count; nothing accumulates across
+queries. C++ would swap the GC for manual pooling without shrinking any of
+these. (The first run of this measurement caught a real retention: the
+executor's removeJob left the finished job - and the Selection its task
+closure captured, 12.5 MB at 10^8 rows - reachable through the shrunken
+slice's backing array until the next query. Fixed in core/executor by
+clearing the vacated slot.)
+
+**Verdict: no C++ rewrite for memory either.** The retained-bytes gap to a
+C layout is 0% where the engine actually stores data at scale (fixed-width,
+dict codes) and ~10-18% on string arenas, where it is append-growth slack
+that a FinalizeColumn compaction would remove in Go. GC scan cost of the
+resident data is milliseconds because the chunks are pointer-free, and heap
+headroom is controlled by GOMEMLIMIT. If a constraint ever appears, the
+recorded escape hatches remain (GOMEMLIMIT tuning, off-heap or mmap-backed
+chunk payloads behind the chunk seam) - all narrower than a rewrite.

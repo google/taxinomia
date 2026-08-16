@@ -247,7 +247,12 @@ func (p *Pool) maybeFinish(j *job) {
 func (p *Pool) removeJob(j *job) {
 	for k, other := range p.jobs {
 		if other == j {
-			p.jobs = append(p.jobs[:k], p.jobs[k+1:]...)
+			copy(p.jobs[k:], p.jobs[k+1:])
+			// Clear the vacated slot: the backing array would otherwise pin
+			// the job — and everything its task closure captures, such as a
+			// query's Selection bitmap — until the next Run overwrites it.
+			p.jobs[len(p.jobs)-1] = nil
+			p.jobs = p.jobs[:len(p.jobs)-1]
 			if p.cursor > k {
 				p.cursor--
 			}

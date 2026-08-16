@@ -5,6 +5,7 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 # gazelle:proto default
 # gazelle:go_generate_proto true
 # gazelle:exclude experimental/kerneleval
+# gazelle:exclude experimental/memeval
 
 # Run `bazel run //:gazelle` to (re)generate BUILD files,
 # and `bazel run //:gazelle-update-repos` is not needed under Bzlmod
