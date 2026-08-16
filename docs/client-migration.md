@@ -156,7 +156,8 @@ counts, firsts := ops.GroupCounts(sel)
 // Stream (code, row) pairs to your accumulator — aggregation without lists.
 ops.GroupAggregates(sel, acc)           // acc implements Add(code, row uint32)
 
-// One page of one group's rows, only when actually needed (n < 0 = all).
+// A bounded slice of one group's rows — skip the first offset, return at
+// most n — only when actually needed (n < 0 = all remaining).
 rows := ops.GroupMembers(sel, code, offset, n)
 ```
 
