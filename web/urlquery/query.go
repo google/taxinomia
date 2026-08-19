@@ -1052,6 +1052,21 @@ func (s *Query) GetGroupAggSort(groupedColumn string) *GroupAggSort {
 	return s.GroupAggregateSorts[groupedColumn]
 }
 
+// EffectiveGroupDisplayLimit returns the display limit the grouping build may
+// use for its level-0 top-K trim. When an aggregate sort targets the level-0
+// grouped column, the trim must be suspended (return 0 = no trim): it selects
+// the top K groups by group *value*, and the aggregate sort would then rank
+// only those survivors instead of all groups — "top groups by sum" would
+// silently show the aggregate-sorted subset of the value-wise first K. The
+// display limit still bounds the rendered rows; it is applied after the
+// aggregate sort. Deeper levels are never trimmed, so only level 0 matters.
+func (s *Query) EffectiveGroupDisplayLimit() int {
+	if len(s.GroupedColumns) > 0 && s.GroupAggregateSorts[s.GroupedColumns[0]] != nil {
+		return 0
+	}
+	return s.Limit
+}
+
 // WithGroupAggSortDirectionToggled toggles the direction (asc/desc) of an existing aggregate sort.
 // If no aggregate sort exists for the column, this has no effect.
 func (s *Query) WithGroupAggSortDirectionToggled(groupedColumn string) safehtml.URL {

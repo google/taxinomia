@@ -277,3 +277,36 @@ func mustParse(t *testing.T, rawURL string) *url.URL {
 	}
 	return u
 }
+
+// TestEffectiveGroupDisplayLimit: the level-0 value trim must be suspended
+// (limit 0) exactly when an aggregate sort targets the level-0 grouped
+// column; deeper-level aggregate sorts rank within their parent, which is
+// never trimmed, so the limit stays.
+func TestEffectiveGroupDisplayLimit(t *testing.T) {
+	parse := func(raw string) *Query {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatalf("parse %q: %v", raw, err)
+		}
+		return NewQuery(u)
+	}
+
+	cases := []struct {
+		name string
+		raw  string
+		want int
+	}{
+		{"no grouping", "/table?table=t&limit=25", 25},
+		{"grouped, no agg sort", "/table?table=t&limit=25&grouped=g", 25},
+		{"agg sort on level 0", "/table?table=t&limit=25&grouped=g&groupsort:g=-amount:sum", 0},
+		{"agg sort on level 1 only", "/table?table=t&limit=25&grouped=g,h&groupsort:h=-amount:sum", 25},
+		{"row-count sort on level 0", "/table?table=t&limit=25&grouped=g&groupsort:g=%2B:rows", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parse(tc.raw).EffectiveGroupDisplayLimit(); got != tc.want {
+				t.Errorf("EffectiveGroupDisplayLimit() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}

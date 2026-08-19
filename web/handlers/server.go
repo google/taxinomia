@@ -402,7 +402,9 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 		// the historical eager build and byte-identical output; with one, only
 		// the opened subtrees are computed.
 		expansion := tables.GroupExpansion{ExpandAll: !q.HasExpandedGroups, Paths: q.ExpandedGroups}
-		if err := tableView.GroupTableWindowedContext(ctx, q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.Limit, expansion); err != nil {
+		// EffectiveGroupDisplayLimit suspends the level-0 value trim when an
+		// aggregate sort targets level 0 — the sort must rank all groups.
+		if err := tableView.GroupTableWindowedContext(ctx, q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.EffectiveGroupDisplayLimit(), expansion); err != nil {
 			return &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 		}
 

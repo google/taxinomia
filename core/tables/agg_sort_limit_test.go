@@ -1,0 +1,144 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+
+Copyright 2024 The Taxinomia Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package tables
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/queryspec"
+)
+
+// buildAggSortTable builds a table with a string group column "g" holding
+// nGroups distinct values ("g00".."gNN", rowsPerGroup rows each) and a
+// float column "amount" arranged so that the value-wise LAST group has the
+// largest sum: sum(g_k) grows with k.
+func buildAggSortTable(nGroups, rowsPerGroup int) *DataTable {
+	table := NewDataTable()
+	gCol := columns.NewStringColumn(columns.NewColumnDef("g", "G", ""))
+	aCol := columns.NewFloat64Column(columns.NewColumnDef("amount", "Amount", ""))
+	for k := 0; k < nGroups; k++ {
+		for r := 0; r < rowsPerGroup; r++ {
+			gCol.Append(fmt.Sprintf("g%02d", k))
+			aCol.Append(float64(k + 1))
+		}
+	}
+	gCol.FinalizeColumn()
+	aCol.FinalizeColumn()
+	table.AddColumn(gCol)
+	table.AddColumn(aCol)
+	return table
+}
+
+// TestGroupingRebuildOnDisplayLimitChange: grouping state built under one
+// display limit must not be reused for a request with a different limit —
+// the level-0 top-K trim bakes the limit into the retained groups.
+func TestGroupingRebuildOnDisplayLimitChange(t *testing.T) {
+	const nGroups = 100
+	table := buildAggSortTable(nGroups, 10)
+	tv := NewTableView(table, "t")
+	tv.VisibleColumns = []string{"g", "amount"}
+
+	grouped := []string{"g"}
+	noSort := make(map[string]bool)
+	expandAll := GroupExpansion{ExpandAll: true}
+
+	tv.GroupTableWindowed(grouped, nil, make(map[string]Compare), noSort, 10, expandAll)
+	if got := len(tv.GetFirstBlock().Groups); got != 10 {
+		t.Fatalf("trimmed grouping has %d groups, want 10", got)
+	}
+
+	// Same grouping, no trim: must rebuild, not reuse the 10-group state.
+	tv.GroupTableWindowed(grouped, nil, make(map[string]Compare), noSort, 0, expandAll)
+	if got := len(tv.GetFirstBlock().Groups); got != nGroups {
+		t.Fatalf("after limit change 10→0 the grouping has %d groups, want %d (stale trimmed state reused)", got, nGroups)
+	}
+}
+
+// TestAggregateSortRanksAllGroups pins the handler contract behind
+// urlquery.EffectiveGroupDisplayLimit: when groups are ordered by an
+// aggregate, the grouping must be built untrimmed (limit 0) so the sort
+// ranks every group — the display limit is applied at render time. The
+// aggregate-largest group here is the value-wise last ("g99"), which a
+// value-trimmed build would have discarded before the aggregate sort ran.
+func TestAggregateSortRanksAllGroups(t *testing.T) {
+	const nGroups = 100
+	table := buildAggSortTable(nGroups, 10)
+	tv := NewTableView(table, "t")
+	tv.VisibleColumns = []string{"g", "amount"}
+
+	grouped := []string{"g"}
+	noSort := make(map[string]bool)
+	expandAll := GroupExpansion{ExpandAll: true}
+
+	// The buggy shape (kept as documentation of the mechanism): a value-wise
+	// trim to 25 discards g99 before any aggregate sort could rank it.
+	tv.GroupTableWindowed(grouped, nil, make(map[string]Compare), noSort, 25, expandAll)
+	for _, g := range tv.GetFirstBlock().Groups {
+		if g.GetValue() == "g99" {
+			t.Fatalf("value-trimmed build retained g99; test premise broken")
+		}
+	}
+
+	// The fixed shape: untrimmed build, aggregate sort, then render-limit.
+	tv.GroupTableWindowed(grouped, nil, make(map[string]Compare), noSort, 0, expandAll)
+	tv.ComputeAggregates([]string{"amount"}, map[string]queryspec.ColumnType{"amount": queryspec.ColumnTypeNumeric})
+	tv.SortGroupsByAggregate(map[string]*queryspec.GroupAggSort{
+		"g": {GroupedColumn: "g", LeafColumn: "amount", AggType: queryspec.AggSum, Descending: true},
+	})
+
+	groups := tv.GetFirstBlock().Groups
+	if len(groups) != nGroups {
+		t.Fatalf("aggregate-sorted grouping has %d groups, want %d", len(groups), nGroups)
+	}
+	if got := groups[0].GetValue(); got != "g99" {
+		t.Fatalf("top group by sum is %q, want g99 (largest sum)", got)
+	}
+	if got := groups[nGroups-1].GetValue(); got != "g00" {
+		t.Fatalf("bottom group by sum is %q, want g00 (smallest sum)", got)
+	}
+}
+
+// TestRegroupingReleasesPreviousBlocks: repeated regrouping on one view must
+// not accumulate block trees in the registry — before the fix, every rebuild
+// appended its blocks to blocksByColumn while ClearGroupings and the eager
+// build never reset it, keeping every previous grouping's groups reachable
+// (measured as warm grouping getting slower than cold at 1e7 in benchsuite Q6).
+func TestRegroupingReleasesPreviousBlocks(t *testing.T) {
+	table := buildAggSortTable(100, 100)
+	tv := NewTableView(table, "t")
+	tv.VisibleColumns = []string{"g", "amount"}
+	expandAll := GroupExpansion{ExpandAll: true}
+
+	for i := 0; i < 5; i++ {
+		tv.ClearGroupings()
+		tv.GroupTableWindowed([]string{"g"}, nil, make(map[string]Compare), make(map[string]bool), 0, expandAll)
+	}
+	if got := len(tv.blocksByColumn["g"]); got != 1 {
+		t.Errorf("after 5 regroupings the registry holds %d level-0 blocks, want 1 (previous trees leaked)", got)
+	}
+
+	// Regroup without an intervening ClearGroupings (the handler path when
+	// the grouping inputs change): still exactly one tree registered.
+	tv.GroupTableWindowed([]string{"g"}, nil, make(map[string]Compare), map[string]bool{"g": false}, 0, expandAll)
+	if got := len(tv.blocksByColumn["g"]); got != 1 {
+		t.Errorf("after an in-place regroup the registry holds %d level-0 blocks, want 1", got)
+	}
+}

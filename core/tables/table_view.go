@@ -110,6 +110,7 @@ type TableView struct {
 	lastGroupingFilters map[string]string // Filter state when grouping was computed
 	lastGroupingSortAsc map[string]bool   // Sort direction when grouping was computed
 	lastExpansion       *GroupExpansion   // Expansion state when grouping was computed (nil = never grouped)
+	lastDisplayLimit    int               // Display limit (level-0 top-K trim) when grouping was computed
 }
 
 // ApplyFilters builds and caches a filter selection bitmap based on the provided filters
@@ -365,10 +366,15 @@ func (t *TableView) GetGroupCount(col string) int {
 func (t *TableView) ClearGroupings() {
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
+	// The block registry pins every block (and its groups) it references;
+	// without this reset each regrouping on a live view would keep the
+	// previous block tree reachable forever.
+	t.blocksByColumn = make(map[string][]*grouping.Block)
 	t.lastGroupingOrder = nil
 	t.lastGroupingFilters = nil
 	t.lastGroupingSortAsc = nil
 	t.lastExpansion = nil
+	t.lastDisplayLimit = 0
 }
 
 func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
@@ -421,8 +427,10 @@ func (t *TableView) GroupTableWindowed(groupingOrder []string, aggregatedColumns
 // grouping state dropped — nothing half-built is cached, and the next request
 // regroups from scratch.
 func (t *TableView) GroupTableWindowedContext(ctx context.Context, groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool, displayLimit int, expansion GroupExpansion) error {
-	// Check if grouping inputs are unchanged - skip recomputation
-	if t.groupingEqual(groupingOrder, asc) && t.lastExpansion != nil {
+	// Check if grouping inputs are unchanged - skip recomputation. The display
+	// limit is part of the inputs: level-0 groups are top-K-trimmed to it, so
+	// state built under a different limit cannot be reused.
+	if t.groupingEqual(groupingOrder, asc) && t.lastDisplayLimit == displayLimit && t.lastExpansion != nil {
 		if expansionEqual(*t.lastExpansion, expansion) {
 			return nil
 		}
@@ -452,20 +460,21 @@ func (t *TableView) GroupTableWindowedContext(ctx context.Context, groupingOrder
 	return nil
 }
 
-// dropGroupingState resets every piece of grouping state, including the block
-// registry an interrupted incremental update may have left inconsistent. A
-// cancelled build caches nothing.
+// dropGroupingState resets every piece of grouping state. A cancelled build
+// caches nothing. (ClearGroupings resets the block registry too, so this is
+// now a plain alias kept for its call sites' intent.)
 func (t *TableView) dropGroupingState() {
 	t.ClearGroupings()
-	t.blocksByColumn = make(map[string][]*grouping.Block)
 }
 
 // groupTableEager builds the full grouping tree: every group of every level.
 // This is the historical behavior and the byte-identical default.
 func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string, asc map[string]bool, displayLimit int) error {
-	// clear current groups
+	// clear current groups (including the block registry — a regroup must
+	// not keep the previous block tree reachable)
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
+	t.blocksByColumn = make(map[string][]*grouping.Block)
 
 	// Group directly from the cached filter selection; the bitmap is never
 	// materialised as an index list.
@@ -506,7 +515,7 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	// O(rows).
 	releaseGroupMembership(t.firstBlock)
 
-	t.saveGroupingState(groupingOrder, asc)
+	t.saveGroupingState(groupingOrder, asc, displayLimit)
 	t.lastExpansion = &GroupExpansion{ExpandAll: true}
 	return nil
 }
@@ -558,7 +567,7 @@ func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, 
 
 	releaseGroupMembership(t.firstBlock)
 
-	t.saveGroupingState(groupingOrder, asc)
+	t.saveGroupingState(groupingOrder, asc, displayLimit)
 	exp := expansion
 	t.lastExpansion = &exp
 	return nil
@@ -709,7 +718,8 @@ func (t *TableView) rebuildBlockRegistry() {
 
 // saveGroupingState records the inputs that produced the current grouping so
 // unchanged requests can skip recomputation.
-func (t *TableView) saveGroupingState(groupingOrder []string, asc map[string]bool) {
+func (t *TableView) saveGroupingState(groupingOrder []string, asc map[string]bool, displayLimit int) {
+	t.lastDisplayLimit = displayLimit
 	t.lastGroupingOrder = make([]string, len(groupingOrder))
 	copy(t.lastGroupingOrder, groupingOrder)
 	t.lastGroupingFilters = make(map[string]string, len(t.lastFilters))
