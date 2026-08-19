@@ -529,7 +529,7 @@ counts+scatter pass.
 ## C++ memory evaluation (2026-08-16, open question 1)
 
 Phase 7 answered the compute question (no C++ kernels); this answers the
-follow-up recorded as Open question 1 in `docs/execution-plan.md`: what
+follow-up recorded internally as Open question 1: what
 memory would moving to C++ reclaim? Harness: `experimental/memeval`
 (standalone nested module, excluded from both builds, like kerneleval).
 Same machine (i7-1185G7, 8 threads, 32 GB). Retained = `HeapAlloc` after two

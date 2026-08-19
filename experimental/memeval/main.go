@@ -17,7 +17,7 @@ limitations under the License.
 */
 
 // memeval measures what memory a C++ rewrite could actually reclaim
-// (docs/execution-plan.md, Open question 1). Three modes:
+// (scaling plan, Open question 1). Three modes:
 //
 //	-mode retained  per-representation retained bytes/row of finalized
 //	                columns versus the analytic flat-layout (C) minimum

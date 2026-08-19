@@ -1,6 +1,6 @@
 # Phase 7 — C++ kernel evaluation (verdict: not adopted)
 
-This directory is the measurement artifact for execution-plan phase 7. It is a
+This directory is the measurement artifact for scaling phase 7. It is a
 **standalone nested Go module**, deliberately excluded from both builds: the
 parent module ignores nested modules, and the root `BUILD.bazel` carries a
 `gazelle:exclude` for this path so no cgo `BUILD` file is ever generated. It
@@ -57,7 +57,7 @@ counts+scatter pass.
 ## Reproduce
 
 ```bash
-# needs gcc/g++ on PATH (winget WinLibs install, see execution-plan health notes)
+# needs gcc/g++ on PATH (winget WinLibs install)
 cd experimental/kerneleval
 CGO_ENABLED=1 go test -run TestParity -v
 CGO_ENABLED=1 go test -run '^$' -bench . -benchtime 20x -count 3

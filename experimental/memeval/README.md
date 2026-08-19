@@ -1,6 +1,6 @@
 # memeval — what memory would C++ actually reclaim?
 
-Measurement harness for **Open question 1** in `docs/execution-plan.md`: after
+Measurement harness for **Open question 1** of the scaling plan (C++ memory evaluation): after
 phase 7 rejected C++ kernels for *compute* (~1.07–1.13x), what would moving to
 C++ buy in *memory*? The method is to measure the gap between what Go retains
 and the analytic flat-layout (C) minimum for the same data, plus the GC costs

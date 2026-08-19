@@ -10,3 +10,6 @@ experimental/interpunctus/nul
 
 # Compiled binaries — build outputs do not belong in version control.
 *.exe
+
+# Private working journal - never commit.
+/docs/execution-plan.md
