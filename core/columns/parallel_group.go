@@ -20,6 +20,7 @@ package columns
 
 import (
 	"context"
+	"math"
 
 	"github.com/google/taxinomia/core/executor"
 )
@@ -65,7 +66,23 @@ func PartitionGroups(ctx context.Context, col IDataColumn, view *ColumnView, sel
 			return part, nil
 		}
 	}
-	return sequentialPartition(ctx, GroupOpsFor(col, view), sel)
+	ops := GroupOpsFor(col, view)
+	// Per-row-keyed columns without chunk geometry (computed and joined —
+	// the virtual columns) parallelize over synthetic spans of the row
+	// range instead of chunks; the same partial-merge discipline keeps the
+	// result bit-identical to the sequential pass.
+	if rs, ok := sel.(rangeRowSet); ok {
+		if pr, ok := ops.(perRowPartitioner); ok {
+			part, handled, err := pr.perRowPartition(ctx, rs)
+			if err != nil {
+				return nil, err
+			}
+			if handled {
+				return part, nil
+			}
+		}
+	}
+	return sequentialPartition(ctx, ops, sel)
 }
 
 // scatterAccumulator lays group members out contiguously in one backing
@@ -121,6 +138,43 @@ type rangeRowSet interface {
 	// forEachRowIn calls f for each row in the set with lo <= row < hi, in
 	// set order, until f returns false.
 	forEachRowIn(lo, hi int, f func(i uint32) bool)
+	// universeRows is the size of the row universe the set selects from
+	// (not the selected count) — the range synthetic spans must cover.
+	universeRows() int
+}
+
+// perRowPartitioner is the seam per-row-keyed columns implement to run the
+// hash partition as synthetic-span partials on the executor pool. Virtual
+// columns (computed, joined) have no chunk geometry, so groupPartitioner
+// cannot cover them; their per-row key getters read only immutable state
+// (computed closures evaluate pure expressions over finalized columns,
+// joiners memoize under sync.Once), which is what makes the concurrent
+// spans sound. handled=false means the input is too small to parallelize
+// and the caller must use the sequential path; the two paths produce
+// identical partitions.
+type perRowPartitioner interface {
+	perRowPartition(ctx context.Context, sel rangeRowSet) (part *GroupPartition, handled bool, err error)
+}
+
+// perRowSpanRows is the synthetic span length for per-row partitions: the
+// chunk size, so span boundaries stay multiples of 64 (selection words never
+// straddle spans) and span counts match the chunked paths' granularity.
+const perRowSpanRows = 1 << 16
+
+// perRowHashPartition partitions any per-row-keyed column over synthetic
+// spans of the row range. Unlike scans, the pass is compute-bound (the key
+// getter runs an expression interpreter or a join lookup per row), so
+// parallelism scales with cores rather than memory bandwidth.
+func perRowHashPartition[K comparable](ctx context.Context, key func(uint32) (K, bool), sel rangeRowSet) (*GroupPartition, bool, error) {
+	nc := (sel.universeRows() + perRowSpanRows - 1) / perRowSpanRows
+	if nc < 2 {
+		return nil, false, nil
+	}
+	part, err := parallelHashPartition(ctx, nc, perRowSpanRows, key, sel)
+	if err != nil {
+		return nil, false, err
+	}
+	return part, true, nil
 }
 
 // partitionSpans splits nc chunks into contiguous spans for one partition
@@ -383,4 +437,97 @@ func parallelDensePartition[K Unsigned](ctx context.Context, codes *chunkedData[
 		return nil, false, err
 	}
 	return &GroupPartition{Counts: counts, Firsts: firsts, Offsets: offsets, Backing: backing}, true, nil
+}
+
+// --- perRowPartitioner wiring for the virtual columns ---
+//
+// One delegation per virtual column type: each reuses its own groupKeyAt, so
+// key semantics (error rows dropped, joined unmatched rows dropped, float
+// normalization where the type defines one) are identical to the sequential
+// IGroupOps pass by construction.
+
+func (c *ComputedStringColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *ComputedUint32Column) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+// computedFloatSpanKey reproduces map[float64] equality as a canonical
+// comparable key: -0 collapses into +0 (Go's == on floats), while each NaN
+// row keys uniquely by its row — the pinned historical semantics of computed
+// float grouping (every NaN row is its own group). A raw float64 key cannot
+// be used here: NaN != NaN would make the scatter pass miss its own pass-1
+// map entries.
+type computedFloatSpanKey struct {
+	bits   uint64
+	nanRow uint32
+}
+
+func (c *ComputedFloat64Column) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	key := func(i uint32) (computedFloatSpanKey, bool) {
+		v, err := c.GetValue(i)
+		if err != nil {
+			return computedFloatSpanKey{}, false
+		}
+		if math.IsNaN(v) {
+			// Any NaN payload maps to the canonical NaN bits plus the row,
+			// which no non-NaN float can produce — no collisions.
+			return computedFloatSpanKey{bits: math.Float64bits(math.NaN()), nanRow: i}, true
+		}
+		if v == 0 {
+			v = 0 // collapse -0 into +0, matching map[float64] equality
+		}
+		return computedFloatSpanKey{bits: math.Float64bits(v)}, true
+	}
+	return perRowHashPartition(ctx, key, sel)
+}
+
+func (c *ComputedInt64Column) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *ComputedDatetimeColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *ComputedDurationColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *ComputedBoolColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedStringColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedUint32Column) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedDatetimeColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedDurationColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedBoolColumn) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedFloat64Column) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedInt64Column) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
+}
+
+func (c *JoinedUint64Column) perRowPartition(ctx context.Context, sel rangeRowSet) (*GroupPartition, bool, error) {
+	return perRowHashPartition(ctx, c.groupKeyAt, sel)
 }

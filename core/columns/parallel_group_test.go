@@ -429,3 +429,80 @@ func BenchmarkPartitionGroups(b *testing.B) {
 		})
 	}
 }
+
+// --- per-row (virtual column) parallel partition ---
+
+// TestPerRowPartitionMatchesSequential: the synthetic-span parallel partition
+// of virtual columns must be bit-identical to the sequential IGroupOps pass —
+// same codes (first appearance), counts, firsts, and per-group row order —
+// including rows the key drops (computed errors, unmatched joins) and raw
+// float key semantics.
+func TestPerRowPartitionMatchesSequential(t *testing.T) {
+	const n = 200_000 // > 2 synthetic spans, so the parallel path engages
+	ctx := context.Background()
+
+	computedStr := NewComputedStringColumn(NewColumnDef("cs", "CS", ""), n, func(i uint32) (string, error) {
+		if i%13 == 0 {
+			return "", fmt.Errorf("row error")
+		}
+		return fmt.Sprintf("v%d", i%97), nil
+	})
+	computedFloat := NewComputedFloat64Column(NewColumnDef("cf", "CF", ""), n, func(i uint32) (float64, error) {
+		if i%101 == 0 {
+			return math.NaN(), nil
+		}
+		return float64(i % 53), nil
+	})
+	source := NewStringColumn(NewColumnDef("name", "Name", ""))
+	for i := 0; i < 50; i++ {
+		source.Append(fmt.Sprintf("target%02d", i))
+	}
+	source.FinalizeColumn()
+	joined := NewJoinedStringColumn(NewColumnDef("j", "J", ""), joinerFor(n, 50), source)
+
+	half := NewSelection(n)
+	for i := 0; i < n; i += 3 {
+		half.Add(uint32(i))
+	}
+
+	cols := []struct {
+		name string
+		col  IDataColumn
+	}{
+		{"computed-string", computedStr},
+		{"computed-float-nan", computedFloat},
+		{"joined-string-unmatched", joined},
+	}
+	sels := []struct {
+		name string
+		sel  RowSet
+	}{
+		{"all-rows", AllRows(n)},
+		{"filtered-selection", half},
+		{"row-indices-sequential", RowIndices(selRange(1000))},
+	}
+	for _, c := range cols {
+		if _, ok := c.col.(perRowPartitioner); !ok {
+			t.Fatalf("%s: %T does not implement perRowPartitioner", c.name, c.col)
+		}
+		for _, s := range sels {
+			want, err := sequentialPartition(ctx, GroupOpsFor(c.col, nil), s.sel)
+			if err != nil {
+				t.Fatalf("%s/%s: sequential: %v", c.name, s.name, err)
+			}
+			got, err := PartitionGroups(ctx, c.col, nil, s.sel)
+			if err != nil {
+				t.Fatalf("%s/%s: PartitionGroups: %v", c.name, s.name, err)
+			}
+			if !reflect.DeepEqual(want, got) {
+				t.Errorf("%s/%s: parallel partition differs from sequential (counts %d vs %d groups)",
+					c.name, s.name, len(got.Counts), len(want.Counts))
+			}
+		}
+		// The parallel path must actually engage on a range row set at this size.
+		part, handled, err := c.col.(perRowPartitioner).perRowPartition(ctx, AllRows(n).(rangeRowSet))
+		if err != nil || !handled || part == nil {
+			t.Errorf("%s: perRowPartition handled=%v err=%v, want handled=true", c.name, handled, err)
+		}
+	}
+}

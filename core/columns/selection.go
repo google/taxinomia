@@ -151,6 +151,12 @@ func (s *Selection) NumRows() int {
 	return s.Count()
 }
 
+// universeRows implements rangeRowSet: the size of the row universe the
+// bitmap selects from, independent of how many bits are set.
+func (s *Selection) universeRows() int {
+	return s.n
+}
+
 // forEachRowIn implements rangeRowSet: ForEachRow restricted to rows in
 // [lo, hi). Word-aligned ranges (chunk boundaries with a chunk size divisible
 // by 64) touch only whole words; unaligned edges are masked.

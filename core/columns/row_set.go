@@ -53,6 +53,11 @@ func (r allRows) NumRows() int {
 	return int(r)
 }
 
+// universeRows implements rangeRowSet: the universe is the set itself.
+func (r allRows) universeRows() int {
+	return int(r)
+}
+
 // forEachRowIn implements rangeRowSet: the rows in [lo, hi) capped to the
 // universe.
 func (r allRows) forEachRowIn(lo, hi int, f func(i uint32) bool) {
