@@ -89,7 +89,7 @@ func dTag(n int) int {
 
 // buildFact generates the full20 fact table at n rows and runs the load
 // pipeline (sort by sortKey, then encoding selection). Column mix per
-// docs/benchmark-plan.md §1.
+// the benchmark plan.
 func buildFact(n int, seed uint64, sortKey []string) (*tables.DataTable, buildPhases) {
 	var ph buildPhases
 	t0 := time.Now()

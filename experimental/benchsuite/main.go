@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// benchsuite is the scale-sweep benchmark suite of docs/benchmark-plan.md:
+// benchsuite is the scale-sweep benchmark suite:
 // one deterministic 20-column reference table at 10^4 / 10^6 / 10^8 rows,
 // a fixed operation matrix (L1–L2 load, Q1–Q17 single-mechanism queries,
 // C1–C5 combination scenarios), same ops at every scale.
@@ -69,8 +69,8 @@ type decompRow struct {
 	Ratio        float64 `json:"ratio"`
 }
 
-// decompMap: which Q-ops a C-op should decompose into (docs/benchmark-plan.md
-// §2: within ~2× of the constituent sum).
+// decompMap: which Q-ops a C-op should decompose into (per the benchmark
+// plan §2: within ~2× of the constituent sum).
 var decompMap = map[string][]string{
 	"C1": {"Q2", "Q4", "Q13", "Q9"},
 	"C2": {"Q2", "Q4", "Q13", "Q7", "Q16", "Q8"},

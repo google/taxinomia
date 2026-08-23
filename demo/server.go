@@ -201,7 +201,7 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	// (web/navigation); the former Set*Resolver callbacks are gone.
 	catalog := dsManager.BuildCatalog(dataModel.GetAllTables())
 
-	// The programmatic Google tables have no datasources config entry, so
+	// The programmatic google tables have no datasources config entry, so
 	// declare their primary key entity types directly on the catalog. This
 	// takes precedence over the key-column detection BuildCatalog fell back
 	// to, matching the old resolver's config → this map → IsKey order.

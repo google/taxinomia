@@ -1,6 +1,6 @@
 # benchsuite
 
-The scale-sweep benchmark suite defined in `docs/benchmark-plan.md`: one
+The scale-sweep benchmark suite: one
 deterministic 20-column reference table (`full20`), generated at 10⁴ / 10⁶ /
 10⁸ rows, with a fixed operation matrix run identically at every scale —
 L1/L2 (load, memory), Q1–Q17 (one mechanism each), C1–C5 (combination
@@ -39,5 +39,5 @@ medians stay meaningful under the platform timer granularity; `cold_s`
 reports first-run costs (join memos, pre-agg summaries) or ×8-concurrency
 walls where the op defines one.
 
-Results are recorded in `docs/BENCHMARK-RESULTS.md`, one dated section per
+Results are recorded internally, one dated section per
 (rev, scale).
