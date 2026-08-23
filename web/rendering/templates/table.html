@@ -2100,6 +2100,16 @@
             const headers = table.querySelectorAll('thead tr:first-child th');
             let draggedHeader = null;
 
+            // The server orders columns by zone (filtered, grouped, others);
+            // a drag only means something within one zone. Grouped columns
+            // reorder the grouping hierarchy; the other zones reorder the
+            // columns parameter.
+            function columnZone(th) {
+                if (th.dataset.isGrouped) return 'grouped';
+                if (th.dataset.isFiltered) return 'filtered';
+                return 'other';
+            }
+
             headers.forEach(function(th) {
                 // Make headers draggable
                 th.setAttribute('draggable', 'true');
@@ -2131,8 +2141,12 @@
                 });
 
                 th.addEventListener('dragover', function(e) {
-                    e.preventDefault();
                     if (!draggedHeader || draggedHeader === th) return;
+                    // Cross-zone drops are no-ops (the server snaps zones
+                    // back); without preventDefault the browser shows the
+                    // no-drop cursor and no indicators appear.
+                    if (columnZone(draggedHeader) !== columnZone(th)) return;
+                    e.preventDefault();
 
                     e.dataTransfer.dropEffect = 'move';
 
@@ -2161,14 +2175,36 @@
                 th.addEventListener('drop', function(e) {
                     e.preventDefault();
                     if (!draggedHeader || draggedHeader === th) return;
+                    if (columnZone(draggedHeader) !== columnZone(th)) return;
 
                     // Determine drop position (left or right of target)
                     const rect = th.getBoundingClientRect();
                     const midpoint = rect.left + rect.width / 2;
                     const dropOnLeft = e.clientX < midpoint;
 
-                    // Get current column order from URL or build from table headers
                     const url = new URL(window.location);
+
+                    // Grouped columns: their display order is the grouping
+                    // hierarchy (the grouped= parameter), not the columns=
+                    // order — reorder the hierarchy itself. Expansion paths
+                    // (gexp) encode the old level order, so drop them.
+                    if (columnZone(draggedHeader) === 'grouped') {
+                        const grouped = (url.searchParams.get('grouped') || '').split(',').filter(Boolean);
+                        const draggedName = draggedHeader.dataset.colName;
+                        const from = grouped.indexOf(draggedName);
+                        let to = grouped.indexOf(th.dataset.colName);
+                        if (from === -1 || to === -1) return;
+                        grouped.splice(from, 1);
+                        if (from < to) to--;
+                        grouped.splice(dropOnLeft ? to : to + 1, 0, draggedName);
+                        url.searchParams.set('grouped', grouped.join(','));
+                        url.searchParams.delete('gexp');
+                        url.searchParams.set('scrollY', Math.round(window.scrollY).toString());
+                        window.location.href = url.toString();
+                        return;
+                    }
+
+                    // Get current column order from URL or build from table headers
                     let columnsParam = url.searchParams.get('columns');
 
                     // If no columns param, build it from current table headers
@@ -2453,9 +2489,9 @@
                 {{range $idx, $header := .Headers}}
                 {{$colName := index $.Columns $idx}}
                 {{$isComputed := index $.IsComputedColumn $colName}}
-                {{$isGroupedCol := false}}{{range $.AllColumns}}{{if eq .Name $colName}}{{$isGroupedCol = .IsGrouped}}{{end}}{{end}}
+                {{$isGroupedCol := false}}{{$isFilteredCol := false}}{{range $.AllColumns}}{{if eq .Name $colName}}{{$isGroupedCol = .IsGrouped}}{{$isFilteredCol = .IsFiltered}}{{end}}{{end}}
                 {{$isAnimated := eq $colName $.AnimatedColumn}}
-                <th data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}} {{if $isGroupedCol}}data-is-grouped="true"{{end}} class="{{if $isAnimated}}just-grouped{{end}}">
+                <th data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}} {{if $isGroupedCol}}data-is-grouped="true"{{end}} {{if $isFilteredCol}}data-is-filtered="true"{{end}} class="{{if $isAnimated}}just-grouped{{end}}">
                     {{if $isComputed}}
                     <input type="text" class="th-name-input" data-column="{{$colName}}" value="{{$colName}}" title="Edit column name and press Enter">
                     {{else}}
