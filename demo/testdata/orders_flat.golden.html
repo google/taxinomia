@@ -571,6 +571,13 @@
             overflow: hidden;
         }
 
+        /* Grouped columns carry their state in the header color; the chip
+           below is purely the ungroup action. */
+        th[data-is-grouped] {
+            background-color: #d9eaf8;
+            border-color: #b9d4ea;
+        }
+
         .th-content {
             display: block;
             overflow: hidden;
@@ -730,6 +737,10 @@
             background-color: #fafafa;
         }
 
+        .grouping-cell.grouped-col {
+            background-color: #e8f2fb;
+        }
+
         .grouping-cell {
             padding: 4px 8px !important;
             text-align: center;
@@ -737,16 +748,38 @@
             border-top: none !important;
         }
 
+        /* The td is a table box, where size containment is undefined, so the
+           inner controls row is the container the group label queries. */
+        .grouping-controls {
+            container-type: inline-size;
+            white-space: nowrap;
+        }
+
         .group-toggle-btn {
             display: inline-block;
-            padding: 2px 8px;
+            padding: 3px 6px;
             text-decoration: none;
             color: #666;
-            font-size: 14px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
             border: 1px solid #ddd;
             border-radius: 3px;
             background-color: white;
             transition: all 0.2s;
+        }
+
+        .group-label-short {
+            display: none;
+        }
+
+        @container (max-width: 130px) {
+            .group-label-full {
+                display: none;
+            }
+            .group-label-short {
+                display: inline;
+            }
         }
 
         .group-toggle-btn:hover {
@@ -756,15 +789,15 @@
         }
 
         .group-toggle-btn.grouped {
-            background-color: #3498db;
-            border-color: #2980b9;
-            color: white;
-            font-weight: bold;
+            background-color: transparent;
+            border-color: #9fc4e4;
+            color: #2c5c86;
         }
 
         .group-toggle-btn.grouped:hover {
-            background-color: #2980b9;
-            border-color: #21618c;
+            background-color: #c6dff4;
+            border-color: #7fb0d8;
+            color: #1d3f5e;
         }
 
         .group-toggle-btn.disabled {
@@ -2492,6 +2525,7 @@
                     
                         
                 <td class="grouping-cell">
+                    <div class="grouping-controls">
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=10&amp;sort=%2Bstatus&amp;table=orders" class="sort-toggle-btn" title="Click to change sort order (ascending)">
@@ -2501,11 +2535,13 @@
                     
                     
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=status&amp;limit=10&amp;table=orders&amp;_anim=status" class="group-toggle-btn " title="Click to group by this column">
-                        ⊞
+                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=status&amp;limit=10&amp;table=orders&amp;_anim=status" class="group-toggle-btn " title="Group by this column">
+                        
+                        <span class="group-label-full">GROUP</span><span class="group-label-short">G</span>
                     </a>
                     
                     
+                    </div>
                 </td>
                         
                     
@@ -2517,6 +2553,7 @@
                     
                         
                 <td class="grouping-cell">
+                    <div class="grouping-controls">
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=10&amp;sort=%2Bregion&amp;table=orders" class="sort-toggle-btn" title="Click to change sort order (ascending)">
@@ -2526,11 +2563,13 @@
                     
                     
                     
-                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=10&amp;table=orders&amp;_anim=region" class="group-toggle-btn " title="Click to group by this column">
-                        ⊞
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=10&amp;table=orders&amp;_anim=region" class="group-toggle-btn " title="Group by this column">
+                        
+                        <span class="group-label-full">GROUP</span><span class="group-label-short">G</span>
                     </a>
                     
                     
+                    </div>
                 </td>
                         
                     
@@ -2542,6 +2581,7 @@
                     
                         
                 <td class="grouping-cell">
+                    <div class="grouping-controls">
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=10&amp;sort=%2Bcategory&amp;table=orders" class="sort-toggle-btn" title="Click to change sort order (ascending)">
@@ -2551,11 +2591,13 @@
                     
                     
                     
-                    <a href="/default/table?columns=category%2Cstatus%2Cregion%2Camount&amp;grouped=category&amp;limit=10&amp;table=orders&amp;_anim=category" class="group-toggle-btn " title="Click to group by this column">
-                        ⊞
+                    <a href="/default/table?columns=category%2Cstatus%2Cregion%2Camount&amp;grouped=category&amp;limit=10&amp;table=orders&amp;_anim=category" class="group-toggle-btn " title="Group by this column">
+                        
+                        <span class="group-label-full">GROUP</span><span class="group-label-short">G</span>
                     </a>
                     
                     
+                    </div>
                 </td>
                         
                     
@@ -2567,6 +2609,7 @@
                     
                         
                 <td class="grouping-cell">
+                    <div class="grouping-controls">
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=10&amp;sort=%2Bamount&amp;table=orders" class="sort-toggle-btn" title="Click to change sort order (ascending)">
@@ -2576,11 +2619,13 @@
                     
                     
                     
-                    <a href="/default/table?columns=amount%2Cstatus%2Cregion%2Ccategory&amp;grouped=amount&amp;limit=10&amp;table=orders&amp;_anim=amount" class="group-toggle-btn " title="Click to group by this column">
-                        ⊞
+                    <a href="/default/table?columns=amount%2Cstatus%2Cregion%2Ccategory&amp;grouped=amount&amp;limit=10&amp;table=orders&amp;_anim=amount" class="group-toggle-btn " title="Group by this column">
+                        
+                        <span class="group-label-full">GROUP</span><span class="group-label-short">G</span>
                     </a>
                     
                     
+                    </div>
                 </td>
                         
                     

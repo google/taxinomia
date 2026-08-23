@@ -609,6 +609,13 @@
             overflow: hidden;
         }
 
+        /* Grouped columns carry their state in the header color; the chip
+           below is purely the ungroup action. */
+        th[data-is-grouped] {
+            background-color: #d9eaf8;
+            border-color: #b9d4ea;
+        }
+
         .th-content {
             display: block;
             overflow: hidden;
@@ -768,6 +775,10 @@
             background-color: #fafafa;
         }
 
+        .grouping-cell.grouped-col {
+            background-color: #e8f2fb;
+        }
+
         .grouping-cell {
             padding: 4px 8px !important;
             text-align: center;
@@ -775,16 +786,38 @@
             border-top: none !important;
         }
 
+        /* The td is a table box, where size containment is undefined, so the
+           inner controls row is the container the group label queries. */
+        .grouping-controls {
+            container-type: inline-size;
+            white-space: nowrap;
+        }
+
         .group-toggle-btn {
             display: inline-block;
-            padding: 2px 8px;
+            padding: 3px 6px;
             text-decoration: none;
             color: #666;
-            font-size: 14px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
             border: 1px solid #ddd;
             border-radius: 3px;
             background-color: white;
             transition: all 0.2s;
+        }
+
+        .group-label-short {
+            display: none;
+        }
+
+        @container (max-width: 130px) {
+            .group-label-full {
+                display: none;
+            }
+            .group-label-short {
+                display: inline;
+            }
         }
 
         .group-toggle-btn:hover {
@@ -794,15 +827,15 @@
         }
 
         .group-toggle-btn.grouped {
-            background-color: #3498db;
-            border-color: #2980b9;
-            color: white;
-            font-weight: bold;
+            background-color: transparent;
+            border-color: #9fc4e4;
+            color: #2c5c86;
         }
 
         .group-toggle-btn.grouped:hover {
-            background-color: #2980b9;
-            border-color: #21618c;
+            background-color: #c6dff4;
+            border-color: #7fb0d8;
+            color: #1d3f5e;
         }
 
         .group-toggle-btn.disabled {
@@ -2507,7 +2540,8 @@
                 {{range $idx, $colName := $.Columns}}
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
-                <td class="grouping-cell{{if eq $colName $.AnimatedColumn}} just-grouped{{end}}">
+                <td class="grouping-cell{{if .IsGrouped}} grouped-col{{end}}{{if eq $colName $.AnimatedColumn}} just-grouped{{end}}">
+                    <div class="grouping-controls">
                     {{/* Sort control - leftmost. Disabled for leaf columns when grouping is active */}}
                     {{if and $.IsGrouped (not .IsGrouped)}}
                     <span class="sort-toggle-btn disabled" title="Sorting disabled for leaf columns when grouped">⇅</span>
@@ -2525,9 +2559,10 @@
                     {{if and $.IsGrouped .IsGrouped}}
                     <a href="{{.AggSortToggleURL}}" class="agg-sort-toggle-btn{{if .HasAggSort}} active{{end}}" title="{{if .HasAggSort}}Sorting by {{.AggSortLeafCol}} {{.AggSortAggType}} - click to change{{else}}Sort by grouped value - click to sort by aggregate{{end}}">⟳</a>
                     {{end}}
-                    {{/* Group control - middle */}}
-                    <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Click to ungroup{{else}}Click to group by this column{{end}}">
-                        {{if .IsGrouped}}⊟{{else}}⊞{{end}}
+                    {{/* Group control - middle. Full label in wide columns, initial in narrow ones (container query on .grouping-controls). */}}
+                    <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Grouping level {{.GroupLevel}} — click to ungroup, drag to reorder{{else}}Group by this column{{end}}">
+                        {{/* The chip is the action; the header color is the state */}}
+                        {{if .IsGrouped}}<span class="group-label-full">UNGROUP</span><span class="group-label-short">U</span>{{else}}<span class="group-label-full">GROUP</span><span class="group-label-short">G</span>{{end}}
                     </a>
                     {{/* Aggregate controls - show only for leaf columns (not grouped columns) when table is grouped */}}
                     {{if and $.IsGrouped (not .IsGrouped)}}
@@ -2536,6 +2571,7 @@
                     <a href="{{.ToggleURL}}" class="agg-toggle-btn{{if .IsEnabled}} enabled{{end}}" title="{{.Title}}">{{.Symbol}}</a>
                     {{end}}
                     {{end}}
+                    </div>
                 </td>
                         {{end}}
                     {{end}}

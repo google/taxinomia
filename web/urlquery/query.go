@@ -1086,3 +1086,14 @@ func (s *Query) WithSelectedRowID(id string) safehtml.URL {
 	newState.SelectedRowID = id
 	return newState.ToSafeURL()
 }
+
+// GroupLevel returns the column's 1-based level in the grouping hierarchy
+// (the grouped= parameter order), or 0 when the column is not grouped.
+func (s *Query) GroupLevel(column string) int {
+	for i, col := range s.GroupedColumns {
+		if col == column {
+			return i + 1
+		}
+	}
+	return 0
+}

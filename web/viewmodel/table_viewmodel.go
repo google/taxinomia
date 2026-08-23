@@ -235,6 +235,7 @@ type ColumnInfo struct {
 	DisplayName       string              // Column display name
 	IsVisible         bool                // Whether column is currently visible
 	IsGrouped         bool                // Whether column is currently grouped
+	GroupLevel        int                 // 1-based grouping level; 0 when not grouped
 	IsFiltered        bool                // Whether column has an active filter
 	HasEntityType     bool                // Whether column defines an entity type
 	IsKey             bool                // Whether column has all unique values
@@ -654,6 +655,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				DisplayName:         col.ColumnDef().DisplayName(),
 				IsVisible:           visibleCols[colName],
 				IsGrouped:           q.IsColumnGrouped(colName),
+				GroupLevel:          q.GroupLevel(colName),
 				IsFiltered:          isFiltered,
 				HasEntityType:       hasEntityType,
 				IsKey:               isKey && hasEntityType, // Only mark as key if it's also an entity type
@@ -730,6 +732,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 						DisplayName:         displayName,
 						IsVisible:           visibleCols[colName],
 						IsGrouped:           q.IsColumnGrouped(colName),
+				GroupLevel:          q.GroupLevel(colName),
 						HasEntityType:       false, // Joined columns don't have entity types in this context
 						IsKey:               false,
 						JoinTargets:         nil,
@@ -786,6 +789,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			DisplayName:         comp.Name,
 			IsVisible:           visibleCols[comp.Name],
 			IsGrouped:           q.IsColumnGrouped(comp.Name),
+			GroupLevel:          q.GroupLevel(comp.Name),
 			IsFiltered:          isFiltered,
 			IsKey:               false,
 			HasEntityType:       false,
