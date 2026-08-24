@@ -375,3 +375,33 @@ func TestNamingHelpers(t *testing.T) {
 		t.Errorf("formatTableDisplayName: got %q, want %q", got, want)
 	}
 }
+
+// TestExpandTemplateEscapesValues: substituted values must not be able to
+// rewrite the URL's path or query structure on the target host — metacharacters
+// percent-encode, in both path-position and query-position templates.
+func TestExpandTemplateEscapesValues(t *testing.T) {
+	cases := []struct {
+		name     string
+		template string
+		value    string
+		want     string
+	}{
+		{"plain id, path position", "https://crm.example.com/customers/{value}", "C-0001",
+			"https://crm.example.com/customers/C-0001"},
+		{"query injection blocked", "https://support.example.com/tickets?customer={value}", "x&admin=true",
+			"https://support.example.com/tickets?customer=x%26admin%3Dtrue"},
+		{"path traversal blocked", "https://crm.example.com/customers/{value}", "../../logout",
+			"https://crm.example.com/customers/..%2F..%2Flogout"},
+		{"fragment and space", "https://en.wikipedia.org/wiki/{value}", "New York#History",
+			"https://en.wikipedia.org/wiki/New%20York%23History"},
+		{"entity type placeholder", "https://ops.example.com/{entity_type}/{value}", "a/b",
+			"https://ops.example.com/demo.status/a%2Fb"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := expandTemplate(tc.template, tc.value, "demo.status"); got != tc.want {
+				t.Errorf("expandTemplate(%q, %q) = %q, want %q", tc.template, tc.value, got, tc.want)
+			}
+		})
+	}
+}

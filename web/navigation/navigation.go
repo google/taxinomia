@@ -26,6 +26,7 @@ limitations under the License.
 package navigation
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/google/taxinomia/core/engine"
@@ -337,10 +338,20 @@ func (n *Navigator) RelatedTables(
 }
 
 // expandTemplate replaces the {value} and {entity_type} placeholders in a
-// URL template.
+// URL template. Values are percent-encoded as URL components: a raw value
+// containing &, #, ?, / or spaces would otherwise rewrite the link's path
+// or query structure on the target host. QueryEscape with "+" rewritten to
+// "%20" is valid in both path and query positions, so one encoder covers
+// every placeholder position a config template can use.
 func expandTemplate(template, value, entityType string) string {
-	result := strings.ReplaceAll(template, "{value}", value)
-	return strings.ReplaceAll(result, "{entity_type}", entityType)
+	result := strings.ReplaceAll(template, "{value}", escapeURLComponent(value))
+	return strings.ReplaceAll(result, "{entity_type}", escapeURLComponent(entityType))
+}
+
+// escapeURLComponent percent-encodes s for safe substitution into any
+// single path segment or query value of a URL template.
+func escapeURLComponent(s string) string {
+	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
 }
 
 // formatEntityTypeName extracts a display name from an entity type.
