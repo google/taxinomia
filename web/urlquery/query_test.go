@@ -310,3 +310,30 @@ func TestEffectiveGroupDisplayLimit(t *testing.T) {
 		})
 	}
 }
+
+// TestWithFilterPathAndUngrouped: the drill semantics of filter-by on a
+// nested grouped cell — every step of the ancestor path becomes an exact
+// filter and leaves the grouping; untouched grouping levels remain.
+func TestWithFilterPathAndUngrouped(t *testing.T) {
+	u, _ := url.Parse("/table?table=t&columns=a,b,c,amount&grouped=a,b,c&limit=25")
+	q := NewQuery(u)
+
+	got := q.WithFilterPathAndUngrouped([]FilterStep{
+		{Column: "a", Value: "x"},
+		{Column: "b", Value: "y & z"},
+	})
+	parsed, _ := url.Parse(got.String())
+	nq := NewQuery(parsed)
+
+	if nq.Filters["a"] != `"x"` || nq.Filters["b"] != `"y & z"` {
+		t.Errorf("filters = %v, want exact-quoted a and b", nq.Filters)
+	}
+	if len(nq.GroupedColumns) != 1 || nq.GroupedColumns[0] != "c" {
+		t.Errorf("GroupedColumns = %v, want [c] (a and b ungrouped)", nq.GroupedColumns)
+	}
+
+	// Single-step path is equivalent to WithFilterAndUngrouped.
+	if p, s := q.WithFilterPathAndUngrouped([]FilterStep{{Column: "a", Value: "x"}}).String(), q.WithFilterAndUngrouped("a", "x").String(); p != s {
+		t.Errorf("single-step path %q differs from WithFilterAndUngrouped %q", p, s)
+	}
+}

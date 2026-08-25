@@ -1366,6 +1366,18 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		numRows := group.Length()
 		numSubgroups := group.NumSubgroups()
 
+		// The filter-by control extracts this exact subgroup: the whole
+		// ancestor path filters (drill semantics), not just this level's
+		// value — otherwise a click on a nested group silently widens to
+		// that value across all ancestors.
+		filterPath := make([]urlquery.FilterStep, 0, level+1)
+		for g, l := group, level; g != nil && l >= 0; g, l = g.ParentGroup, l-1 {
+			filterPath = append(filterPath, urlquery.FilterStep{
+				Column: q.GroupedColumns[l],
+				Value:  g.GetValue(),
+			})
+		}
+
 		// Tooltip explains the bracket format
 		var tooltip string
 		if numSubgroups > 0 {
@@ -1423,7 +1435,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			NumSubgroups:          numSubgroups,
 			Rowspan:               group.Height(),
 			Title:                 tooltip,
-			FilterURL:             q.WithFilterAndUngrouped(colName, rawValue),
+			FilterURL:             q.WithFilterPathAndUngrouped(filterPath),
 			IsGroupedColumn:       true,
 			ColumnName:            colName,
 			RawValue:              rawValue,

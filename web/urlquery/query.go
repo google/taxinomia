@@ -815,6 +815,41 @@ func (s *Query) IsColumnGrouped(column string) bool {
 
 // WithFilterAndUngrouped returns a URL that adds a filter for the column and removes it from grouping.
 // The filter uses exact match (value wrapped in quotes) since we're filtering on a specific group value.
+// FilterStep is one (column, value) pair of a nested group's ancestor path.
+type FilterStep struct {
+	Column string
+	Value  string
+}
+
+// WithFilterPathAndUngrouped returns a URL that filters every step of a
+// nested group's path (each value quoted as an exact match) and removes all
+// of those columns from grouping — the drill semantics of the filter-by
+// control on a grouped cell: the resulting extraction contains exactly the
+// rows the clicked cell described, never a larger set. A single-step path
+// is equivalent to WithFilterAndUngrouped.
+func (s *Query) WithFilterPathAndUngrouped(path []FilterStep) safehtml.URL {
+	newState := s.Clone()
+
+	remove := make(map[string]bool, len(path))
+	for _, step := range path {
+		newState.Filters[step.Column] = `"` + step.Value + `"`
+		remove[step.Column] = true
+	}
+
+	newGrouped := make([]string, 0, len(s.GroupedColumns))
+	for _, col := range s.GroupedColumns {
+		if !remove[col] {
+			newGrouped = append(newGrouped, col)
+		}
+	}
+	newState.GroupedColumns = newGrouped
+
+	// Reorder columns: filtered first, then grouped, then others
+	newState.reorderColumns()
+
+	return newState.ToSafeURL()
+}
+
 func (s *Query) WithFilterAndUngrouped(column, value string) safehtml.URL {
 	newState := s.Clone()
 
