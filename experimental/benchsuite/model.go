@@ -33,3 +33,11 @@ func newModel(fact, dim, dim2 *tables.DataTable) *models.DataModel {
 	dm.AddTable("fact", fact)
 	return dm
 }
+
+// newFactOnlyModel registers just the fact table — schemas without join
+// dimensions (simple6).
+func newFactOnlyModel(fact *tables.DataTable) *models.DataModel {
+	dm := models.NewDataModel()
+	dm.AddTable("fact", fact)
+	return dm
+}

@@ -623,3 +623,81 @@ func c5(s *suite) opResult {
 	}
 	return opResult{Op: "C5", MedianS: median(total).Seconds(), Note: note}
 }
+
+// --- simple6 ops: the focused 6-column / 1e7-row perf-validation target ---
+
+var simple6Ops = []op{
+	{"S1", s1}, {"S2", s2}, {"S3", s3}, {"S4", s4},
+	{"S5", s5}, {"S6", s6}, {"S7", s7}, {"S8", s8},
+}
+
+func s1(s *suite) opResult {
+	return groupOp(s, "S1", "flavor", "amount", "dense d=5 + pre-agg; cold includes summary build")
+}
+
+func s2(s *suite) opResult {
+	return groupOp(s, "S2", "entity", "amount", "dict d=10'000, power-law skew")
+}
+
+func s3(s *suite) opResult {
+	return groupOp(s, "S3", "code", "amount", "dict d=100")
+}
+
+func s4(s *suite) opResult {
+	tv := s.view("entity", "amount")
+	aggSorts := map[string]*queryspec.GroupAggSort{
+		"entity": {GroupedColumn: "entity", LeafColumn: "amount", AggType: queryspec.AggSum, Descending: true},
+	}
+	ds := measure(s.iters, func() {
+		group(tv, []string{"entity"}, 0, expandAll)
+		tv.SortGroupsByAggregate(aggSorts)
+	})
+	return opResult{Op: "S4", MedianS: median(ds).Seconds(), Note: "rank all 10'000 skewed groups by sum"}
+}
+
+func s5(s *suite) opResult {
+	k := 0
+	flavors := []string{"apple", "berry", "citrus", "date", "elder"}
+	ds := measure(s.iters, func() {
+		tv := s.view("flavor", "amount")
+		tv.ApplyFilters(map[string]string{"flavor": fmt.Sprintf("%q", flavors[k%5])})
+		_ = tv.GetFilteredRowCount()
+		k++
+	})
+	return opResult{Op: "S5", MedianS: median(ds).Seconds(), Note: "~20%-selective dict equality"}
+}
+
+func s6(s *suite) opResult {
+	col, ok := s.fact.GetColumn("id").(interface {
+		GetIndex(string) (uint32, error)
+	})
+	if !ok {
+		return opResult{Op: "S6", Note: "SKIP: id has no GetIndex"}
+	}
+	const lookups = 10_000
+	ds := measure(s.iters, func() {
+		for k := 0; k < lookups; k++ {
+			if _, err := col.GetIndex(fmt.Sprintf("k%09d", int(h(s.seed, 90, uint64(k))%uint64(s.n)))); err != nil {
+				panic(err)
+			}
+		}
+	})
+	return opResult{Op: "S6", MedianS: (median(ds) / lookups).Seconds(), Note: "front-coded PK lookup, per lookup"}
+}
+
+func s7(s *suite) opResult {
+	tv := s.view("flavor", "stage", "amount")
+	ds := measure(s.iters, func() { group(tv, []string{"flavor", "stage"}, 0, expandAll) })
+	return opResult{Op: "S7", MedianS: median(ds).Seconds(), Note: "2-level 5×5 grouping"}
+}
+
+func s8(s *suite) opResult {
+	const u = "/table?table=fact&columns=entity,flavor,amount&grouped=entity&groupsort%3Aentity=-amount%3Asum&agg%3Aamount=sum&limit=25"
+	tv := s.view("entity", "flavor", "amount")
+	ds := measure(s.iters, func() {
+		request(s.dm, tv, u)
+		tv.ClearGroupings()
+		tv.ApplyFilters(nil)
+	})
+	return opResult{Op: "S8", MedianS: median(ds).Seconds(), Note: "full pipeline: top-25 skewed entities by sum"}
+}

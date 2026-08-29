@@ -36,11 +36,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/taxinomia/core/tables"
 )
 
 var (
 	scaleFlag = flag.String("scale", "1e6", "row count: 1e4 | 1e6 | 1e8 (any int works)")
-	sortKey   = flag.String("sortkey", "pk", "pk (id) | drill (country,category,id)")
+	sortKey   = flag.String("sortkey", "pk", "pk (id) | drill (country,category,id); full20 only")
+	schemaFlag = flag.String("schema", "full20", "full20 | simple6 (6 cols, power-law entity key)")
 	opsFlag   = flag.String("ops", "", "comma-separated op names (default: all)")
 	jsonFlag  = flag.String("json", "", "write results JSON to this path")
 	seedFlag  = flag.Uint64("seed", 42, "generator seed")
@@ -116,13 +119,20 @@ func main() {
 	var m0 runtime.MemStats
 	runtime.ReadMemStats(&m0)
 
-	progress("building dim (10^4) + dim2 (10^2)")
 	s := &suite{n: n, seed: *seedFlag, iters: iters}
-	dim := buildDim(*seedFlag)
-	dim2 := buildDim2(*seedFlag)
-
-	progress("building fact table: %d rows, sortkey=%v", n, key)
-	fact, phases := buildFact(n, *seedFlag, key)
+	var fact *tables.DataTable
+	var phases buildPhases
+	var dim, dim2 *tables.DataTable
+	if *schemaFlag == "simple6" {
+		progress("building simple6 fact table: %d rows", n)
+		fact, phases = buildSimple6(n, *seedFlag)
+	} else {
+		progress("building dim (10^4) + dim2 (10^2)")
+		dim = buildDim(*seedFlag)
+		dim2 = buildDim2(*seedFlag)
+		progress("building fact table: %d rows, sortkey=%v", n, key)
+		fact, phases = buildFact(n, *seedFlag, key)
+	}
 	s.fact = fact
 	s.build = phases
 	progress("L1: append=%.2fs sort=%.2fs encode=%.2fs (%.0f rows/s)",
@@ -139,17 +149,25 @@ func main() {
 	gcPause := time.Since(t0)
 	progress("L2: retained %.1f B/row, forced GC %.1f ms", retained, gcPause.Seconds()*1000)
 
-	progress("registering data model (joins auto-discovered)")
-	s.dm = newModel(fact, dim, dim2)
+	progress("registering data model")
+	if *schemaFlag == "simple6" {
+		s.dm = newFactOnlyModel(fact)
+	} else {
+		s.dm = newModel(fact, dim, dim2)
+	}
 
 	selected := allOps
+	if *schemaFlag == "simple6" {
+		selected = simple6Ops
+	}
 	if *opsFlag != "" {
 		want := map[string]bool{}
 		for _, o := range strings.Split(*opsFlag, ",") {
 			want[strings.TrimSpace(strings.ToUpper(o))] = true
 		}
+		base := selected
 		selected = nil
-		for _, o := range allOps {
+		for _, o := range base {
 			if want[o.name] {
 				selected = append(selected, o)
 			}
@@ -196,8 +214,8 @@ func main() {
 	}
 
 	// Markdown report in the BENCHMARKS.md house style.
-	fmt.Fprintf(out, "\n## benchsuite %s rows (sortkey=%s, seed=%d, iters=%d, %s, %d cpu)\n\n",
-		*scaleFlag, *sortKey, *seedFlag, iters, runtime.Version(), runtime.NumCPU())
+	fmt.Fprintf(out, "\n## benchsuite %s rows (schema=%s, sortkey=%s, seed=%d, iters=%d, %s, %d cpu)\n\n",
+		*scaleFlag, *schemaFlag, *sortKey, *seedFlag, iters, runtime.Version(), runtime.NumCPU())
 	fmt.Fprintf(out, "| Op | Median | Cold/×8 | Note |\n|---|---:|---:|---|\n")
 	fmt.Fprintf(out, "| L1 build | %.2fs | — | append %.2fs · sort %.2fs · encode %.2fs (%.0f rows/s) |\n",
 		phases.Append.Seconds()+phases.Sort.Seconds()+phases.Encode.Seconds(),

@@ -225,3 +225,58 @@ func buildDim2(seed uint64) *tables.DataTable {
 	t.SelectEncodings()
 	return t
 }
+
+// buildSimple6 generates the simple6 schema: the user's focused
+// perf-validation target (2026-08-28). Six columns at n rows (canonically
+// 1e7): a unique sorted string PK (front-coded after encoding selection),
+// two 5-distinct string dimensions (dict uint8), a 10'000-distinct string
+// key with a power-law distribution (dict uint16; head values dominate,
+// idx = d·u³ so P(idx<x) ~ (x/d)^⅓), a 100-distinct string code
+// (dict uint8), and a float64 measure — the sixth column, unspecified in
+// the request, chosen so aggregation paths have something to sum.
+func buildSimple6(n int, seed uint64) (*tables.DataTable, buildPhases) {
+	var ph buildPhases
+	t0 := time.Now()
+
+	def := func(name string) *columns.ColumnDef { return columns.NewColumnDef(name, name, "") }
+	id := columns.NewChunkedStringColumn(columns.NewColumnDef("id", "id", "bench.simple"))
+	flavor := columns.NewChunkedStringColumn(def("flavor"))
+	stage := columns.NewChunkedStringColumn(def("stage"))
+	entity := columns.NewChunkedStringColumn(def("entity"))
+	code := columns.NewChunkedStringColumn(def("code"))
+	amount := columns.NewChunkedFloat64Column(def("amount"))
+
+	flavors := []string{"apple", "berry", "citrus", "date", "elder"}
+	stages := []string{"raw", "queued", "active", "done", "failed"}
+	const dEntity = 10_000
+
+	for i := 0; i < n; i++ {
+		u := uint64(i)
+		id.Append(fmt.Sprintf("k%09d", i))
+		flavor.Append(flavors[h(seed, 51, u)%5])
+		stage.Append(stages[h(seed, 52, u)%5])
+		p := u01(h(seed, 53, u))
+		entity.Append(fmt.Sprintf("e%05d", int(float64(dEntity)*p*p*p)))
+		code.Append(fmt.Sprintf("c%03d", h(seed, 54, u)%100))
+		amount.Append(10 * math.Exp(2*u01(h(seed, 55, u))))
+	}
+
+	table := tables.NewDataTable()
+	for _, c := range []columns.IDataColumn{id, flavor, stage, entity, code, amount} {
+		table.AddColumn(c)
+	}
+	ph.Append = time.Since(t0)
+
+	t1 := time.Now()
+	if err := table.SortByKey([]string{"id"}); err != nil {
+		panic(err)
+	}
+	ph.Sort = time.Since(t1)
+
+	t2 := time.Now()
+	table.SelectEncodings()
+	ph.Encode = time.Since(t2)
+
+	ph.RowsPerS = float64(n) / time.Since(t0).Seconds()
+	return table, ph
+}
