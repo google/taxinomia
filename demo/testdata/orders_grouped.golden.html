@@ -2359,79 +2359,6 @@
             </button>
 
             
-            <div class="info-pane" id="info-pane">
-                <div class="info-pane-header">
-                    <div class="info-pane-tabs">
-                        <a href="javascript:void(0)" class="info-tab active" data-tab="url" onclick="switchInfoTab('url')">URL</a>
-                        <a href="javascript:void(0)" class="info-tab" data-tab="perf" onclick="switchInfoTab('perf')">Performance</a>
-                    </div>
-                    <a href="javascript:void(0)" class="info-pane-toggle" onclick="toggleInfoPane()">Hide</a>
-                </div>
-                <div class="info-pane-content">
-                    
-                    <div class="tab-content active" id="tab-url">
-                        <div class="url-display" id="url-display"></div>
-                        <div class="url-params">
-                            <h3>Parameters:</h3>
-                            <ul class="param-list" id="param-list"></ul>
-                        </div>
-                    </div>
-                    
-                    <div class="tab-content" id="tab-perf">
-                        <h3 class="perf-section-title">Server-side Timing Breakdown</h3>
-                        <ul class="perf-timing-list">
-                            
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Parse Query</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                            
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Get TableView</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                            
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Process Joins</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                            
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Computed Columns</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                            
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Apply Filters</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                            
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Grouping</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                            
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Build ViewModel</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                            
-                            <li class="perf-timing-item total">
-                                <span class="perf-operation">Total Server Time</span>
-                                <span class="perf-duration">0.00ms</span>
-                            </li>
-                        </ul>
-                        <h3 class="perf-section-title" style="margin-top: 15px;">Browser Timing</h3>
-                        <ul class="perf-timing-list">
-                            <li class="perf-timing-item">
-                                <span class="perf-operation">Total (navigation to load)</span>
-                                <span class="perf-duration" id="perf-browser-total">...</span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
             <h1>Orders</h1>
 
             
@@ -2448,10 +2375,6 @@
                         <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(10)" title="Show 10 times more rows">10x</a>
                     </span>
                     <a href="javascript:void(0)" class="type-toggle-btn" onclick="toggleColumnTypes()" title="Show column types">Types</a>
-                    <span class="timing-metrics">
-                        <span class="timing-metric server" title="Time for the server to prepare the HTML (query, aggregate, render template)"><span class="timing-label">Server:</span> <span class="timing-value">0.00ms</span></span>
-                        <span class="timing-metric browser" title="Total time from navigation start to page fully loaded and rendered"><span class="timing-label">Total:</span> <span class="timing-value" id="browser-timing">...</span></span>
-                    </span>
                 </p>
                 
             </div>
@@ -3027,6 +2950,83 @@ Use &quot;quotes&quot; for exact match">
             
         </tbody>
     </table>
+
+            <div class="info-pane" id="info-pane">
+                <div class="info-pane-header">
+                    <div class="info-pane-tabs">
+                        <a href="javascript:void(0)" class="info-tab active" data-tab="url" onclick="switchInfoTab('url')">URL</a>
+                        <a href="javascript:void(0)" class="info-tab" data-tab="perf" onclick="switchInfoTab('perf')">Performance</a>
+                    </div>
+                                        <span class="timing-metrics">
+                        <span class="timing-metric server" title="Time for the server to prepare the HTML (query, aggregate, render template)"><span class="timing-label">Server:</span> <span class="timing-value">0.00ms</span></span>
+                        <span class="timing-metric browser" title="Total time from navigation start to page fully loaded and rendered"><span class="timing-label">Total:</span> <span class="timing-value" id="browser-timing">...</span></span>
+                    </span>
+                    <a href="javascript:void(0)" class="info-pane-toggle" onclick="toggleInfoPane()">Hide</a>
+                </div>
+                <div class="info-pane-content">
+                    
+                    <div class="tab-content active" id="tab-url">
+                        <div class="url-display" id="url-display"></div>
+                        <div class="url-params">
+                            <h3>Parameters:</h3>
+                            <ul class="param-list" id="param-list"></ul>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" id="tab-perf">
+                        <h3 class="perf-section-title">Server-side Timing Breakdown</h3>
+                        <ul class="perf-timing-list">
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Parse Query</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Get TableView</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Process Joins</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Computed Columns</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Apply Filters</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Grouping</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Build ViewModel</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                            
+                            <li class="perf-timing-item total">
+                                <span class="perf-operation">Total Server Time</span>
+                                <span class="perf-duration">0.00ms</span>
+                            </li>
+                        </ul>
+                        <h3 class="perf-section-title" style="margin-top: 15px;">Browser Timing</h3>
+                        <ul class="perf-timing-list">
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Total (navigation to load)</span>
+                                <span class="perf-duration" id="perf-browser-total">...</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
 
         </main>
     </div>

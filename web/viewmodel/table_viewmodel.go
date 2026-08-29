@@ -1043,6 +1043,18 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		vm.IsComputedColumn[computed.Name] = true
 	}
 
+	// Last step, after every raw consumer of vm.Rows (RowIDs, RowURLs,
+	// selected-row resolution): display separators for integer cell values.
+	for _, colName := range vm.Columns {
+		col := tableView.GetColumn(colName)
+		if col == nil || !isIntegerColumn(col) {
+			continue
+		}
+		for _, row := range vm.Rows {
+			row[colName] = FormatIntString(row[colName])
+		}
+	}
+
 	return vm
 }
 
@@ -1407,7 +1419,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 					}
 					columnAggs = append(columnAggs, aggregates.ColumnAggregateDisplay{
 						ColumnName: leafColName,
-						Aggregates: aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg),
+						Aggregates: withThousands(aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg)),
 					})
 				}
 			}
@@ -1428,8 +1440,12 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			}
 		}
 
+		displayValue := rawValue
+		if isIntegerColumn(block.GroupedColumn.DataColumn) {
+			displayValue = FormatIntString(rawValue)
+		}
 		groupedCell := GroupedCell{
-			Value:                 rawValue,
+			Value:                 displayValue,
 			ValueURL:              valueURL,
 			NumRows:               numRows,
 			NumSubgroups:          numSubgroups,
@@ -1466,7 +1482,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 						}
 						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
 							ColumnName: leafColName,
-							Aggregates: aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg),
+							Aggregates: withThousands(aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg)),
 						})
 					}
 				}
@@ -1500,7 +1516,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 						}
 						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
 							ColumnName: leafColName,
-							Aggregates: aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg),
+							Aggregates: withThousands(aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg)),
 						})
 					}
 				}
@@ -1541,16 +1557,16 @@ func buildColumnStats(tableView *tables.TableView) []string {
 			numGroups := tableView.GetGroupCount(colName)
 			// For grouped columns: "groups / filtered / total"
 			if filteredRows == totalRows {
-				stats[i] = fmt.Sprintf("%d / %d", numGroups, totalRows)
+				stats[i] = fmt.Sprintf("%s / %s", FormatCount(numGroups), FormatCount(totalRows))
 			} else {
-				stats[i] = fmt.Sprintf("%d / %d / %d", numGroups, filteredRows, totalRows)
+				stats[i] = fmt.Sprintf("%s / %s / %s", FormatCount(numGroups), FormatCount(filteredRows), FormatCount(totalRows))
 			}
 		} else {
 			// For ungrouped columns: "filtered / total"
 			if filteredRows == totalRows {
-				stats[i] = fmt.Sprintf("%d", totalRows)
+				stats[i] = FormatCount(totalRows)
 			} else {
-				stats[i] = fmt.Sprintf("%d / %d", filteredRows, totalRows)
+				stats[i] = fmt.Sprintf("%s / %s", FormatCount(filteredRows), FormatCount(totalRows))
 			}
 		}
 	}

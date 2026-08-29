@@ -42,6 +42,9 @@ func NewTableRenderer() (*TableRenderer, error) {
 	// Define custom template functions
 	funcs := template.FuncMap{
 		"add": func(a, b int) int { return a + b },
+		// thousands renders integer counts with display separators
+		// (74543001 → 74'543'001); data attributes keep raw values.
+		"thousands": viewmodel.FormatCount,
 	}
 
 	// Parse the table template
