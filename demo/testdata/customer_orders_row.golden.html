@@ -341,17 +341,24 @@
 
 
         /* Info Pane styles with tabs */
+        /* Status bar fixed to the viewport bottom: the header line (tabs,
+           timing summary, toggle) is always visible; expanding reveals the
+           content above it. */
         .info-pane {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
             background-color: #fafafa;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            overflow: hidden;
+            border-top: 1px solid #ccc;
+            box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column-reverse; /* header stays at the bottom edge */
         }
 
-        .info-pane.collapsed {
-            border: none;
-            margin-bottom: 10px;
+        body {
+            padding-bottom: 44px; /* keep content clear of the status bar */
         }
 
         .info-pane-header {
@@ -420,6 +427,8 @@
             font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, 'Inconsolata', 'Fira Code', monospace;
             font-size: 13px;
             color: #666;
+            max-height: 45vh;
+            overflow-y: auto;
         }
 
         .info-pane.collapsed .info-pane-content {
