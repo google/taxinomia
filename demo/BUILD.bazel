@@ -23,6 +23,7 @@ go_library(
         "product.go",
         "protoloader.go",
         "server.go",
+        "simple6_data.go",
         "user_store.go",
     ],
     embed = [":demo_go_proto"],

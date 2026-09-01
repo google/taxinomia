@@ -73,6 +73,9 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	dataModel.AddTable("products_perf", productsTable)
 	dataModel.AddTable("categories_perf", categoriesTable)
 	fmt.Println("=== Performance Tables Created ===")
+
+	simple6Table := CreateSimple6Table()
+	dataModel.AddTable("simple6", simple6Table)
 	fmt.Println()
 
 	// Create Google infrastructure tables
