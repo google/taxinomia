@@ -397,6 +397,34 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 				}
 			}
 		}
+		// Tell the grouping build which leaf columns actually need a full
+		// aggregate state: those with any non-count aggregate enabled, and
+		// any column an aggregate group sort ranks by. Count-only storage
+		// columns then skip state building entirely (their count is the
+		// group size), which is the difference between ~70ms and ~900ms on
+		// a 10M-row grouping with several visible string columns.
+		aggNeeds := make(map[string]bool)
+		groupedSet := make(map[string]bool, len(q.GroupedColumns))
+		for _, col := range q.GroupedColumns {
+			groupedSet[col] = true
+		}
+		for _, col := range view.Columns {
+			if groupedSet[col] {
+				continue
+			}
+			for _, agg := range q.GetEnabledAggregates(col, tableView.GetColumnType(col)) {
+				if agg != urlquery.AggCount {
+					aggNeeds[col] = true
+					break
+				}
+			}
+		}
+		for _, gs := range q.GroupAggregateSorts {
+			if gs != nil && gs.LeafColumn != "" {
+				aggNeeds[gs.LeafColumn] = true
+			}
+		}
+		tableView.SetAggregateNeeds(aggNeeds)
 		// Group with the viewport (display limit) and expansion state from the
 		// URL. Without a gexp parameter the expansion is expand-all, which is
 		// the historical eager build and byte-identical output; with one, only

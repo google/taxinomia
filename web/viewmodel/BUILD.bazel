@@ -22,6 +22,7 @@ go_library(
         "//core/columns",
         "//core/grouping",
         "//core/models",
+        "//core/queryspec",
         "//core/tables",
         "//web/urlquery",
         "@com_github_google_safehtml//:safehtml",

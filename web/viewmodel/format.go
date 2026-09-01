@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/queryspec"
 )
 
 // FormatIntString inserts apostrophe thousands separators (Swiss style,
@@ -89,4 +90,37 @@ func withThousands(aggs []aggregates.FormattedAggregate) []aggregates.FormattedA
 		aggs[i].Value = FormatIntString(aggs[i].Value)
 	}
 	return aggs
+}
+
+// countOnlyAggregates synthesizes the count chip for storage columns whose
+// aggregate state was skipped (SetAggregateNeeds): their count equals the
+// group size, so no per-group state exists to format. Mirrors
+// FormatAggregatesWithSort's chip fields exactly.
+func countOnlyAggregates(enabledAggs []queryspec.AggregateType, count int) []aggregates.FormattedAggregate {
+	for _, agg := range enabledAggs {
+		if agg == queryspec.AggCount {
+			return []aggregates.FormattedAggregate{{
+				Symbol: queryspec.AggregateSymbol(queryspec.AggCount),
+				Value:  FormatCount(count),
+				Title:  queryspec.AggregateTitle(queryspec.AggCount),
+			}}
+		}
+	}
+	return nil
+}
+
+// aggChipsFor builds the aggregate chips for one leaf column in a group
+// cell: the formatted state when one exists, or the synthesized count chip
+// when the state was skipped as count-only.
+func aggChipsFor(state aggregates.AggregateState, enabledAggs []queryspec.AggregateType, aggSort *queryspec.GroupAggSort, leafColName string, count int) []aggregates.FormattedAggregate {
+	var sortedCol string
+	var sortedAgg queryspec.AggregateType
+	if aggSort != nil && leafColName == aggSort.LeafColumn {
+		sortedCol = leafColName
+		sortedAgg = aggSort.AggType
+	}
+	if state != nil {
+		return withThousands(aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg))
+	}
+	return countOnlyAggregates(enabledAggs, count)
 }

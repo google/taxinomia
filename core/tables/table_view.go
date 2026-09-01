@@ -111,6 +111,54 @@ type TableView struct {
 	lastGroupingSortAsc map[string]bool   // Sort direction when grouping was computed
 	lastExpansion       *GroupExpansion   // Expansion state when grouping was computed (nil = never grouped)
 	lastDisplayLimit    int               // Display limit (level-0 top-K trim) when grouping was computed
+	aggNeeds            map[string]bool   // Columns needing full aggregate state (nil = all; see SetAggregateNeeds)
+	lastAggNeeds        map[string]bool   // aggNeeds when grouping was computed
+}
+
+// SetAggregateNeeds tells grouping which leaf columns need a full aggregate
+// state. nil (the default) computes states for every leaf column — the
+// historical behavior every existing caller keeps. With a non-nil map, a
+// storage column absent from the map (or false) skips state building
+// entirely: its only displayable aggregate is the count, which equals the
+// group size, so the display layer reads Group.Length() instead of paying a
+// per-group state (for strings, a UniqueSet map fed by every member row).
+// Computed and joined columns always keep their states — their per-row
+// errors make counts genuinely per-column. Callers must include any column
+// whose aggregates are displayed beyond count or used as a group-sort key.
+func (t *TableView) SetAggregateNeeds(needs map[string]bool) {
+	t.aggNeeds = needs
+}
+
+// needsAggState reports whether a leaf column's aggregate state must be
+// built under the current aggregate needs.
+func (t *TableView) needsAggState(col string) bool {
+	if t.aggNeeds == nil || t.aggNeeds[col] {
+		return true
+	}
+	// Virtual columns drop rows with per-row errors, so even their count
+	// requires the real state. (Detected via the view's registries — the
+	// IJoinedDataColumn interface adds no methods, so a type assertion
+	// would match every column.)
+	if _, isJoined := t.joins[col]; isJoined {
+		return true
+	}
+	_, isComputed := t.computedColumns[col]
+	return isComputed
+}
+
+// filterAggLeafColumns returns the leaf columns whose aggregate states must
+// be computed under the current aggregate needs.
+func (t *TableView) filterAggLeafColumns(leafColumns []string) []string {
+	if t.aggNeeds == nil {
+		return leafColumns
+	}
+	filtered := make([]string, 0, len(leafColumns))
+	for _, col := range leafColumns {
+		if t.needsAggState(col) {
+			filtered = append(filtered, col)
+		}
+	}
+	return filtered
 }
 
 // ApplyFilters builds and caches a filter selection bitmap based on the provided filters
@@ -375,6 +423,7 @@ func (t *TableView) ClearGroupings() {
 	t.lastGroupingSortAsc = nil
 	t.lastExpansion = nil
 	t.lastDisplayLimit = 0
+	t.lastAggNeeds = nil
 }
 
 func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
@@ -720,6 +769,14 @@ func (t *TableView) rebuildBlockRegistry() {
 // unchanged requests can skip recomputation.
 func (t *TableView) saveGroupingState(groupingOrder []string, asc map[string]bool, displayLimit int) {
 	t.lastDisplayLimit = displayLimit
+	if t.aggNeeds == nil {
+		t.lastAggNeeds = nil
+	} else {
+		t.lastAggNeeds = make(map[string]bool, len(t.aggNeeds))
+		for k, v := range t.aggNeeds {
+			t.lastAggNeeds[k] = v
+		}
+	}
 	t.lastGroupingOrder = make([]string, len(groupingOrder))
 	copy(t.lastGroupingOrder, groupingOrder)
 	t.lastGroupingFilters = make(map[string]string, len(t.lastFilters))
@@ -877,6 +934,16 @@ func (t *TableView) groupingEqual(groupingOrder []string, asc map[string]bool) b
 	}
 	for k, v := range asc {
 		if t.lastGroupingSortAsc[k] != v {
+			return false
+		}
+	}
+	// Check if aggregate needs match what was used for grouping — the
+	// grouping build materializes exactly the needed aggregate states.
+	if (t.aggNeeds == nil) != (t.lastAggNeeds == nil) || len(t.aggNeeds) != len(t.lastAggNeeds) {
+		return false
+	}
+	for k, v := range t.aggNeeds {
+		if t.lastAggNeeds[k] != v {
 			return false
 		}
 	}
@@ -1323,6 +1390,7 @@ func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[str
 // computeAggregates is ComputeAggregates under a context, observed at group
 // granularity: the per-row aggregate work of one group runs uninterrupted.
 func (tv *TableView) computeAggregates(ctx context.Context, leafColumns []string, columnTypes map[string]queryspec.ColumnType) error {
+	leafColumns = tv.filterAggLeafColumns(leafColumns)
 	if tv.firstBlock == nil || len(leafColumns) == 0 {
 		return nil
 	}

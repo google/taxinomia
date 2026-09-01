@@ -1404,22 +1404,18 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		// Also check if this grouped column has an aggregate sort to mark the sorted aggregate.
 		var columnAggs []aggregates.ColumnAggregateDisplay
 		aggSort := q.GetGroupAggSort(colName)
-		if group.Aggregates != nil && group.ChildBlock != nil {
+		// group.Aggregates may be nil when every leaf column is count-only
+		// (SetAggregateNeeds skipped all states); nil-map reads yield nil
+		// states and aggChipsFor synthesizes the count chips.
+		if group.ChildBlock != nil {
 			for _, leafColName := range tableView.GetLeafColumns() {
 				state := group.Aggregates[leafColName]
 				colType := tableView.GetColumnType(leafColName)
 				enabledAggs := q.GetEnabledAggregates(leafColName, colType)
-				if len(enabledAggs) > 0 && state != nil {
-					// Mark the sorted aggregate if this is the sorted leaf column
-					var sortedCol string
-					var sortedAgg urlquery.AggregateType
-					if aggSort != nil && leafColName == aggSort.LeafColumn {
-						sortedCol = leafColName
-						sortedAgg = aggSort.AggType
-					}
+				if chips := aggChipsFor(state, enabledAggs, aggSort, leafColName, group.Length()); len(chips) > 0 {
 					columnAggs = append(columnAggs, aggregates.ColumnAggregateDisplay{
 						ColumnName: leafColName,
-						Aggregates: withThousands(aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg)),
+						Aggregates: chips,
 					})
 				}
 			}
@@ -1468,21 +1464,14 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			for _, leafColName := range tableView.GetOtherLeafColumns() {
 				// Build aggregates for this specific leaf column
 				var leafAggs []aggregates.ColumnAggregateDisplay
-				if group.Aggregates != nil {
+				{
 					state := group.Aggregates[leafColName]
 					colType := tableView.GetColumnType(leafColName)
 					enabledAggs := q.GetEnabledAggregates(leafColName, colType)
-					if len(enabledAggs) > 0 && state != nil {
-						// Mark the sorted aggregate if this is the sorted leaf column
-						var sortedCol string
-						var sortedAgg urlquery.AggregateType
-						if aggSort != nil && leafColName == aggSort.LeafColumn {
-							sortedCol = leafColName
-							sortedAgg = aggSort.AggType
-						}
+					if chips := aggChipsFor(state, enabledAggs, aggSort, leafColName, group.Length()); len(chips) > 0 {
 						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
 							ColumnName: leafColName,
-							Aggregates: withThousands(aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg)),
+							Aggregates: chips,
 						})
 					}
 				}
@@ -1502,21 +1491,14 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			for i, leafColName := range filteredLeafCols {
 				// Build aggregates for this specific leaf column
 				var leafAggs []aggregates.ColumnAggregateDisplay
-				if group.Aggregates != nil {
+				{
 					state := group.Aggregates[leafColName]
 					colType := tableView.GetColumnType(leafColName)
 					enabledAggs := q.GetEnabledAggregates(leafColName, colType)
-					if len(enabledAggs) > 0 && state != nil {
-						// Mark the sorted aggregate if this is the sorted leaf column
-						var sortedCol string
-						var sortedAgg urlquery.AggregateType
-						if aggSort != nil && leafColName == aggSort.LeafColumn {
-							sortedCol = leafColName
-							sortedAgg = aggSort.AggType
-						}
+					if chips := aggChipsFor(state, enabledAggs, aggSort, leafColName, group.Length()); len(chips) > 0 {
 						leafAggs = append(leafAggs, aggregates.ColumnAggregateDisplay{
 							ColumnName: leafColName,
-							Aggregates: withThousands(aggregates.FormatAggregatesWithSort(state, enabledAggs, sortedCol, sortedAgg)),
+							Aggregates: chips,
 						})
 					}
 				}

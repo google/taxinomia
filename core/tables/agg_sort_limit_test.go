@@ -142,3 +142,47 @@ func TestRegroupingReleasesPreviousBlocks(t *testing.T) {
 		t.Errorf("after an in-place regroup the registry holds %d level-0 blocks, want 1", got)
 	}
 }
+
+// TestAggregateNeedsSkipsStates: with SetAggregateNeeds, storage columns not
+// in the needs map skip aggregate-state building (their count is the group
+// size); changing the needs invalidates the grouping cache; nil needs keeps
+// the historical compute-everything behavior.
+func TestAggregateNeedsSkipsStates(t *testing.T) {
+	table := NewDataTable()
+	gCol := columns.NewStringColumn(columns.NewColumnDef("g", "G", ""))
+	noteCol := columns.NewStringColumn(columns.NewColumnDef("note", "Note", ""))
+	aCol := columns.NewFloat64Column(columns.NewColumnDef("amount", "Amount", ""))
+	for i := 0; i < 100; i++ {
+		gCol.Append(fmt.Sprintf("g%d", i%4))
+		noteCol.Append(fmt.Sprintf("n%d", i))
+		aCol.Append(float64(i))
+	}
+	gCol.FinalizeColumn()
+	noteCol.FinalizeColumn()
+	aCol.FinalizeColumn()
+	table.AddColumn(gCol)
+	table.AddColumn(noteCol)
+	table.AddColumn(aCol)
+
+	tv := NewTableView(table, "t")
+	tv.VisibleColumns = []string{"g", "note", "amount"}
+	expandAll := GroupExpansion{ExpandAll: true}
+
+	tv.SetAggregateNeeds(map[string]bool{"amount": true})
+	tv.GroupTableWindowed([]string{"g"}, nil, make(map[string]Compare), make(map[string]bool), 0, expandAll)
+	g0 := tv.GetFirstBlock().Groups[0]
+	if g0.Aggregates["amount"] == nil {
+		t.Error("amount state missing despite being needed")
+	}
+	if g0.Aggregates["note"] != nil {
+		t.Error("note state built despite count-only needs (should be skipped)")
+	}
+
+	// Changing needs must invalidate the cached grouping.
+	tv.SetAggregateNeeds(nil)
+	tv.GroupTableWindowed([]string{"g"}, nil, make(map[string]Compare), make(map[string]bool), 0, expandAll)
+	g0 = tv.GetFirstBlock().Groups[0]
+	if g0.Aggregates["note"] == nil {
+		t.Error("note state missing after needs reset to nil (legacy compute-everything)")
+	}
+}
