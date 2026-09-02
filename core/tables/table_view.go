@@ -146,14 +146,55 @@ func (t *TableView) withAggSortColumn(cols []string) []string {
 	return append(append([]string(nil), cols...), s.LeafColumn)
 }
 
+// childUniqueSetsCompacted reports whether any child group carries a
+// string aggregate whose unique set was already released — after which a
+// parent recombine cannot reproduce unique counts.
+func childUniqueSetsCompacted(block *grouping.Block) bool {
+	if block == nil {
+		return false
+	}
+	for _, group := range block.Groups {
+		for _, state := range group.Aggregates {
+			if s, ok := state.(*aggregates.StringAggState); ok {
+				if s.UniqueSet == nil && !s.KeyUnique && s.Count > 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// compactUniqueSets walks all groups reachable from block and releases
+// their string unique sets, keeping the counts only.
+func (t *TableView) compactUniqueSets(block *grouping.Block) {
+	if block == nil {
+		return
+	}
+	for _, group := range block.Groups {
+		for _, state := range group.Aggregates {
+			if s, ok := state.(*aggregates.StringAggState); ok {
+				s.ReleaseUniqueSet()
+			}
+		}
+		t.compactUniqueSets(group.ChildBlock)
+	}
+}
+
 // computeLevelZeroAggregates materializes aggregate states for the level-0
-// groups only (respecting the aggregate needs), so an in-build aggregate
-// ranking can run before any child level exists.
+// groups, for the RANKING COLUMN ONLY: the in-build aggregate sort needs
+// exactly that column across all groups; every other enabled aggregate is
+// computed later, by the normal walk, for just the displayed subtrees.
+// Row-count ranking kinds (empty LeafColumn) need no states at all.
 func (t *TableView) computeLevelZeroAggregates(ctx context.Context) error {
-	leafColumns := t.withAggSortColumn(t.filterAggLeafColumns(t.GetLeafColumns()))
-	if len(leafColumns) == 0 || t.firstBlock == nil {
+	s := t.level0AggSort
+	if s == nil || s.LeafColumn == "" || t.firstBlock == nil {
 		return nil
 	}
+	if t.GetColumn(s.LeafColumn) == nil || t.IsColGrouped(s.LeafColumn) {
+		return nil
+	}
+	leafColumns := []string{s.LeafColumn}
 	columnTypes := make(map[string]queryspec.ColumnType, len(leafColumns))
 	for _, colName := range leafColumns {
 		columnTypes[colName] = t.GetColumnType(colName)
@@ -647,6 +688,13 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	// aggregates; drop them so retained grouping state is O(distinct), not
 	// O(rows).
 	releaseGroupMembership(t.firstBlock)
+	// The eager tree is final — no incremental re-merge will ever need the
+	// unique sets, so collapse them into counts: retained grouping state
+	// must not pin every member string of a unique-aggregated column
+	// (~1 GB per grouping measured on a 10M-row key column). The lazy path
+	// keeps its sets: incremental expansion re-combines parent states from
+	// children, and its trees are bounded by what is expanded.
+	t.compactUniqueSets(t.firstBlock)
 
 	t.saveGroupingState(groupingOrder, asc, displayLimit)
 	t.lastExpansion = &GroupExpansion{ExpandAll: true}
@@ -1539,6 +1587,12 @@ func (tv *TableView) computeAggregatesForBlock(ctx context.Context, block *group
 		if group.ChildBlock == nil && group.Indices == nil && group.Aggregates != nil {
 			continue
 		}
+		// Parents recombine from child states; if a prior pass compacted
+		// the children's unique sets, the merge inputs are gone and the
+		// parent's existing (correct) state must be kept as-is.
+		if group.ChildBlock != nil && group.Aggregates != nil && childUniqueSetsCompacted(group.ChildBlock) {
+			continue
+		}
 
 		// Now compute aggregates for this group
 		group.Aggregates = make(map[string]aggregates.AggregateState)
@@ -1578,6 +1632,11 @@ func (tv *TableView) computeLeafAggregates(group *grouping.Group, leafColumns []
 		}
 
 		state := aggregates.CreateAggState(colType)
+		// Key columns: every value is distinct, so the unique count is the
+		// count — never build the per-group string set.
+		if strState, ok := state.(*aggregates.StringAggState); ok && col.IsKey() {
+			strState.KeyUnique = true
+		}
 
 		// Add each value from the group's indices
 		for _, idx := range group.Indices {

@@ -214,10 +214,18 @@ func (s *BoolAggState) ColumnType() queryspec.ColumnType {
 // It can derive count, unique count, min (alphabetically smallest), and max (alphabetically largest).
 type StringAggState struct {
 	Count     int64               // Total count
-	UniqueSet map[string]struct{} // Set of unique values
+	UniqueSet map[string]struct{} // Set of unique values (nil after ReleaseUniqueSet)
 	Min       string              // Alphabetically smallest value
 	Max       string              // Alphabetically largest value
 	HasValues bool                // Whether Min/Max have been set
+	// KeyUnique marks the state of a key column: every value is distinct
+	// by construction, so the unique count equals Count and no set is
+	// populated — the difference between O(1) and a per-group hash set
+	// absorbing every member string.
+	KeyUnique bool
+	// CompactedUnique holds the unique count after ReleaseUniqueSet
+	// dropped the set itself.
+	CompactedUnique int
 }
 
 // NewStringAggState creates a new empty string aggregate state.
@@ -242,7 +250,21 @@ func (s *StringAggState) Add(value string) {
 		}
 	}
 	s.Count++
-	s.UniqueSet[value] = struct{}{}
+	if !s.KeyUnique && s.UniqueSet != nil {
+		s.UniqueSet[value] = struct{}{}
+	}
+}
+
+// ReleaseUniqueSet collapses the unique set into its count and drops the
+// set: grouping state retains the number, not every member string (a
+// unique aggregate over a 10M-row string column otherwise pins ~1 GB per
+// grouping in the view cache). Call only after all Combine merging — a
+// released state can no longer merge its unique values.
+func (s *StringAggState) ReleaseUniqueSet() {
+	if s.UniqueSet != nil {
+		s.CompactedUnique = len(s.UniqueSet)
+		s.UniqueSet = nil
+	}
 }
 
 // Combine merges another string state into this one.
@@ -264,13 +286,24 @@ func (s *StringAggState) Combine(other AggregateState) {
 		}
 	}
 	s.Count += o.Count
-	for k := range o.UniqueSet {
-		s.UniqueSet[k] = struct{}{}
+	// Set merging only applies while both sides still carry their sets
+	// (before ReleaseUniqueSet) and the column is not a key (KeyUnique
+	// derives uniqueness from Count).
+	if !s.KeyUnique && s.UniqueSet != nil && o.UniqueSet != nil {
+		for k := range o.UniqueSet {
+			s.UniqueSet[k] = struct{}{}
+		}
 	}
 }
 
 // UniqueCount returns the number of unique values.
 func (s *StringAggState) UniqueCount() int {
+	if s.KeyUnique {
+		return int(s.Count)
+	}
+	if s.UniqueSet == nil {
+		return s.CompactedUnique
+	}
 	return len(s.UniqueSet)
 }
 

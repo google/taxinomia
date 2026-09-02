@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/queryspec"
 )
@@ -227,5 +228,52 @@ func TestLevelZeroAggSortBuildsOnlyTopSubtrees(t *testing.T) {
 				t.Errorf("group %d (%s) missing aggregates (needed for the ranking)", i, g.GetValue())
 			}
 		}
+	}
+}
+
+// TestUniqueAggregateCompactionAndKeyShortcut: (a) key columns never build
+// per-group unique sets — unique equals count by construction; (b) after an
+// eager build, remaining unique sets are compacted to counts so grouping
+// state does not retain member strings.
+func TestUniqueAggregateCompactionAndKeyShortcut(t *testing.T) {
+	table := NewDataTable()
+	idSrc := columns.NewChunkedStringColumn(columns.NewColumnDef("id", "ID", "t.id"))
+	gCol := columns.NewChunkedStringColumn(columns.NewColumnDef("g", "G", ""))
+	noteCol := columns.NewChunkedStringColumn(columns.NewColumnDef("note", "Note", ""))
+	for i := 0; i < 1000; i++ {
+		idSrc.Append(fmt.Sprintf("k%04d", i))
+		gCol.Append(fmt.Sprintf("g%d", i%4))
+		noteCol.Append(fmt.Sprintf("n%d", i%3))
+	}
+	table.AddColumn(idSrc)
+	table.AddColumn(gCol)
+	table.AddColumn(noteCol)
+	if err := table.SortByKey([]string{"id"}); err != nil {
+		t.Fatal(err)
+	}
+	table.SelectEncodings() // id becomes the front-coded key
+
+	tv := NewTableView(table, "t")
+	tv.VisibleColumns = []string{"id", "g", "note"}
+	tv.GroupTableWindowed([]string{"g"}, nil, make(map[string]Compare), make(map[string]bool), 0, GroupExpansion{ExpandAll: true})
+
+	g0 := tv.GetFirstBlock().Groups[0]
+	idState, ok := g0.Aggregates["id"].(*aggregates.StringAggState)
+	if !ok {
+		t.Fatalf("no string state for id; got %T", g0.Aggregates["id"])
+	}
+	if !idState.KeyUnique {
+		t.Error("key column state not marked KeyUnique")
+	}
+	if got, want := idState.UniqueCount(), g0.Length(); got != want {
+		t.Errorf("key unique = %d, want group size %d", got, want)
+	}
+
+	noteState := g0.Aggregates["note"].(*aggregates.StringAggState)
+	if noteState.UniqueSet != nil {
+		t.Error("note unique set not compacted after eager build (retains member strings)")
+	}
+	if got := noteState.UniqueCount(); got != 3 {
+		t.Errorf("note unique = %d after compaction, want 3", got)
 	}
 }
