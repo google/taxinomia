@@ -425,14 +425,20 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 			}
 		}
 		tableView.SetAggregateNeeds(aggNeeds)
+		// An aggregate sort on the level-0 column ranks inside the build:
+		// level 0 is built and ranked in full, child subtrees only for the
+		// displayed top-K — instead of suspending the trim and building
+		// every subtree (10'000 entity subtrees to show 25).
+		tableView.SetLevelZeroAggSort(q.GetGroupAggSort(q.GroupedColumns[0]))
 		// Group with the viewport (display limit) and expansion state from the
 		// URL. Without a gexp parameter the expansion is expand-all, which is
 		// the historical eager build and byte-identical output; with one, only
 		// the opened subtrees are computed.
 		expansion := tables.GroupExpansion{ExpandAll: !q.HasExpandedGroups, Paths: q.ExpandedGroups}
-		// EffectiveGroupDisplayLimit suspends the level-0 value trim when an
-		// aggregate sort targets level 0 — the sort must rank all groups.
-		if err := tableView.GroupTableWindowedContext(ctx, q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.EffectiveGroupDisplayLimit(), expansion); err != nil {
+		// With the in-build level-0 aggregate ranking, the real display
+		// limit is passed again: the build ranks all groups and uses the
+		// limit only to bound the child subtrees it constructs.
+		if err := tableView.GroupTableWindowedContext(ctx, q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.Limit, expansion); err != nil {
 			return &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 		}
 

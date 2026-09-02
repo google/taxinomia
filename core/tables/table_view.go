@@ -113,6 +113,63 @@ type TableView struct {
 	lastDisplayLimit    int               // Display limit (level-0 top-K trim) when grouping was computed
 	aggNeeds            map[string]bool   // Columns needing full aggregate state (nil = all; see SetAggregateNeeds)
 	lastAggNeeds        map[string]bool   // aggNeeds when grouping was computed
+	level0AggSort       *queryspec.GroupAggSort // In-build aggregate ranking of level-0 groups (nil = value order)
+	lastLevel0AggSort   *queryspec.GroupAggSort // level0AggSort when grouping was computed
+}
+
+// SetLevelZeroAggSort tells the eager grouping build to rank level-0 groups
+// by an aggregate during the build, so child subtrees are constructed only
+// for the displayed top of the ranking instead of for every group. nil (the
+// default) keeps value ordering; callers then apply SortGroupsByAggregate
+// after the build if they need aggregate order, at the cost of a full-tree
+// build. The subgroup-count kind cannot rank before children exist and is
+// ignored here.
+func (t *TableView) SetLevelZeroAggSort(s *queryspec.GroupAggSort) {
+	t.level0AggSort = s
+}
+
+// withAggSortColumn ensures the level-0 ranking column is part of an
+// aggregate column set even when it is not displayed: a groupsort may
+// reference a column outside the visible set (columnless URLs default to
+// the first few columns), and ranking by a column with no state silently
+// produces garbage order.
+func (t *TableView) withAggSortColumn(cols []string) []string {
+	s := t.level0AggSort
+	if s == nil || s.LeafColumn == "" || t.IsColGrouped(s.LeafColumn) || t.GetColumn(s.LeafColumn) == nil {
+		return cols
+	}
+	for _, c := range cols {
+		if c == s.LeafColumn {
+			return cols
+		}
+	}
+	return append(append([]string(nil), cols...), s.LeafColumn)
+}
+
+// computeLevelZeroAggregates materializes aggregate states for the level-0
+// groups only (respecting the aggregate needs), so an in-build aggregate
+// ranking can run before any child level exists.
+func (t *TableView) computeLevelZeroAggregates(ctx context.Context) error {
+	leafColumns := t.withAggSortColumn(t.filterAggLeafColumns(t.GetLeafColumns()))
+	if len(leafColumns) == 0 || t.firstBlock == nil {
+		return nil
+	}
+	columnTypes := make(map[string]queryspec.ColumnType, len(leafColumns))
+	for _, colName := range leafColumns {
+		columnTypes[colName] = t.GetColumnType(colName)
+	}
+	bulk, err := t.bulkLevel0Aggregates(ctx, leafColumns, columnTypes)
+	if err != nil {
+		return err
+	}
+	for _, group := range t.firstBlock.Groups {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		group.Aggregates = make(map[string]aggregates.AggregateState)
+		t.computeLeafAggregates(group, leafColumns, columnTypes, bulk)
+	}
+	return nil
 }
 
 // SetAggregateNeeds tells grouping which leaf columns need a full aggregate
@@ -424,6 +481,7 @@ func (t *TableView) ClearGroupings() {
 	t.lastExpansion = nil
 	t.lastDisplayLimit = 0
 	t.lastAggNeeds = nil
+	t.lastLevel0AggSort = nil
 }
 
 func (t *TableView) GroupTable(groupingOrder []string, aggregatedColumns []string, compare map[string]Compare, asc map[string]bool) {
@@ -538,14 +596,40 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	}
 	t.firstBlock = parentBlocks[0]
 
-	// Sort first column groups with top-K optimization
-	firstColumn := groupingOrder[0]
-	ascending, hasSort := asc[firstColumn]
-	descending := hasSort && !ascending // default to ascending if not specified
-	t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
+	// An aggregate sort on the level-0 column must rank ALL groups, but
+	// only the displayed top-K groups need their child subtrees: compute
+	// level-0 aggregates, sort by them, then restrict the child build to
+	// the top of the ranking. Without this, a deep grouping under an
+	// aggregate sort builds subtrees for every level-0 group (10'000
+	// entity subtrees to display 25 — seconds of wasted build).
+	childParents := parentBlocks
+	if s := t.level0AggSort; s != nil && s.AggType != queryspec.AggSubgroupCount {
+		if err := t.computeLevelZeroAggregates(ctx); err != nil {
+			return err
+		}
+		t.sortBlockByAggregate(t.firstBlock, map[string]*queryspec.GroupAggSort{groupingOrder[0]: s})
+		if displayLimit > 0 && displayLimit < len(t.firstBlock.Groups) {
+			// Groups outside the display window stay in the block (the
+			// ranking and totals are complete) but become final leaves:
+			// membership released now, aggregates already computed, so
+			// the walk below skips them.
+			for _, g := range t.firstBlock.Groups[displayLimit:] {
+				g.Indices = nil
+			}
+			top := *t.firstBlock
+			top.Groups = t.firstBlock.Groups[:displayLimit]
+			childParents = []*grouping.Block{&top}
+		}
+	} else {
+		// Sort first column groups with top-K optimization
+		firstColumn := groupingOrder[0]
+		ascending, hasSort := asc[firstColumn]
+		descending := hasSort && !ascending // default to ascending if not specified
+		t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
+	}
 
 	// Process subsequent columns
-	if err := t.groupSubsequentColumnsInTable(ctx, t.groupingOrder[1:], parentBlocks, asc); err != nil {
+	if err := t.groupSubsequentColumnsInTable(ctx, t.groupingOrder[1:], childParents, asc); err != nil {
 		return err
 	}
 
@@ -587,7 +671,13 @@ func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, 
 	firstColumn := groupingOrder[0]
 	ascending, hasSort := asc[firstColumn]
 	descending := hasSort && !ascending // default to ascending if not specified
-	t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
+	if t.level0AggSort != nil {
+		// An aggregate sort ranks level 0 after the build; a value trim
+		// here would pre-select the wrong groups (candidate-4 bug shape).
+		t.sortGroupsInBlockTopK(t.firstBlock, descending, 0)
+	} else {
+		t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
+	}
 
 	// Register a GroupedColumn for every deeper level up front so group
 	// counts and stats resolve even when no subtree at that level is open.
@@ -777,6 +867,12 @@ func (t *TableView) saveGroupingState(groupingOrder []string, asc map[string]boo
 			t.lastAggNeeds[k] = v
 		}
 	}
+	if t.level0AggSort == nil {
+		t.lastLevel0AggSort = nil
+	} else {
+		s := *t.level0AggSort
+		t.lastLevel0AggSort = &s
+	}
 	t.lastGroupingOrder = make([]string, len(groupingOrder))
 	copy(t.lastGroupingOrder, groupingOrder)
 	t.lastGroupingFilters = make(map[string]string, len(t.lastFilters))
@@ -946,6 +1042,13 @@ func (t *TableView) groupingEqual(groupingOrder []string, asc map[string]bool) b
 		if t.lastAggNeeds[k] != v {
 			return false
 		}
+	}
+	// Check if the in-build level-0 aggregate ranking matches.
+	if (t.level0AggSort == nil) != (t.lastLevel0AggSort == nil) {
+		return false
+	}
+	if t.level0AggSort != nil && *t.level0AggSort != *t.lastLevel0AggSort {
+		return false
 	}
 	return true
 }
@@ -1390,9 +1493,14 @@ func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[str
 // computeAggregates is ComputeAggregates under a context, observed at group
 // granularity: the per-row aggregate work of one group runs uninterrupted.
 func (tv *TableView) computeAggregates(ctx context.Context, leafColumns []string, columnTypes map[string]queryspec.ColumnType) error {
-	leafColumns = tv.filterAggLeafColumns(leafColumns)
+	leafColumns = tv.withAggSortColumn(tv.filterAggLeafColumns(leafColumns))
 	if tv.firstBlock == nil || len(leafColumns) == 0 {
 		return nil
+	}
+	for _, colName := range leafColumns {
+		if _, ok := columnTypes[colName]; !ok {
+			columnTypes[colName] = tv.GetColumnType(colName)
+		}
 	}
 
 	// Level-0 leaf aggregates merge per-chunk pre-aggregated partials where

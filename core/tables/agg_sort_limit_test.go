@@ -186,3 +186,46 @@ func TestAggregateNeedsSkipsStates(t *testing.T) {
 		t.Error("note state missing after needs reset to nil (legacy compute-everything)")
 	}
 }
+
+// TestLevelZeroAggSortBuildsOnlyTopSubtrees: with an in-build level-0
+// aggregate ranking, all level-0 groups are ranked (complete, sorted by
+// the aggregate) but child subtrees exist only for the displayed top-K;
+// the rest are final leaves with aggregates and released membership.
+func TestLevelZeroAggSortBuildsOnlyTopSubtrees(t *testing.T) {
+	table := buildAggSortTable(100, 10) // sum grows with group index
+	sub := columns.NewStringColumn(columns.NewColumnDef("sub", "Sub", ""))
+	for i := 0; i < 1000; i++ {
+		sub.Append(fmt.Sprintf("s%d", i%3))
+	}
+	sub.FinalizeColumn()
+	table.AddColumn(sub)
+
+	tv := NewTableView(table, "t")
+	tv.VisibleColumns = []string{"g", "sub", "amount"}
+	tv.SetLevelZeroAggSort(&queryspec.GroupAggSort{
+		GroupedColumn: "g", LeafColumn: "amount", AggType: queryspec.AggSum, Descending: true,
+	})
+	tv.GroupTableWindowed([]string{"g", "sub"}, nil, make(map[string]Compare), make(map[string]bool), 10, GroupExpansion{ExpandAll: true})
+
+	groups := tv.GetFirstBlock().Groups
+	if len(groups) != 100 {
+		t.Fatalf("level 0 has %d groups, want all 100 ranked", len(groups))
+	}
+	if groups[0].GetValue() != "g99" || groups[99].GetValue() != "g00" {
+		t.Fatalf("ranking wrong: first=%s last=%s, want g99..g00", groups[0].GetValue(), groups[99].GetValue())
+	}
+	for i, g := range groups {
+		if i < 10 {
+			if g.ChildBlock == nil {
+				t.Errorf("top group %d (%s) missing child subtree", i, g.GetValue())
+			}
+		} else {
+			if g.ChildBlock != nil {
+				t.Errorf("group %d (%s) has a subtree despite being outside the display window", i, g.GetValue())
+			}
+			if g.Aggregates["amount"] == nil {
+				t.Errorf("group %d (%s) missing aggregates (needed for the ranking)", i, g.GetValue())
+			}
+		}
+	}
+}
