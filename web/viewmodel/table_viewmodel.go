@@ -736,7 +736,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 						DisplayName:         displayName,
 						IsVisible:           visibleCols[colName],
 						IsGrouped:           q.IsColumnGrouped(colName),
-				GroupLevel:          q.GroupLevel(colName),
+						GroupLevel:          q.GroupLevel(colName),
 						HasEntityType:       false, // Joined columns don't have entity types in this context
 						IsKey:               false,
 						JoinTargets:         nil,
@@ -874,16 +874,14 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	// row is selected (the detail panel resolves its row among them): with a
 	// sort set, the flat top-K over a 10M-row table costs ~150 ms that the
 	// grouped page would otherwise pay for nothing.
-	grouped := len(q.GroupedColumns) > 0
-	switch {
-	case grouped && q.SelectedRowID == "":
+	// Rows are always sorted: by the visible columns left to right (the
+	// query's effective sort order), with the storage key as the final
+	// tie-breaker. The default view, key leftmost, reads storage order for
+	// free; any other order is a bounded top-K selection.
+	if grouped := len(q.GroupedColumns) > 0; grouped && q.SelectedRowID == "" {
 		vm.Rows = nil
-	case len(q.SortOrder) > 0:
-		// Use sorted version with heap-based top-K selection
-		vm.Rows = tableView.GetFilteredRowsSorted(view.Columns, q.SortOrder, q.Limit)
-	default:
-		// No sorting - use basic filtered rows
-		vm.Rows = tableView.GetFilteredRows(view.Columns, q.Limit)
+	} else {
+		vm.Rows = tableView.GetFilteredRowsSorted(view.Columns, q.EffectiveSortOrder(), q.Limit)
 	}
 	vm.DisplayedRows = len(vm.Rows)
 	vm.CurrentLimit = q.Limit
@@ -1434,8 +1432,9 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 		}
 
 		// Add the grouped column cell for this group
-		// IsValueSorted is true if column is sorted and not using aggregate sort
-		isValueSorted := q.GetSortIndex(colName) > 0 && aggSort == nil
+		// Bold marks what overrides the default order (an aggregate sort);
+		// value order is the default at every level, so it is never bold.
+		isValueSorted := false
 		// Check if sorting by row count or subgroup count
 		isRowCountSorted := aggSort != nil && aggSort.AggType == urlquery.AggRowCount
 		isSubgroupCountSorted := aggSort != nil && aggSort.AggType == urlquery.AggSubgroupCount

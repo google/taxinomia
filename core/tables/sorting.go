@@ -28,6 +28,7 @@ import (
 
 // sortableColumn holds a column reference and its sort direction
 type sortableColumn struct {
+	name       string
 	col        columns.IDataColumn
 	descending bool
 }
@@ -187,6 +188,23 @@ func (t *TableView) GetSortedTopK(indices []uint32, sortOrder []queryspec.SortCo
 	return t.sortIndices(result, sortableCols)
 }
 
+// sortedByStorage reports whether the requested order is the storage
+// order: the sort columns start with the full storage key, every key column
+// ascending. Storage sorted by its key puts the rows of the selection in
+// exactly that order (the key is a total order over the rows, so no later
+// column can matter), which lets the caller skip sorting entirely.
+func (t *TableView) sortedByStorage(cols []sortableColumn, storageKey []string) bool {
+	if len(storageKey) == 0 || len(cols) < len(storageKey) {
+		return false
+	}
+	for i, k := range storageKey {
+		if cols[i].name != k || cols[i].descending {
+			return false
+		}
+	}
+	return true
+}
+
 // sortIndices sorts a slice of indices according to the sortable columns
 func (t *TableView) sortIndices(indices []uint32, cols []sortableColumn) []uint32 {
 	sort.Slice(indices, func(i, j int) bool {
@@ -253,36 +271,49 @@ func (t *TableView) sortedTopK(sel columns.RowSet, sortableCols []sortableColumn
 	return t.sortIndices(h.indices, sortableCols)
 }
 
-// GetFilteredRowsSorted returns rows sorted according to sortOrder, limited to top K.
-// This combines filtering, sorting, and limiting into an efficient operation,
-// working directly on the filter selection bitmap.
+// GetFilteredRowsSorted returns rows sorted according to sortOrder, limited
+// to the top K (all rows when limit <= 0). It combines filtering, sorting
+// and limiting into one pass over the filter selection bitmap.
+//
+// The table's storage key (DataTable.SortKey) is appended as the final
+// tie-breaker when sortOrder does not already contain it, so rows equal on
+// every listed column come back in a deterministic order. When sortOrder
+// begins with the storage key ascending, the selection is already in that
+// order and is read straight from storage — the free path for the default
+// view, where the key is the leftmost column.
 func (t *TableView) GetFilteredRowsSorted(columnNames []string, sortOrder []queryspec.SortColumn, limit int) []map[string]string {
 	sel := t.rowSet()
 
-	// Get top K sorted indices
-	var sortedIndices []uint32
-	if len(sortOrder) > 0 && limit > 0 {
-		// Resolve columns and build sortable column list
-		sortableCols := make([]sortableColumn, 0, len(sortOrder))
-		for _, so := range sortOrder {
-			col := t.GetColumn(so.Name)
-			if col != nil {
-				sortableCols = append(sortableCols, sortableColumn{
-					col:        col,
-					descending: so.Descending,
-				})
-			}
+	// Resolve columns and build sortable column list
+	sortableCols := make([]sortableColumn, 0, len(sortOrder)+1)
+	listed := make(map[string]bool, len(sortOrder))
+	for _, so := range sortOrder {
+		if col := t.GetColumn(so.Name); col != nil && !listed[so.Name] {
+			sortableCols = append(sortableCols, sortableColumn{name: so.Name, col: col, descending: so.Descending})
+			listed[so.Name] = true
 		}
-		if len(sortableCols) == 0 {
-			// No valid sort columns: first K rows in selection order.
+	}
+	storageKey := t.baseTable.SortKey()
+	for _, k := range storageKey {
+		if col := t.GetColumn(k); col != nil && !listed[k] {
+			sortableCols = append(sortableCols, sortableColumn{name: k, col: col})
+			listed[k] = true
+		}
+	}
+
+	var sortedIndices []uint32
+	switch {
+	case len(sortableCols) == 0 || t.sortedByStorage(sortableCols, storageKey):
+		// Storage order is the requested order: read the selection as is.
+		if limit > 0 {
 			sortedIndices = collectRows(sel, limit)
 		} else {
-			sortedIndices = t.sortedTopK(sel, sortableCols, limit)
+			sortedIndices = collectRows(sel, -1)
 		}
-	} else if limit > 0 {
-		sortedIndices = collectRows(sel, limit)
-	} else {
-		sortedIndices = collectRows(sel, -1)
+	case limit > 0:
+		sortedIndices = t.sortedTopK(sel, sortableCols, limit)
+	default:
+		sortedIndices = t.sortIndices(collectRows(sel, -1), sortableCols)
 	}
 
 	// Build result rows

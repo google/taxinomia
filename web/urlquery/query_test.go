@@ -371,3 +371,61 @@ func TestInfoPaneParams(t *testing.T) {
 		t.Errorf("bogus tab re-emitted: %s", s)
 	}
 }
+
+// TestSortIsDirectionOnly pins the sort model: the table is always sorted
+// by its visible columns left to right; the sort parameter only flips
+// directions and carries no ordering.
+func TestSortIsDirectionOnly(t *testing.T) {
+	parse := func(raw string) *Query {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return NewQuery(u)
+	}
+	// Default: every visible column ascending, in display order, nothing in the URL.
+	q := parse("/default/table?table=orders&columns=a%2Cb%2Cc")
+	want := []SortColumn{{Name: "a"}, {Name: "b"}, {Name: "c"}}
+	if got := q.EffectiveSortOrder(); len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Errorf("default effective order = %v, want %v", got, want)
+	}
+	if s := q.ToURL(); strings.Contains(s, "sort=") {
+		t.Errorf("default emitted a sort parameter: %s", s)
+	}
+	// A legacy ordered parameter: directions kept, ordering ignored.
+	q = parse("/default/table?table=orders&columns=a%2Cb%2Cc&sort=-c%2C%2Ba")
+	if got := q.EffectiveSortOrder(); got[0].Name != "a" || got[0].Descending || got[2].Name != "c" || !got[2].Descending {
+		t.Errorf("legacy sort=-c,+a: effective order = %v", got)
+	}
+	if s := q.ToURL(); !strings.Contains(s, "sort=-c") || strings.Contains(s, "%2Ba") || strings.Contains(s, "+a") {
+		t.Errorf("legacy sort re-emitted with ordering or ascending entries: %s", s)
+	}
+	// Toggling flips direction in place; the column does not move.
+	q = parse("/default/table?table=orders&columns=a%2Cb%2Cc")
+	u, _ := url.Parse(q.WithSortToggled("b").String())
+	q2 := NewQuery(u)
+	if got := q2.EffectiveSortOrder(); got[1].Name != "b" || !got[1].Descending || got[0].Descending || got[2].Descending {
+		t.Errorf("toggle b: effective order = %v", got)
+	}
+	if !q2.IsSortedDescending("b") || q2.IsSortedDescending("a") {
+		t.Error("IsSortedDescending disagrees with the toggle")
+	}
+	u, _ = url.Parse(q2.WithSortToggled("b").String())
+	if q3 := NewQuery(u); q3.IsSortedDescending("b") || strings.Contains(q3.ToURL(), "sort=") {
+		t.Errorf("toggling back did not clear the direction: %s", q3.ToURL())
+	}
+	// Grouping and filtering move columns; the order follows the display.
+	q = parse("/default/table?table=orders&columns=a%2Cb%2Cc&grouped=c&sort=-a")
+	if got := q.EffectiveSortOrder(); got[0].Name != "c" || got[1].Name != "a" || !got[1].Descending {
+		t.Errorf("grouped c: effective order = %v", got)
+	}
+	// Direction survives Clone and is dropped with the table state.
+	c := q.Clone()
+	if !c.IsSortedDescending("a") {
+		t.Error("Clone lost the direction")
+	}
+	c.ClearTableSpecificState()
+	if c.IsSortedDescending("a") || len(c.EffectiveSortOrder()) != 0 {
+		t.Error("ClearTableSpecificState kept sort state")
+	}
+}

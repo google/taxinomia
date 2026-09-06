@@ -487,17 +487,11 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	// Apply grouping if grouped columns are specified
 	groupStart := timing.Now()
 	if len(q.GroupedColumns) > 0 {
-		// Build ascending map from sort order for grouped columns
+		// Group order per level: by value, ascending unless the column's
+		// direction is flipped
 		ascMap := make(map[string]bool)
 		for _, col := range q.GroupedColumns {
-			// Default to ascending if not in sort order
-			ascMap[col] = true
-			for _, sc := range q.SortOrder {
-				if sc.Name == col {
-					ascMap[col] = !sc.Descending
-					break
-				}
-			}
+			ascMap[col] = !q.Descending[col]
 		}
 		// Tell the grouping build which leaf columns actually need a full
 		// aggregate state: those with any non-count aggregate enabled, and

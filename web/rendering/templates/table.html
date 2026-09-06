@@ -2540,17 +2540,17 @@
                         {{if eq .Name $colName}}
                 <td class="grouping-cell{{if .IsGrouped}} grouped-col{{end}}{{if eq $colName $.AnimatedColumn}} just-grouped{{end}}">
                     <div class="grouping-controls">
-                    {{/* Sort control - leftmost. Disabled for leaf columns when grouping is active */}}
-                    {{if and $.IsGrouped (not .IsGrouped)}}
-                    <span class="sort-toggle-btn disabled" title="Sorting disabled for leaf columns when grouped">⇅</span>
-                    {{else if .HasAggSort}}
+                    {{/* Sort direction - leftmost. Every column is always sorted: the table is ordered by its
+                         columns left to right, each ascending unless flipped. Position is significance; drag
+                         a column to change it. */}}
+                    {{if .HasAggSort}}
                     {{/* When aggregate sort is active, the up/down button toggles aggregate sort direction */}}
                     <a href="{{.AggSortDirectionURL}}" class="sort-toggle-btn active primary" title="Sorting by {{.AggSortLeafCol}} {{.AggSortAggType}} ({{if .IsAggSortDescending}}descending{{else}}ascending{{end}}) - click to toggle direction">
                         {{if .IsAggSortDescending}}▼{{else}}▲{{end}}
                     </a>
                     {{else}}
-                    <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if gt .SortIndex 0}} active{{end}}{{if eq .SortIndex 1}} primary{{end}}{{if and .IsGrouped (gt .SortIndex 0)}} value-sort{{end}}" title="{{if and .IsGrouped (gt .SortIndex 0)}}Sorting by grouped value{{else}}Click to change sort order ({{if .IsSortDescending}}descending{{else}}ascending{{end}}){{end}}">
-                        {{if gt .SortIndex 0}}{{if .IsSortDescending}}▼{{else}}▲{{end}}{{if not $.IsGrouped}}<span class="sort-priority">{{.SortIndex}}</span>{{end}}{{else}}⇅{{end}}
+                    <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if .IsSortDescending}} active{{end}}" title="{{if .IsGrouped}}Groups{{else}}Rows{{end}} sorted {{if .IsSortDescending}}descending{{else}}ascending{{end}} by this column - click to flip; order between columns is left to right">
+                        {{if .IsSortDescending}}▼{{else}}▲{{end}}
                     </a>
                     {{end}}
                     {{/* Aggregate sort toggle for grouped columns */}}

@@ -13,30 +13,35 @@ Taxinomia provides powerful sorting and grouping capabilities for analyzing tabu
 
 ## Column Sorting
 
-### Basic Sorting
+The table is **always sorted**. Rows are ordered by the visible columns
+from left to right: the leftmost column is the most significant key, the
+next column breaks its ties, and so on. Every column has a direction,
+ascending unless flipped. There is no unsorted column and no separate sort
+priority — a column's significance is its position.
 
-Click the sort button (⇅) in a column header to toggle sorting:
-- **First click**: Sort ascending (▲)
-- **Second click**: Sort descending (▼)
-- **Third click**: Remove sort
+- **Flip a direction**: click the ▲/▼ button in the column header. It
+  flips only that column's direction; the column stays where it is.
+- **Change significance**: move the column. Drag it left to make it more
+  significant, right to make it less. Grouped and filtered columns are
+  moved to the left automatically (filtered → grouped → others), so
+  grouping levels are the most significant keys.
+- **Ties**: rows equal on every visible column follow the table's storage
+  key (its primary key), so the order is always deterministic.
 
-### Multi-column Sort
-
-When multiple columns are sorted, a priority number appears next to each sort indicator:
-- **1** = Primary sort column
-- **2** = Secondary sort (ties broken by this column)
-- And so on...
-
-Sort priority is determined by the order in which columns were sorted.
+The default view — the key column leftmost, everything ascending — is read
+straight from storage at no cost. Any other order is a bounded top-K
+selection over the filtered rows (roughly 150 ms per 10 million rows).
 
 ### URL Parameters
 
-Sort order is encoded in the `sort` URL parameter:
+Directions are encoded in the `sort` URL parameter; only descending
+columns appear, ascending is the default:
 ```
-?sort=+column1,-column2
+?sort=-column2
 ```
-- `+` prefix = ascending
-- `-` prefix = descending
+Older URLs of the form `+column1,-column2` still parse: their directions
+are kept and their ordering is ignored (the ordering is the `columns`
+parameter).
 
 ## Grouping
 

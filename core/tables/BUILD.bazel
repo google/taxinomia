@@ -42,6 +42,7 @@ go_test(
         "race_off_test.go",
         "race_on_test.go",
         "sorted_storage_test.go",
+        "sorting_order_test.go",
         "table_view_test.go",
     ],
     data = glob(["testdata/**"]),
