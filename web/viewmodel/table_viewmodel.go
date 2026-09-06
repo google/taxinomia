@@ -869,11 +869,19 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	totalRows := tableView.GetFilteredRowCount()
 	vm.TotalRows = totalRows
 
-	// Get filtered rows with limit and sorting applied
-	if len(q.SortOrder) > 0 {
+	// Get filtered rows with limit and sorting applied. A grouped view
+	// renders GroupedRows, never these flat rows, so it skips them unless a
+	// row is selected (the detail panel resolves its row among them): with a
+	// sort set, the flat top-K over a 10M-row table costs ~150 ms that the
+	// grouped page would otherwise pay for nothing.
+	grouped := len(q.GroupedColumns) > 0
+	switch {
+	case grouped && q.SelectedRowID == "":
+		vm.Rows = nil
+	case len(q.SortOrder) > 0:
 		// Use sorted version with heap-based top-K selection
 		vm.Rows = tableView.GetFilteredRowsSorted(view.Columns, q.SortOrder, q.Limit)
-	} else {
+	default:
 		// No sorting - use basic filtered rows
 		vm.Rows = tableView.GetFilteredRows(view.Columns, q.Limit)
 	}
