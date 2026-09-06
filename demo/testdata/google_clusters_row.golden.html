@@ -422,6 +422,22 @@
             background-color: #d0d0d0;
         }
 
+        .info-pane-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Build version chip: which server build produced this page */
+        .build-version {
+            margin-left: 10px;
+            color: #999;
+            font-size: 11px;
+            font-family: Consolas, 'Cascadia Code', monospace;
+            white-space: nowrap;
+            cursor: default;
+        }
+
         .info-pane-content {
             padding: 15px;
             font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, 'Inconsolata', 'Fira Code', monospace;
@@ -516,6 +532,11 @@
         .perf-duration {
             color: #2e7d32;
             font-weight: 500;
+        }
+
+        .perf-build {
+            color: #555;
+            word-break: break-all;
         }
 
         .perf-section-title {
@@ -1692,17 +1713,22 @@
             openBtn.classList.toggle('visible');
         }
 
-        // Toggle info pane visibility (updates URL)
-        function toggleInfoPane() {
+        // Open the info pane on the given tab ('url' or 'perf'; updates URL)
+        function showInfoPane(tabName) {
             const url = new URL(window.location);
-            const isCurrentlyVisible = url.searchParams.get('info') !== '0';
-
-            if (isCurrentlyVisible) {
-                url.searchParams.set('info', '0');
+            url.searchParams.delete('info');
+            if (tabName === 'perf') {
+                url.searchParams.set('infotab', 'perf');
             } else {
-                url.searchParams.delete('info');
+                url.searchParams.delete('infotab');
             }
+            window.location.href = url.toString();
+        }
 
+        // Collapse the info pane to the status bar (updates URL)
+        function hideInfoPane() {
+            const url = new URL(window.location);
+            url.searchParams.set('info', '0');
             window.location.href = url.toString();
         }
 
@@ -1722,15 +1748,7 @@
 
         // Switch info pane tab (updates URL)
         function switchInfoTab(tabName) {
-            const url = new URL(window.location);
-
-            if (tabName === 'url') {
-                url.searchParams.delete('infotab');
-            } else {
-                url.searchParams.set('infotab', tabName);
-            }
-
-            window.location.href = url.toString();
+            showInfoPane(tabName);
         }
 
         // Parse URL parameters
@@ -1741,7 +1759,9 @@
             // Clear existing items
             paramList.innerHTML = '';
 
-            // Add each parameter
+            // Add each parameter. URLSearchParams already yields decoded
+            // values; decoding again would throw on a literal '%' (e.g. a
+            // filter for "100%") and abort the rest of page initialization.
             for (const [key, value] of urlParams) {
                 const item = document.createElement('li');
                 item.className = 'param-item';
@@ -1755,7 +1775,7 @@
 
                 // Special formatting for columns parameter
                 if (key === 'columns') {
-                    const columns = decodeURIComponent(value).split(',');
+                    const columns = value.split(',');
                     const formattedColumns = columns.map(col => {
                         // Check if it's a joined column (format: fromColumn.toTable.toColumn.selectedColumn)
                         if (col.includes('.') && col.split('.').length === 4) {
@@ -1766,7 +1786,7 @@
                     });
                     valueSpan.textContent = formattedColumns.join(', ');
                 } else {
-                    valueSpan.textContent = decodeURIComponent(value);
+                    valueSpan.textContent = value;
                 }
 
                 item.appendChild(nameSpan);
@@ -1774,9 +1794,16 @@
                 paramList.appendChild(item);
             }
 
-            // Update URL display
+            // Update URL display (readable form; fall back to the raw href
+            // if it contains a sequence that does not decode)
             const urlDisplay = document.getElementById('url-display');
-            urlDisplay.textContent = decodeURIComponent(window.location.href);
+            let readableHref = window.location.href;
+            try {
+                readableHref = decodeURIComponent(readableHref);
+            } catch (e) {
+                // keep the raw href
+            }
+            urlDisplay.textContent = readableHref;
         }
 
         // Handle filter input events
@@ -2933,7 +2960,12 @@ Use &quot;quotes&quot; for exact match">
                         <span class="timing-metric server" title="Time for the server to prepare the HTML (query, aggregate, render template)"><span class="timing-label">Server:</span> <span class="timing-value">0.00ms</span></span>
                         <span class="timing-metric browser" title="Total time from navigation start to page fully loaded and rendered"><span class="timing-label">Total:</span> <span class="timing-value" id="browser-timing">...</span></span>
                     </span>
-                    <a href="javascript:void(0)" class="info-pane-toggle" onclick="toggleInfoPane()">Hide</a>
+                    <span class="info-pane-actions">
+                        
+                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="hideInfoPane()" title="Collapse the pane to the status bar">Hide</a>
+                        
+                        <span class="build-version" title="Development build (unstamped), go1.24.12 windows/amd64">dev</span>
+                    </span>
                 </div>
                 <div class="info-pane-content">
                     
@@ -2994,6 +3026,18 @@ Use &quot;quotes&quot; for exact match">
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Total (navigation to load)</span>
                                 <span class="perf-duration" id="perf-browser-total">...</span>
+                            </li>
+                        </ul>
+                        <h3 class="perf-section-title" style="margin-top: 15px;">Server Build</h3>
+                        <ul class="perf-timing-list">
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Version</span>
+                                <span class="perf-build">dev</span>
+                            </li>
+                            
+                            <li class="perf-timing-item">
+                                <span class="perf-operation">Toolchain</span>
+                                <span class="perf-build">go1.24.12 windows/amd64</span>
                             </li>
                         </ul>
                     </div>

@@ -337,3 +337,37 @@ func TestWithFilterPathAndUngrouped(t *testing.T) {
 		t.Errorf("single-step path %q differs from WithFilterAndUngrouped %q", p, s)
 	}
 }
+
+func TestInfoPaneParams(t *testing.T) {
+	parse := func(raw string) *Query {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return NewQuery(u)
+	}
+	// Defaults: pane open on the URL tab, nothing emitted back into the URL.
+	q := parse("/default/table?table=orders")
+	if !q.ShowInfoPane || q.InfoPaneTab != "url" {
+		t.Errorf("defaults: show=%v tab=%q", q.ShowInfoPane, q.InfoPaneTab)
+	}
+	if s := q.ToURL(); strings.Contains(s, "info") {
+		t.Errorf("defaults leaked into URL: %s", s)
+	}
+	// Collapsed pane and perf tab round-trip.
+	q = parse("/default/table?table=orders&info=0&infotab=perf")
+	if q.ShowInfoPane || q.InfoPaneTab != "perf" {
+		t.Errorf("info=0&infotab=perf: show=%v tab=%q", q.ShowInfoPane, q.InfoPaneTab)
+	}
+	if s := q.ToURL(); !strings.Contains(s, "info=0") || !strings.Contains(s, "infotab=perf") {
+		t.Errorf("round-trip lost pane state: %s", s)
+	}
+	// Unknown tab names fall back to the URL tab instead of selecting no tab.
+	q = parse("/default/table?table=orders&infotab=bogus")
+	if q.InfoPaneTab != "url" {
+		t.Errorf("infotab=bogus: tab=%q, want url", q.InfoPaneTab)
+	}
+	if s := q.ToURL(); strings.Contains(s, "infotab") {
+		t.Errorf("bogus tab re-emitted: %s", s)
+	}
+}

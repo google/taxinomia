@@ -15,6 +15,16 @@ build --incompatible_disallow_empty_glob=false
 # tests that open data files by relative path can find them.
 build --enable_runfiles
 
+# Stamp //:taxinomia with the git revision (core/buildinfo): the workspace
+# status command emits STABLE_GIT_* keys, so the binary relinks once per
+# commit and the UI shows the build it is serving. Platform-specific config
+# picks the script Bazel can execute directly on this OS.
+common --enable_platform_specific_config
+build --stamp
+build:windows --workspace_status_command=tools/workspace_status.cmd
+build:linux --workspace_status_command=tools/workspace_status.sh
+build:macos --workspace_status_command=tools/workspace_status.sh
+
 # Nicer test output by default.
 test --test_output=errors
 test --test_summary=terse

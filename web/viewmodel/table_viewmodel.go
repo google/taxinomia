@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/safehtml"
 	"github.com/google/taxinomia/core/aggregates"
+	"github.com/google/taxinomia/core/buildinfo"
 	"github.com/google/taxinomia/core/grouping"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/tables"
@@ -70,6 +71,9 @@ type TableViewModel struct {
 	// Info pane state (controlled via URL)
 	ShowInfoPane bool   // Whether to show the info pane
 	InfoPaneTab  string // Which tab is active: "url" or "perf"
+
+	// Build that produced the serving binary (status bar + perf tab)
+	Build buildinfo.Info
 
 	// Animation state (transient, from _anim URL parameter)
 	AnimatedColumn string // Column that was just grouped (triggers animation)

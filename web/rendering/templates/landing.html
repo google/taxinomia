@@ -39,6 +39,15 @@
             font-size: 1.1em;
         }
 
+        /* Build version: which server build is serving this page */
+        .build-version {
+            margin-top: 8px;
+            color: #999;
+            font-size: 0.8em;
+            font-family: Consolas, 'Cascadia Code', monospace;
+            cursor: default;
+        }
+
         .tables-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -174,6 +183,7 @@
         <header>
             <h1>{{.Title}}</h1>
             <p class="subtitle">{{.Subtitle}}</p>
+            <p class="build-version" title="{{.Build.Long}}">Taxinomia {{.Build.Display}}</p>
         </header>
 
         <div class="tables-grid">

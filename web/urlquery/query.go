@@ -182,9 +182,10 @@ func NewQuery(u *url.URL) *Query {
 	if infoParam == "0" {
 		state.ShowInfoPane = false
 	}
-	infotabParam := q.Get("infotab")
-	if infotabParam != "" {
-		state.InfoPaneTab = infotabParam
+	// Only the two known tabs are accepted; anything else would open the
+	// pane with no active tab and no content.
+	if q.Get("infotab") == "perf" {
+		state.InfoPaneTab = "perf"
 	}
 
 	// Extract animation parameter (transient - column that was just grouped)

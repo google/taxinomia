@@ -34,4 +34,12 @@ go_binary(
     data = ["//demo:runtime_data"],  # keep
     embed = [":taxinomia_lib"],
     visibility = ["//visibility:public"],
+    # Build stamping (see .bazelrc and core/buildinfo): substituted from the
+    # workspace status keys when --stamp is on, left empty otherwise.
+    x_defs = {
+        "github.com/google/taxinomia/core/buildinfo.commit": "{STABLE_GIT_COMMIT}",
+        "github.com/google/taxinomia/core/buildinfo.revision": "{STABLE_GIT_REVISION}",
+        "github.com/google/taxinomia/core/buildinfo.date": "{STABLE_GIT_DATE}",
+        "github.com/google/taxinomia/core/buildinfo.dirty": "{STABLE_GIT_DIRTY}",
+    },
 )

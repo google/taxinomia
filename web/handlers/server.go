@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/taxinomia/core/buildinfo"
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/engine"
 	"github.com/google/taxinomia/core/expr"
@@ -469,6 +470,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	// Set info pane state from Query (already parsed from URL)
 	viewModel.ShowInfoPane = q.ShowInfoPane
 	viewModel.InfoPaneTab = q.InfoPaneTab
+	viewModel.Build = buildinfo.Get()
 
 	// Set animation state (transient, for newly grouped columns)
 	viewModel.AnimatedColumn = q.AnimatedColumn
@@ -479,6 +481,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	// Set content type and render
 	renderStart := time.Now()
 	setHeader("Content-Type", "text/html; charset=utf-8")
+	setHeader(versionHeader, viewModel.Build.Version())
 	if err := s.renderer.Render(w, viewModel); err != nil {
 		log.Printf("Template rendering error: %v", err)
 		return &TableHandlerResult{Error: err}
@@ -488,6 +491,11 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 
 	return nil
 }
+
+// versionHeader carries the serving build's version (core/buildinfo) on
+// every page response, so scripts and bug reports get it without parsing
+// HTML.
+const versionHeader = "X-Taxinomia-Version"
 
 // HandleLandingRequest processes the landing page request
 func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) error {
@@ -500,7 +508,9 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product 
 	vm := viewmodel.LandingViewModel{
 		Title:    product.GetTitle(),
 		Subtitle: product.GetSubtitle(),
+		Build:    buildinfo.Get(),
 	}
+	setHeader(versionHeader, vm.Build.Version())
 
 	// If we have a user store and a user parameter, filter tables by domain
 	if s.userStore != nil && userName != "" {

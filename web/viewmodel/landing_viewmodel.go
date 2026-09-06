@@ -18,12 +18,15 @@ limitations under the License.
 
 package viewmodel
 
+import "github.com/google/taxinomia/core/buildinfo"
+
 // LandingViewModel contains data for the landing page template
 type LandingViewModel struct {
 	Title    string
 	Subtitle string
 	Tables   []TableInfo
-	UserName string // Current user's display name (empty if no user)
+	UserName string         // Current user's display name (empty if no user)
+	Build    buildinfo.Info // Build that produced the serving binary
 }
 
 // TableInfo contains information about a table for the landing page

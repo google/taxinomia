@@ -13,6 +13,7 @@ go_library(
         "//web:__subpackages__",
     ],
     deps = [
+        "//core/buildinfo",
         "//core/columns",
         "//core/engine",
         "//core/expr",
