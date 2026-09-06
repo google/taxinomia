@@ -187,18 +187,27 @@ func TestExecuteMatchesHandler(t *testing.T) {
 		if res != nil {
 			t.Fatalf("Execute(%s): %+v", raw, res)
 		}
-		// Get TableView, Process Joins, Computed Columns, Apply Filters, Grouping.
-		if got := len(exec.Timing.GetEntries()); got != 5 {
-			t.Errorf("Execute(%s) recorded %d phases, want 5", raw, got)
+		// Get TableView, Process Joins, Computed Columns, Apply Filters, Grouping
+		// (the grouping build's sub-steps are listed under the last one).
+		phases := 0
+		for _, e := range exec.Timing.GetEntries() {
+			if !e.Sub {
+				phases++
+			}
+		}
+		if phases != 5 {
+			t.Errorf("Execute(%s) recorded %d phases, want 5", raw, phases)
 		}
 		var viaExecute bytes.Buffer
 		if err := renderer.Render(&viaExecute, srv.BuildViewModel(exec)); err != nil {
 			t.Fatal(err)
 		}
 		// The handler additionally records "Parse Query" as its first phase;
-		// drop that row before comparing.
-		got := string(normalizeHTML(viaExecute.Bytes()))
-		want := parseQueryRowRE.ReplaceAllString(string(normalizeHTML(viaHandler.Bytes())), "")
+		// drop that row before comparing. The grouping sub-steps differ too:
+		// the first render builds the grouping, the second is served from the
+		// view's cache and reports a single "cached" step.
+		got := subStepRowRE.ReplaceAllString(string(normalizeHTML(viaExecute.Bytes())), "")
+		want := subStepRowRE.ReplaceAllString(parseQueryRowRE.ReplaceAllString(string(normalizeHTML(viaHandler.Bytes())), ""), "")
 		if got != want {
 			i := 0
 			for i < len(got) && i < len(want) && got[i] == want[i] {
@@ -210,4 +219,7 @@ func TestExecuteMatchesHandler(t *testing.T) {
 	}
 }
 
-var parseQueryRowRE = regexp.MustCompile(`(?s)\s*<li class="perf-timing-item">\s*<span class="perf-operation">Parse Query</span>.*?</li>`)
+var (
+	parseQueryRowRE = regexp.MustCompile(`(?s)\s*<li class="perf-timing-item">\s*<span class="perf-operation">Parse Query</span>.*?</li>`)
+	subStepRowRE    = regexp.MustCompile(`(?s)\s*<li class="perf-timing-item sub">.*?</li>`)
+)

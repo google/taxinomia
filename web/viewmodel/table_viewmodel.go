@@ -179,6 +179,7 @@ type EntityTypeDescriptionResolver func(entityType string) string
 type TimingEntry struct {
 	Operation  string // Name of the operation (e.g., "Parse Query", "Apply Filters")
 	DurationMs string // Duration in milliseconds (formatted)
+	Sub        bool   // A step within the preceding phase (rendered indented; not a phase of its own)
 }
 
 // ValidationError contains details about a validation error for display to the user

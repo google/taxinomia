@@ -31,6 +31,7 @@ import (
 	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/grouping"
+	"github.com/google/taxinomia/core/hrclock"
 	"github.com/google/taxinomia/core/queryspec"
 )
 
@@ -106,15 +107,19 @@ type TableView struct {
 	lastFilters map[string]string  // Filters that produced current selection (for change detection)
 
 	// Grouping cache tracking
-	lastGroupingOrder   []string          // Grouping order when grouping was computed
-	lastGroupingFilters map[string]string // Filter state when grouping was computed
-	lastGroupingSortAsc map[string]bool   // Sort direction when grouping was computed
-	lastExpansion       *GroupExpansion   // Expansion state when grouping was computed (nil = never grouped)
-	lastDisplayLimit    int               // Display limit (level-0 top-K trim) when grouping was computed
-	aggNeeds            map[string]bool   // Columns needing full aggregate state (nil = all; see SetAggregateNeeds)
-	lastAggNeeds        map[string]bool   // aggNeeds when grouping was computed
+	lastGroupingOrder   []string                // Grouping order when grouping was computed
+	lastGroupingFilters map[string]string       // Filter state when grouping was computed
+	lastGroupingSortAsc map[string]bool         // Sort direction when grouping was computed
+	lastExpansion       *GroupExpansion         // Expansion state when grouping was computed (nil = never grouped)
+	lastDisplayLimit    int                     // Display limit (level-0 top-K trim) when grouping was computed
+	aggNeeds            map[string]bool         // Columns needing full aggregate state (nil = all; see SetAggregateNeeds)
+	lastAggNeeds        map[string]bool         // aggNeeds when grouping was computed
 	level0AggSort       *queryspec.GroupAggSort // In-build aggregate ranking of level-0 groups (nil = value order)
 	lastLevel0AggSort   *queryspec.GroupAggSort // level0AggSort when grouping was computed
+
+	// Grouping build timing (see grouping_steps.go)
+	clock         hrclock.Clock  // nil = hrclock.System()
+	groupingSteps []GroupingStep // steps of the last grouping call
 }
 
 // SetLevelZeroAggSort tells the eager grouping build to rank level-0 groups
@@ -512,6 +517,7 @@ func (t *TableView) GetGroupCount(col string) int {
 func (t *TableView) ClearGroupings() {
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
+	t.groupingSteps = nil
 	// The block registry pins every block (and its groups) it references;
 	// without this reset each regrouping on a live view would keep the
 	// previous block tree reachable forever.
@@ -578,17 +584,21 @@ func (t *TableView) GroupTableWindowedContext(ctx context.Context, groupingOrder
 	// Check if grouping inputs are unchanged - skip recomputation. The display
 	// limit is part of the inputs: level-0 groups are top-K-trimmed to it, so
 	// state built under a different limit cannot be reused.
+	t.groupingSteps = nil
 	if t.groupingEqual(groupingOrder, asc) && t.lastDisplayLimit == displayLimit && t.lastExpansion != nil {
 		if expansionEqual(*t.lastExpansion, expansion) {
+			t.noteStep("cached: grouping inputs unchanged")
 			return nil
 		}
 		if !t.lastExpansion.ExpandAll && !expansion.ExpandAll {
 			// Same grouping, different expansion: reuse the level-0 state
 			// and adjust only the affected subtrees.
+			s := t.stepStart()
 			if err := t.updateGroupExpansion(ctx, asc, expansion); err != nil {
 				t.dropGroupingState()
 				return err
 			}
+			t.recordStep("expansion update (level 0 reused)", s)
 			return nil
 		}
 		// Switching between expand-all and explicit expansion falls through
@@ -631,11 +641,13 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 
 	// Process first column
 	// groupedTable.columns = columns
+	step := t.stepStart()
 	parentBlocks, err := t.groupFirstColumnInTable(ctx, sel)
 	if err != nil {
 		return err
 	}
 	t.firstBlock = parentBlocks[0]
+	t.recordStep(fmt.Sprintf("partition by %s: %s groups", groupingOrder[0], formatGroupCount(len(t.firstBlock.Groups))), step)
 
 	// An aggregate sort on the level-0 column must rank ALL groups, but
 	// only the displayed top-K groups need their child subtrees: compute
@@ -645,10 +657,12 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	// entity subtrees to display 25 — seconds of wasted build).
 	childParents := parentBlocks
 	if s := t.level0AggSort; s != nil && s.AggType != queryspec.AggSubgroupCount {
+		step = t.stepStart()
 		if err := t.computeLevelZeroAggregates(ctx); err != nil {
 			return err
 		}
 		t.sortBlockByAggregate(t.firstBlock, map[string]*queryspec.GroupAggSort{groupingOrder[0]: s})
+		t.recordStep(fmt.Sprintf("rank level 0 by %s(%s) over all groups", s.AggType, s.LeafColumn), step)
 		if displayLimit > 0 && displayLimit < len(t.firstBlock.Groups) {
 			// Groups outside the display window stay in the block (the
 			// ranking and totals are complete) but become final leaves:
@@ -666,7 +680,9 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 		firstColumn := groupingOrder[0]
 		ascending, hasSort := asc[firstColumn]
 		descending := hasSort && !ascending // default to ascending if not specified
+		step = t.stepStart()
 		t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
+		t.recordStep(fmt.Sprintf("sort level 0 by value%s", topKNote(displayLimit)), step)
 	}
 
 	// Process subsequent columns
@@ -687,6 +703,7 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	// Membership lists were only needed to build child levels and leaf
 	// aggregates; drop them so retained grouping state is O(distinct), not
 	// O(rows).
+	step = t.stepStart()
 	releaseGroupMembership(t.firstBlock)
 	// The eager tree is final — no incremental re-merge will ever need the
 	// unique sets, so collapse them into counts: retained grouping state
@@ -695,10 +712,22 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	// keeps its sets: incremental expansion re-combines parent states from
 	// children, and its trees are bounded by what is expanded.
 	t.compactUniqueSets(t.firstBlock)
+	t.recordStep("release membership, compact unique sets", step)
 
 	t.saveGroupingState(groupingOrder, asc, displayLimit)
 	t.lastExpansion = &GroupExpansion{ExpandAll: true}
 	return nil
+}
+
+// formatGroupCount renders a group count for step names.
+func formatGroupCount(n int) string { return fmt.Sprintf("%d", n) }
+
+// topKNote describes the level-0 display trim for step names.
+func topKNote(displayLimit int) string {
+	if displayLimit > 0 {
+		return fmt.Sprintf(", keep top %d", displayLimit)
+	}
+	return ""
 }
 
 // groupTableLazy builds level 0 in full (O(distinct) retained state) and
@@ -710,21 +739,26 @@ func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, 
 
 	t.groupingOrder = groupingOrder
 
+	step := t.stepStart()
 	parentBlocks, err := t.groupFirstColumnInTable(ctx, t.rowSet())
 	if err != nil {
 		return err
 	}
 	t.firstBlock = parentBlocks[0]
+	t.recordStep(fmt.Sprintf("partition by %s: %s groups", groupingOrder[0], formatGroupCount(len(t.firstBlock.Groups))), step)
 
 	firstColumn := groupingOrder[0]
 	ascending, hasSort := asc[firstColumn]
 	descending := hasSort && !ascending // default to ascending if not specified
+	step = t.stepStart()
 	if t.level0AggSort != nil {
 		// An aggregate sort ranks level 0 after the build; a value trim
 		// here would pre-select the wrong groups (candidate-4 bug shape).
 		t.sortGroupsInBlockTopK(t.firstBlock, descending, 0)
+		t.recordStep("sort level 0 by value (no trim: aggregate sort ranks after the build)", step)
 	} else {
 		t.sortGroupsInBlockTopK(t.firstBlock, descending, displayLimit)
+		t.recordStep(fmt.Sprintf("sort level 0 by value%s", topKNote(displayLimit)), step)
 	}
 
 	// Register a GroupedColumn for every deeper level up front so group
@@ -739,9 +773,11 @@ func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, 
 	}
 
 	expanded := normalizeExpansion(expansion.Paths)
+	step = t.stepStart()
 	if err := t.buildExpandedChildren(ctx, t.firstBlock, 0, nil, expanded, asc); err != nil {
 		return err
 	}
+	t.recordStep(fmt.Sprintf("build %d expanded subtrees", len(expansion.Paths)), step)
 
 	leafColumns := t.GetLeafColumns()
 	columnTypes := make(map[string]queryspec.ColumnType)
@@ -752,7 +788,9 @@ func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, 
 		return err
 	}
 
+	step = t.stepStart()
 	releaseGroupMembership(t.firstBlock)
+	t.recordStep("release membership", step)
 
 	t.saveGroupingState(groupingOrder, asc, displayLimit)
 	exp := expansion
@@ -1183,6 +1221,7 @@ func (t *TableView) groupSubsequentColumnsInTable(ctx context.Context, cols []st
 
 	// for following columns, each parent group spawns a child block
 	for level, col := range cols {
+		step := t.stepStart()
 		dataColumn := t.GetColumn(col)
 		columnView := t.columnViews[col]
 
@@ -1222,6 +1261,11 @@ func (t *TableView) groupSubsequentColumnsInTable(ctx context.Context, cols []st
 			}
 		}
 		parentBlocks = g.Blocks
+		groups := 0
+		for _, b := range g.Blocks {
+			groups += len(b.Groups)
+		}
+		t.recordStep(fmt.Sprintf("level %d by %s: %d blocks, %d groups", level+1, col, len(g.Blocks), groups), step)
 	}
 	return nil
 }
@@ -1543,6 +1587,7 @@ func (tv *TableView) ComputeAggregates(leafColumns []string, columnTypes map[str
 func (tv *TableView) computeAggregates(ctx context.Context, leafColumns []string, columnTypes map[string]queryspec.ColumnType) error {
 	leafColumns = tv.withAggSortColumn(tv.filterAggLeafColumns(leafColumns))
 	if tv.firstBlock == nil || len(leafColumns) == 0 {
+		tv.noteStep("aggregates: none needed (count-only columns read the group size)")
 		return nil
 	}
 	for _, colName := range leafColumns {
@@ -1560,7 +1605,25 @@ func (tv *TableView) computeAggregates(ctx context.Context, leafColumns []string
 	}
 
 	// Walk the hierarchy bottom-up, starting from leaves
-	return tv.computeAggregatesForBlock(ctx, tv.firstBlock, leafColumns, columnTypes, bulk)
+	step := tv.stepStart()
+	err = tv.computeAggregatesForBlock(ctx, tv.firstBlock, leafColumns, columnTypes, bulk)
+	perRow := make([]string, 0, len(leafColumns))
+	for _, colName := range leafColumns {
+		if _, viaBulk := bulk[colName]; !viaBulk {
+			perRow = append(perRow, colName)
+		}
+	}
+	switch {
+	case len(perRow) > 0 && len(tv.groupingOrder) > 1:
+		tv.recordStep(fmt.Sprintf("aggregates per row for %s (all levels; deeper levels for every column)", strings.Join(perRow, ", ")), step)
+	case len(perRow) > 0:
+		tv.recordStep(fmt.Sprintf("aggregates per row for %s", strings.Join(perRow, ", ")), step)
+	case len(tv.groupingOrder) > 1:
+		tv.recordStep("aggregates per row for deeper levels", step)
+	default:
+		tv.recordStep("assemble level-0 states from partials", step)
+	}
+	return err
 }
 
 // computeAggregatesForBlock recursively computes aggregates for a block and its children.

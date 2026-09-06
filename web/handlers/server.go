@@ -302,6 +302,16 @@ func (tc *TimingCollector) Record(operation string, duration time.Duration) {
 	})
 }
 
+// RecordSub records a step within the phase recorded just before it; the
+// perf tab lists it indented under that phase.
+func (tc *TimingCollector) RecordSub(step string, duration time.Duration) {
+	tc.entries = append(tc.entries, viewmodel.TimingEntry{
+		Operation:  step,
+		DurationMs: formatMs(duration),
+		Sub:        true,
+	})
+}
+
 // GetEntries returns all timing entries
 func (tc *TimingCollector) GetEntries() []viewmodel.TimingEntry {
 	return tc.entries
@@ -534,6 +544,7 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 		// With the in-build level-0 aggregate ranking, the real display
 		// limit is passed again: the build ranks all groups and uses the
 		// limit only to bound the child subtrees it constructs.
+		tableView.SetClock(s.clock)
 		if err := tableView.GroupTableWindowedContext(ctx, q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.Limit, expansion); err != nil {
 			return nil, &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 		}
@@ -542,6 +553,13 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 		tableView.ClearGroupings()
 	}
 	timing.Record("Grouping", timing.Since(groupStart))
+	// The grouping build's own steps (partition, level sorts, per-column
+	// aggregates, release), listed under the phase.
+	if len(q.GroupedColumns) > 0 {
+		for _, step := range tableView.LastGroupingSteps() {
+			timing.RecordSub(step.Name, step.Duration)
+		}
+	}
 
 	return &Execution{Query: q, View: view, TableView: tableView, Validation: validation, Timing: timing}, nil
 }

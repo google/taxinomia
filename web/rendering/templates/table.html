@@ -558,6 +558,20 @@
             border-radius: 3px;
         }
 
+        /* A step within the phase above it (e.g. the grouping build's parts) */
+        .perf-timing-item.sub {
+            margin-left: 28px;
+            padding: 3px 10px;
+            background-color: #fafafa;
+            border-color: #f0f0f0;
+            font-size: 0.92em;
+        }
+
+        .perf-timing-item.sub .perf-duration {
+            color: #6a9c6e;
+            font-weight: normal;
+        }
+
         .perf-timing-item.total {
             background-color: #e8f5e9;
             border-color: #c8e6c9;
@@ -2725,7 +2739,7 @@ Use &quot;quotes&quot; for exact match">
                         {{if .TimingBreakdown}}
                         <ul class="perf-timing-list">
                             {{range .TimingBreakdown}}
-                            <li class="perf-timing-item">
+                            <li class="perf-timing-item{{if .Sub}} sub{{end}}">
                                 <span class="perf-operation">{{.Operation}}</span>
                                 <span class="perf-duration">{{.DurationMs}}ms</span>
                             </li>

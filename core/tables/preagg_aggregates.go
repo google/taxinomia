@@ -20,6 +20,7 @@ package tables
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 
 	"github.com/google/taxinomia/core/aggregates"
@@ -81,6 +82,7 @@ func (tv *TableView) bulkLevel0Aggregates(ctx context.Context, leafColumns []str
 		if col == nil {
 			continue
 		}
+		step := tv.stepStart()
 		aggs, handled, err := src.PerCodeAggs(ctx, sel, col)
 		if err != nil {
 			return nil, err
@@ -95,6 +97,7 @@ func (tv *TableView) bulkLevel0Aggregates(ctx context.Context, leafColumns []str
 		}
 		bulk[colName] = aggs
 		bulkAggregatedColumns.Add(1)
+		tv.recordStep(fmt.Sprintf("aggregates level 0 for %s: merge per-chunk partials", colName), step)
 	}
 	return bulk, nil
 }

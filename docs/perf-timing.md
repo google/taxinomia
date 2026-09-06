@@ -30,7 +30,7 @@ time down by phase:
 | Process Joins | join resolution and memo builds |
 | Computed Columns | compiling and installing computed columns |
 | Apply Filters | filter evaluation over the table |
-| Grouping | group construction, aggregates, group sorts |
+| Grouping | group construction, aggregates, group sorts — listed with its own steps underneath: partition, level-0 ranking or sort, each deeper level, each leaf column's aggregates (per-chunk partials or per-row), release |
 | Build ViewModel | turning the result window into template data |
 | Total Server Time | wall time from the start of the request to rendering |
 
