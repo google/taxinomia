@@ -304,3 +304,30 @@ your `go.mod`). With Bazel and rules_go, put the same keys in your
 `go_binary`'s `x_defs` as `{STABLE_TAX_COMMIT}` etc. and emit them from
 your `--workspace_status_command`. Leaving `revision` and `date` unset
 keeps the source-recorded values; setting only `commit` is fine.
+
+## Timing the perf breakdown with your own clock
+
+Also new and additive. The perf tab's phase timings come from an
+`hrclock.Clock` (`core/hrclock`). The default, `hrclock.System()`, is the
+platform's finest monotonic counter — QueryPerformanceCounter on Windows,
+where the time package only resolves ~0.5 ms, and `time.Now`'s monotonic
+reading on Linux and macOS, which is nanosecond-grained already. You need
+nothing for correct numbers on any platform.
+
+Install your own when you want a different source, an injected clock in
+tests, or to feed the same stamps into your tracing:
+
+```go
+import "github.com/google/taxinomia/core/hrclock"
+
+type tracingClock struct{ inner hrclock.Clock }
+
+func (c tracingClock) Now() hrclock.Stamp                  { return c.inner.Now() }
+func (c tracingClock) Since(s hrclock.Stamp) time.Duration { d := c.inner.Since(s); /* record d */ return d }
+
+srv.SetClock(tracingClock{inner: hrclock.System()})   // nil restores the default
+```
+
+`Stamp` is opaque: only the clock that produced it interprets it, so an
+implementation may use ticks, nanoseconds, or anything else. Servers that
+build their own `TimingCollector` use `NewTimingCollectorWithClock`.

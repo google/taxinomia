@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hrclock",
+    srcs = [
+        "hrclock.go",
+        "system_other.go",
+        "system_windows.go",
+    ],
+    importpath = "github.com/google/taxinomia/core/hrclock",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "hrclock_test",
+    srcs = ["hrclock_test.go"],
+    embed = [":hrclock"],
+)

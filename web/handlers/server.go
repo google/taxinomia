@@ -32,6 +32,7 @@ import (
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/engine"
 	"github.com/google/taxinomia/core/expr"
+	"github.com/google/taxinomia/core/hrclock"
 	"github.com/google/taxinomia/core/models"
 	"github.com/google/taxinomia/core/tables"
 	"github.com/google/taxinomia/core/users"
@@ -70,6 +71,7 @@ type Server struct {
 	renderer       *rendering.TableRenderer
 	tableViewCache map[string]*tables.TableView
 	userStore      users.UserStore
+	clock          hrclock.Clock // times the request phases of the perf breakdown (SetClock)
 
 	// navigator provides the catalog-driven navigation defaults (SetCatalog).
 	// The Set*Resolver callbacks below override it individually where set.
@@ -98,6 +100,7 @@ func NewServer(dataModel *models.DataModel) (*Server, error) {
 		dataModel:         dataModel,
 		renderer:          renderer,
 		tableViewCache:    make(map[string]*tables.TableView),
+		clock:             hrclock.System(),
 		exprCache:         make(map[string]*expr.Expression),
 		computedColState:  make(map[string]map[string]string),
 		computedColErrors: make(map[string]map[string]string),
@@ -107,6 +110,18 @@ func NewServer(dataModel *models.DataModel) (*Server, error) {
 // SetUserStore sets the user store for authentication
 func (s *Server) SetUserStore(store users.UserStore) {
 	s.userStore = store
+}
+
+// SetClock installs the clock that times the request phases shown in the
+// perf breakdown. The default is hrclock.System(), the platform's finest
+// monotonic counter; embedding servers can supply their own (a different
+// counter, an injected clock for tests, one that also feeds their
+// tracing). nil restores the default.
+func (s *Server) SetClock(clock hrclock.Clock) {
+	if clock == nil {
+		clock = hrclock.System()
+	}
+	s.clock = clock
 }
 
 // SetCatalog installs the catalog-driven navigation defaults: entity URL
@@ -250,17 +265,34 @@ func (s *Server) validateFilters(tableView *tables.TableView, filters map[string
 }
 
 // TimingCollector collects timing measurements for various operations.
-// Phases are measured with the high-resolution clock (hrNow/hrSince), so
-// sub-millisecond phases show real values instead of 0.00ms.
+// Phases are measured with an hrclock.Clock, so sub-millisecond phases
+// show real values instead of 0.00ms.
 type TimingCollector struct {
 	entries []viewmodel.TimingEntry
-	start   hrTime
+	clock   hrclock.Clock
+	start   hrclock.Stamp
 }
 
-// NewTimingCollector creates a new timing collector
+// NewTimingCollector creates a timing collector on the platform's default
+// high-resolution clock.
 func NewTimingCollector() *TimingCollector {
-	return &TimingCollector{start: hrNow()}
+	return NewTimingCollectorWithClock(hrclock.System())
 }
+
+// NewTimingCollectorWithClock creates a timing collector on the given
+// clock (nil means hrclock.System()).
+func NewTimingCollectorWithClock(clock hrclock.Clock) *TimingCollector {
+	if clock == nil {
+		clock = hrclock.System()
+	}
+	return &TimingCollector{clock: clock, start: clock.Now()}
+}
+
+// Now reads the collector's clock; pair with Since to time a phase.
+func (tc *TimingCollector) Now() hrclock.Stamp { return tc.clock.Now() }
+
+// Since returns the time elapsed since a stamp from Now.
+func (tc *TimingCollector) Since(s hrclock.Stamp) time.Duration { return tc.clock.Since(s) }
 
 // Record records a timing entry
 func (tc *TimingCollector) Record(operation string, duration time.Duration) {
@@ -277,7 +309,7 @@ func (tc *TimingCollector) GetEntries() []viewmodel.TimingEntry {
 
 // TotalMs returns total elapsed time in milliseconds as formatted string
 func (tc *TimingCollector) TotalMs() string {
-	return formatMs(hrSince(tc.start))
+	return formatMs(tc.clock.Since(tc.start))
 }
 
 // formatMs renders a duration as milliseconds with two decimals, rounded.
@@ -299,12 +331,12 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 // (docs/scaling-to-1b-rows.md §8). A cancelled request returns status 499
 // (client closed request) without writing to w.
 func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
-	timing := NewTimingCollector()
+	timing := NewTimingCollectorWithClock(s.clock)
 
 	// Parse URL into Query
-	parseStart := hrNow()
+	parseStart := timing.Now()
 	q := urlquery.NewQuery(requestURL)
-	timing.Record("Parse Query", hrSince(parseStart))
+	timing.Record("Parse Query", timing.Since(parseStart))
 
 	// Get user from URL parameter - cache is user-specific
 	userName := requestURL.Query().Get("user")
@@ -363,35 +395,35 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	}
 
 	// Get or create a cached TableView for this user+table combination
-	cacheStart := hrNow()
+	cacheStart := timing.Now()
 	tableView := viewmodel.GetOrCreateTableView(cacheKey, table, s.tableViewCache)
-	timing.Record("Get TableView", hrSince(cacheStart))
+	timing.Record("Get TableView", timing.Since(cacheStart))
 
 	// Update joined columns to match the current request
-	joinStart := hrNow()
+	joinStart := timing.Now()
 	viewmodel.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
-	timing.Record("Process Joins", hrSince(joinStart))
+	timing.Record("Process Joins", timing.Since(joinStart))
 
 	// Create validation result to collect errors
 	validation := NewValidationResult()
 
 	// Create computed columns from the query (with caching)
-	computedStart := hrNow()
+	computedStart := timing.Now()
 	validation.ComputedColumnErrors = s.updateComputedColumns(tableView, q, cacheKey)
-	timing.Record("Computed Columns", hrSince(computedStart))
+	timing.Record("Computed Columns", timing.Since(computedStart))
 
 	// Validate filter columns exist before applying
 	validation.FilterErrors = s.validateFilters(tableView, q.Filters)
 
 	// Apply filters to the table view (even with errors, apply valid filters)
-	filterStart := hrNow()
+	filterStart := timing.Now()
 	if err := tableView.ApplyFiltersContext(ctx, q.Filters); err != nil {
 		return &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 	}
-	timing.Record("Apply Filters", hrSince(filterStart))
+	timing.Record("Apply Filters", timing.Since(filterStart))
 
 	// Apply grouping if grouped columns are specified
-	groupStart := hrNow()
+	groupStart := timing.Now()
 	if len(q.GroupedColumns) > 0 {
 		// Build ascending map from sort order for grouped columns
 		ascMap := make(map[string]bool)
@@ -453,10 +485,10 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	} else {
 		tableView.ClearGroupings()
 	}
-	timing.Record("Grouping", hrSince(groupStart))
+	timing.Record("Grouping", timing.Since(groupStart))
 
 	// Build the view model from the table view
-	vmStart := hrNow()
+	vmStart := timing.Now()
 	title := strings.Title(q.Table)
 	urlResolver, allURLsResolver, primaryKeyResolver, descResolver, hierarchyContextBuilder, relatedTablesResolver := s.effectiveResolvers()
 	var primaryKeyEntityType string
@@ -468,7 +500,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 		entityTypeDescResolver = viewmodel.EntityTypeDescriptionResolver(descResolver)
 	}
 	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
-	timing.Record("Build ViewModel", hrSince(vmStart))
+	timing.Record("Build ViewModel", timing.Since(vmStart))
 
 	// Set timing information
 	viewModel.RenderTimeMs = timing.TotalMs()
@@ -486,7 +518,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	viewModel.ShowColumnTypes = requestURL.Query().Get("types") == "1"
 
 	// Set content type and render
-	renderStart := hrNow()
+	renderStart := timing.Now()
 	setHeader("Content-Type", "text/html; charset=utf-8")
 	setHeader(versionHeader, viewModel.Build.Version())
 	if err := s.renderer.Render(w, viewModel); err != nil {

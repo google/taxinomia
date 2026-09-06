@@ -16,14 +16,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package handlers
+//go:build !windows
 
-// hrTime is a high-resolution monotonic timestamp for the perf breakdown.
-//
-// time.Now's monotonic reading advances in ~0.5 ms steps on Windows (it is
-// the kernel interrupt-time clock), which rounds every sub-millisecond
-// request phase to "0.00ms" in the perf tab — on a warm cache that is
-// every phase. hrNow/hrSince read the platform's finest monotonic counter
-// instead (QueryPerformanceCounter on Windows, ~100 ns); elsewhere they
-// are time.Now/time.Since, which are already fine-grained.
-type hrTime int64
+package hrclock
+
+// systemClock: the time package's monotonic reading is nanosecond-grained
+// on Linux, macOS and the BSDs.
+var systemClock Clock = TimeClock{}
