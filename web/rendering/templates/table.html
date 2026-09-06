@@ -385,9 +385,10 @@
         .info-pane {
             position: fixed;
             bottom: 0;
-            left: 0;
+            left: 250px; /* starts at the sidebar's edge; the sidebar (z-index 1000) would cover it otherwise */
             right: 0;
             z-index: 100;
+            transition: left 0.3s ease-in-out; /* follows the sidebar collapse */
             background-color: #fafafa;
             border-top: 1px solid #ccc;
             box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.08);
@@ -594,6 +595,10 @@
 
         .main-content.expanded {
             margin-left: 0;
+        }
+
+        .main-content.expanded .info-pane {
+            left: 0;
         }
 
         /* Sidebar open button */
