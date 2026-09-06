@@ -1422,10 +1422,21 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 				state := group.Aggregates[leafColName]
 				colType := tableView.GetColumnType(leafColName)
 				enabledAggs := q.GetEnabledAggregates(leafColName, colType)
-				if chips := aggChipsFor(state, enabledAggs, aggSort, leafColName, group.Length()); len(chips) > 0 {
+				chips := aggChipsFor(state, enabledAggs, aggSort, leafColName, group.Length())
+				// The cell's bracket already shows the group's row count, so
+				// count chips are left out of the summary — and a column with
+				// nothing else enabled gets no line at all, rather than an
+				// empty "name:" line.
+				kept := chips[:0:0]
+				for _, chip := range chips {
+					if chip.Symbol != "#" {
+						kept = append(kept, chip)
+					}
+				}
+				if len(kept) > 0 {
 					columnAggs = append(columnAggs, aggregates.ColumnAggregateDisplay{
 						ColumnName: leafColName,
-						Aggregates: chips,
+						Aggregates: kept,
 					})
 				}
 			}
