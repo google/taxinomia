@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "buildinfo",
-    srcs = ["buildinfo.go"],
+    srcs = [
+        "buildinfo.go",
+        "version.go",
+    ],
     importpath = "github.com/google/taxinomia/core/buildinfo",
     visibility = ["//visibility:public"],
 )

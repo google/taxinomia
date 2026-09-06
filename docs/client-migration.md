@@ -267,3 +267,40 @@ Optionally implement `IGroupOps` (note its selections are `RowSet`, not
 When your repository passes all four, report back so CLEAN can be scheduled;
 after CLEAN, the deprecated names no longer exist and unmigrated code stops
 compiling rather than misbehaving.
+
+## Displaying the taxinomia version in your own server
+
+Not a migration item — new, additive, and free for every importer.
+
+`core/buildinfo` reports the taxinomia revision as `r<commit count>`; the
+count is recorded inside the library source (`version.go`, written by
+taxinomia's pre-commit hook), so it is correct in your binary with no
+build-system work. It is already rendered by the table and landing pages
+(status bar, perf tab, `X-Taxinomia-Version` header) if you use the
+`web/handlers` server. To show it elsewhere:
+
+```go
+import "github.com/google/taxinomia/core/buildinfo"
+
+v := buildinfo.Get()
+v.Display()   // "r168"  (or "r168 · 65b2343" when link-time stamped)
+v.Version()   // "r168"  (ASCII, for headers/logs)
+v.Long()      // one line with date, hash, toolchain
+```
+
+Optional: the link-time stamp adds the commit hash and a dirty flag. Set
+the four package variables from your own build. With `go build`:
+
+```sh
+go build -ldflags "\
+  -X github.com/google/taxinomia/core/buildinfo.commit=$(git -C $TAX rev-parse HEAD) \
+  -X github.com/google/taxinomia/core/buildinfo.revision=$(git -C $TAX rev-list --count HEAD) \
+  -X github.com/google/taxinomia/core/buildinfo.date=$(git -C $TAX log -1 --format=%cs)"
+```
+
+where `$TAX` is a taxinomia checkout at the version you depend on (for a
+module dependency, the hash is also the suffix of the pseudo-version in
+your `go.mod`). With Bazel and rules_go, put the same keys in your
+`go_binary`'s `x_defs` as `{STABLE_TAX_COMMIT}` etc. and emit them from
+your `--workspace_status_command`. Leaving `revision` and `date` unset
+keeps the source-recorded values; setting only `commit` is fine.

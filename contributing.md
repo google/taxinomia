@@ -41,6 +41,18 @@ sign a new one.
 This project follows [Google's Open Source Community
 Guidelines](https://opensource.google/conduct/).
 
+### Enable the pre-commit hook
+
+The display version (`core/buildinfo/version.go`) is written by a tracked
+hook at commit time. Enable it once per clone:
+
+```sh
+git config core.hooksPath tools/hooks
+```
+
+A commit made without it leaves the version stale; `go test ./core/buildinfo/`
+reports that.
+
 ## Contribution process
 
 ### Code Reviews

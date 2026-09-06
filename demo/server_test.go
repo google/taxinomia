@@ -64,12 +64,18 @@ func goldenSetup(t *testing.T) (*handlers.Server, *ProductRegistry) {
 }
 
 // timingRE matches the rendered server-side timing values ("12.34ms" inside
-// perf-duration / timing-value spans), the only nondeterministic bytes on the
-// pages under test.
-var timingRE = regexp.MustCompile(`(class="(?:perf-duration|timing-value)">)[0-9][0-9.]*ms`)
+// perf-duration / timing-value spans); buildRE matches the build version
+// chip and the perf tab's build facts, which change with every commit and
+// toolchain. These are the only nondeterministic bytes on the pages under
+// test.
+var (
+	timingRE = regexp.MustCompile(`(class="(?:perf-duration|timing-value)">)[0-9][0-9.]*ms`)
+	buildRE  = regexp.MustCompile(`(class="(?:build-version|perf-build)")(?: title="[^"]*")?>[^<]*<`)
+)
 
 func normalizeHTML(b []byte) []byte {
-	return timingRE.ReplaceAll(b, []byte(`${1}0.00ms`))
+	b = timingRE.ReplaceAll(b, []byte(`${1}0.00ms`))
+	return buildRE.ReplaceAll(b, []byte(`${1}>BUILD<`))
 }
 
 func TestGoldenDemoPages(t *testing.T) {
