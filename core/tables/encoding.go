@@ -50,6 +50,21 @@ import (
 // Only in-repo chunked string columns are re-encoded; every other column type
 // passes through untouched, so external column implementations are safe.
 func (dt *DataTable) SelectEncodings() {
+	dt.encodeOnce.Do(func() {})
+	dt.selectEncodings()
+}
+
+// EnsureEncodings runs SelectEncodings the first time it is called and is a
+// no-op afterwards, so the query pipeline can guarantee encoded storage
+// without depending on every loader remembering the call. A table that
+// never had its encodings selected groups ~20x slower on dictionary-shaped
+// columns. Safe for concurrent first queries; a loader that already called
+// SelectEncodings pays nothing here.
+func (dt *DataTable) EnsureEncodings() {
+	dt.encodeOnce.Do(dt.selectEncodings)
+}
+
+func (dt *DataTable) selectEncodings() {
 	for name, col := range dt.columns {
 		sc, ok := col.(*columns.ChunkedStringColumn)
 		if !ok {

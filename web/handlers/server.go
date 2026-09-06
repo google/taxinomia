@@ -338,34 +338,93 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	q := urlquery.NewQuery(requestURL)
 	timing.Record("Parse Query", timing.Since(parseStart))
 
-	// Get user from URL parameter - cache is user-specific
-	userName := requestURL.Query().Get("user")
-	cacheKey := s.makeCacheKey(userName, q.Table)
+	exec, res := s.Execute(ctx, q, ExecOptions{
+		User:           requestURL.Query().Get("user"), // cache is user-specific
+		DefaultColumns: product.GetDefaultColumns(q.Table),
+		Timing:         timing,
+	})
+	if res != nil {
+		return res
+	}
+	viewModel := s.BuildViewModel(exec)
+
+	// Set content type and render
+	setHeader("Content-Type", "text/html; charset=utf-8")
+	setHeader(versionHeader, viewModel.Build.Version())
+	if err := s.renderer.Render(w, viewModel); err != nil {
+		log.Printf("Template rendering error: %v", err)
+		return &TableHandlerResult{Error: err}
+	}
+	return nil
+}
+
+// ExecOptions parameterizes Execute.
+type ExecOptions struct {
+	// User scopes the per-user table view cache (computed columns, filters
+	// and groupings are per user). Empty means the anonymous shared view.
+	User string
+	// DefaultColumns are displayed when the query names none. Empty: the
+	// table's first four columns.
+	DefaultColumns []string
+	// Timing receives the phase timings; nil creates a collector on the
+	// server's clock. A caller that timed earlier phases (URL parsing)
+	// passes its own so they appear in the breakdown.
+	Timing *TimingCollector
+}
+
+// Execution is the outcome of Execute: the user's table view after joins,
+// computed columns, filters and grouping have been applied for the query,
+// plus validation errors and phase timings. Read the view directly for your
+// own output, or hand the execution to BuildViewModel for the table page.
+type Execution struct {
+	Query      *urlquery.Query
+	View       viewmodel.View
+	TableView  *tables.TableView
+	Validation *ValidationResult
+	Timing     *TimingCollector
+}
+
+// Execute runs the request pipeline for q. It is the one supported way to
+// run a query: it validates the resource limits, resolves the table,
+// selects the display columns, fetches the user's cached table view (with
+// encodings selected), updates joins and computed columns, applies
+// filters, and groups with the aggregate needs, level-0 aggregate sort and
+// viewport that keep grouping cheap. Those invariants live here so that no
+// caller has to reassemble them — a pipeline rebuilt from the building
+// blocks without them groups 20–250x slower on the same table. Failures
+// come back as a TableHandlerResult (HTTP status + message); nil on
+// success.
+func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOptions) (*Execution, *TableHandlerResult) {
+	timing := opts.Timing
+	if timing == nil {
+		timing = NewTimingCollectorWithClock(s.clock)
+	}
+	cacheKey := s.makeCacheKey(opts.User, q.Table)
 
 	// Validate table parameter
 	if q.Table == "" {
-		return &TableHandlerResult{StatusCode: 400, Message: "Table parameter is required"}
+		return nil, &TableHandlerResult{StatusCode: 400, Message: "Table parameter is required"}
 	}
 
 	// Resource limits validation
 	if len(q.ComputedColumns) > MaxComputedColumns {
-		return &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many computed columns (max %d)", MaxComputedColumns)}
+		return nil, &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many computed columns (max %d)", MaxComputedColumns)}
 	}
 	if len(q.Filters) > MaxFilters {
-		return &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many filters (max %d)", MaxFilters)}
+		return nil, &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many filters (max %d)", MaxFilters)}
 	}
 	if len(q.GroupedColumns) > MaxGroupingLevels {
-		return &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many grouping levels (max %d)", MaxGroupingLevels)}
+		return nil, &TableHandlerResult{StatusCode: 400, Message: fmt.Sprintf("Too many grouping levels (max %d)", MaxGroupingLevels)}
 	}
 
 	// Get the table from data model
 	table := s.dataModel.GetTable(q.Table)
 	if table == nil {
-		return &TableHandlerResult{StatusCode: 404, Message: fmt.Sprintf("Table '%s' not found", q.Table)}
+		return nil, &TableHandlerResult{StatusCode: 404, Message: fmt.Sprintf("Table '%s' not found", q.Table)}
 	}
 
-	// Get default columns from product, or use first few columns if not defined
-	defaultColumns := product.GetDefaultColumns(q.Table)
+	// Default columns from the caller, or the first few columns if not defined
+	defaultColumns := opts.DefaultColumns
 	if len(defaultColumns) == 0 {
 		// Use first 4 columns as default
 		allCols := table.GetColumnNames()
@@ -394,8 +453,11 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 		GroupedColumns: q.GroupedColumns,
 	}
 
-	// Get or create a cached TableView for this user+table combination
+	// Get or create a cached TableView for this user+table combination. The
+	// table's storage encodings are selected on first use (a no-op for the
+	// loaders that already did it).
 	cacheStart := timing.Now()
+	table.EnsureEncodings()
 	tableView := viewmodel.GetOrCreateTableView(cacheKey, table, s.tableViewCache)
 	timing.Record("Get TableView", timing.Since(cacheStart))
 
@@ -418,7 +480,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	// Apply filters to the table view (even with errors, apply valid filters)
 	filterStart := timing.Now()
 	if err := tableView.ApplyFiltersContext(ctx, q.Filters); err != nil {
-		return &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
+		return nil, &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 	}
 	timing.Record("Apply Filters", timing.Since(filterStart))
 
@@ -441,8 +503,8 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 		// aggregate state: those with any non-count aggregate enabled, and
 		// any column an aggregate group sort ranks by. Count-only storage
 		// columns then skip state building entirely (their count is the
-		// group size), which is the difference between ~70ms and ~900ms on
-		// a 10M-row grouping with several visible string columns.
+		// group size), which is the difference between ~7ms and ~1.8s on a
+		// 10M-row grouping with several visible string columns.
 		aggNeeds := make(map[string]bool)
 		groupedSet := make(map[string]bool, len(q.GroupedColumns))
 		for _, col := range q.GroupedColumns {
@@ -479,7 +541,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 		// limit is passed again: the build ranks all groups and uses the
 		// limit only to bound the child subtrees it constructs.
 		if err := tableView.GroupTableWindowedContext(ctx, q.GroupedColumns, []string{}, make(map[string]tables.Compare), ascMap, q.Limit, expansion); err != nil {
-			return &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
+			return nil, &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 		}
 
 	} else {
@@ -487,7 +549,16 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	}
 	timing.Record("Grouping", timing.Since(groupStart))
 
-	// Build the view model from the table view
+	return &Execution{Query: q, View: view, TableView: tableView, Validation: validation, Timing: timing}, nil
+}
+
+// BuildViewModel turns an execution into the table page's view model:
+// rows or grouped rows with entity URLs, hierarchy contexts, validation
+// errors, phase timings, build version and info pane state. Render it with
+// rendering.NewTableRenderer or your own template.
+func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
+	q, timing := exec.Query, exec.Timing
+
 	vmStart := timing.Now()
 	title := strings.Title(q.Table)
 	urlResolver, allURLsResolver, primaryKeyResolver, descResolver, hierarchyContextBuilder, relatedTablesResolver := s.effectiveResolvers()
@@ -499,7 +570,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	if descResolver != nil {
 		entityTypeDescResolver = viewmodel.EntityTypeDescriptionResolver(descResolver)
 	}
-	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
+	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, exec.TableView, exec.View, title, q, exec.Validation.ComputedColumnErrors, exec.Validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
 	timing.Record("Build ViewModel", timing.Since(vmStart))
 
 	// Set timing information
@@ -514,21 +585,10 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	// Set animation state (transient, for newly grouped columns)
 	viewModel.AnimatedColumn = q.AnimatedColumn
 
-	// Parse column types display state from URL
-	viewModel.ShowColumnTypes = requestURL.Query().Get("types") == "1"
+	// Column types display state
+	viewModel.ShowColumnTypes = q.ShowColumnTypes
 
-	// Set content type and render
-	renderStart := timing.Now()
-	setHeader("Content-Type", "text/html; charset=utf-8")
-	setHeader(versionHeader, viewModel.Build.Version())
-	if err := s.renderer.Render(w, viewModel); err != nil {
-		log.Printf("Template rendering error: %v", err)
-		return &TableHandlerResult{Error: err}
-	}
-	// Note: render timing not included in page since it happens after ViewModel is built
-	_ = renderStart
-
-	return nil
+	return viewModel
 }
 
 // versionHeader carries the serving build's version (core/buildinfo) on

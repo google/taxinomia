@@ -84,6 +84,8 @@ go_test(
     deps = [
         "//datasources",
         "//web/handlers",
+        "//web/rendering",
+        "//web/urlquery",
         "@org_golang_google_protobuf//proto",
     ],
 )

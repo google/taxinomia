@@ -19,6 +19,8 @@ limitations under the License.
 package tables
 
 import (
+	"sync"
+
 	"github.com/google/taxinomia/core/columns"
 )
 
@@ -27,6 +29,8 @@ type DataTable struct {
 	// sortKey records the physical sort order of the storage, set by
 	// SortByKey. Nil means unspecified (load order).
 	sortKey []string
+	// encodeOnce guards EnsureEncodings.
+	encodeOnce sync.Once
 }
 
 func NewDataTable() *DataTable {

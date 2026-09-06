@@ -51,8 +51,9 @@ type Query struct {
 	GroupAggregateSorts map[string]*GroupAggSort   // Aggregate sort for grouped columns (groupedColumn -> sort spec)
 
 	// UI state
-	ShowInfoPane   bool   // Whether the info pane is visible (default: true)
-	InfoPaneTab    string // Active tab in info pane ("url" or "perf")
+	ShowInfoPane    bool   // Whether the info pane is visible (default: true)
+	InfoPaneTab     string // Active tab in info pane ("url" or "perf")
+	ShowColumnTypes bool   // Whether the column types row is shown ("types=1")
 	AnimatedColumn string // Column to animate (e.g., just grouped) - transient, not persisted in subsequent URLs
 	SelectedRowID  string // Primary key value of the selected row (empty = no selection)
 }
@@ -187,6 +188,7 @@ func NewQuery(u *url.URL) *Query {
 	if q.Get("infotab") == "perf" {
 		state.InfoPaneTab = "perf"
 	}
+	state.ShowColumnTypes = q.Get("types") == "1"
 
 	// Extract animation parameter (transient - column that was just grouped)
 	state.AnimatedColumn = q.Get("_anim")
@@ -376,6 +378,7 @@ func (s *Query) Clone() *Query {
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
 		ShowInfoPane:        s.ShowInfoPane,
 		InfoPaneTab:         s.InfoPaneTab,
+		ShowColumnTypes:     s.ShowColumnTypes,
 		SelectedRowID:       s.SelectedRowID,
 		HasExpandedGroups:   s.HasExpandedGroups,
 	}
@@ -711,6 +714,9 @@ func (s *Query) ToURL() string {
 	}
 	if s.InfoPaneTab != "" && s.InfoPaneTab != "url" {
 		q.Set("infotab", s.InfoPaneTab)
+	}
+	if s.ShowColumnTypes {
+		q.Set("types", "1")
 	}
 
 	// Add selected row parameter

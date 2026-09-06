@@ -52,30 +52,41 @@ the handler — so seeing a version proves nothing about the code path.)
 
 Two ways to get the breakdown.
 
-### 1. Route table requests through the handler (recommended)
+### 1. Run the query through `Execute` (recommended)
 
-This is the path the demo server uses and the golden tests verify:
+Since r174 the request pipeline is a public function, `Server.Execute`,
+and the HTML handler is a thin client of it. Execute is the one supported
+way to run a query: it carries every invariant that keeps a request cheap
+(aggregate needs, level-0 aggregate sort, windowed grouping, encoding
+selection) and records the phase timings. Use it whether you render
+taxinomia's page or your own output:
 
 ```go
 srv, err := handlers.NewServer(dataModel)      // github.com/google/taxinomia/web/handlers
 ...
-http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-    // product implements handlers.ProductConfig
-    if res := srv.HandleTableRequestContext(r.Context(), w, r.URL, product, w.Header().Set); res != nil {
-        http.Error(w, res.Message, res.StatusCode)
-    }
-})
+q := urlquery.NewQuery(r.URL)
+exec, res := srv.Execute(r.Context(), q, handlers.ExecOptions{User: user, DefaultColumns: cols})
+if res != nil {
+    http.Error(w, res.Message, res.StatusCode)
+    return
+}
+vm := srv.BuildViewModel(exec)                 // timing, version, info pane all set
+renderer.Render(w, vm)                         // or build your own output from exec.TableView
 ```
 
-`HandleTableRequest` (no context) is the same path without cancellation.
-Everything on the page — timing, version header, info pane state — is
-then produced the way it is tested here.
+`HandleTableRequestContext` is exactly this sequence plus URL parsing and
+the response headers; use it directly when taxinomia's page is what you
+serve. Do **not** reassemble the pipeline from `GetOrCreateTableView`,
+`ApplyFilters` and `GroupTable` yourself: a pipeline rebuilt without the
+invariants above groups 20–250x slower on the same table (measured:
+7 ms vs 1.8 s for a 5-value column over 10M rows), and it records no
+timings. See `docs/client-migration.md`, "Run queries through Execute".
 
 ### 2. Keep your own pipeline and time it yourself
 
-If you build the view model from your own query pipeline, the collector
-is public. Record whatever phases you have and hand the results to the
-view model before rendering:
+Not recommended (see above). If you nevertheless build the view model
+from your own query pipeline, the collector is public. Record whatever
+phases you have and hand the results to the view model before rendering:
 
 ```go
 timing := handlers.NewTimingCollector()        // platform high-resolution clock

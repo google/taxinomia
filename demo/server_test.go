@@ -20,6 +20,7 @@ package demo
 
 import (
 	"bytes"
+	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -29,6 +30,8 @@ import (
 	"testing"
 
 	"github.com/google/taxinomia/web/handlers"
+	"github.com/google/taxinomia/web/rendering"
+	"github.com/google/taxinomia/web/urlquery"
 )
 
 // Golden tests for the full demo request path: SetupDemoServer +
@@ -154,3 +157,57 @@ func TestGoldenDemoPages(t *testing.T) {
 		})
 	}
 }
+
+// TestExecuteMatchesHandler pins the extracted pipeline to the handler: a
+// page built from Execute + BuildViewModel + the renderer — the path an
+// embedding server takes — is byte-identical to HandleTableRequest's.
+func TestExecuteMatchesHandler(t *testing.T) {
+	srv, products := goldenSetup(t)
+	product := products.Get("default")
+	renderer, err := rendering.NewTableRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range []string{
+		"/default/table?table=orders&limit=10",
+		"/default/table?table=orders&grouped=region&limit=25&infotab=perf",
+		"/default/table?table=customer_orders&columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus&row=ORD-2024-001&limit=25&types=1",
+	} {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var viaHandler bytes.Buffer
+		if res := srv.HandleTableRequest(&viaHandler, u, product, func(k, v string) {}); res != nil {
+			t.Fatalf("HandleTableRequest(%s): %+v", raw, res)
+		}
+
+		q := urlquery.NewQuery(u)
+		exec, res := srv.Execute(context.Background(), q, handlers.ExecOptions{DefaultColumns: product.GetDefaultColumns(q.Table)})
+		if res != nil {
+			t.Fatalf("Execute(%s): %+v", raw, res)
+		}
+		// Get TableView, Process Joins, Computed Columns, Apply Filters, Grouping.
+		if got := len(exec.Timing.GetEntries()); got != 5 {
+			t.Errorf("Execute(%s) recorded %d phases, want 5", raw, got)
+		}
+		var viaExecute bytes.Buffer
+		if err := renderer.Render(&viaExecute, srv.BuildViewModel(exec)); err != nil {
+			t.Fatal(err)
+		}
+		// The handler additionally records "Parse Query" as its first phase;
+		// drop that row before comparing.
+		got := string(normalizeHTML(viaExecute.Bytes()))
+		want := parseQueryRowRE.ReplaceAllString(string(normalizeHTML(viaHandler.Bytes())), "")
+		if got != want {
+			i := 0
+			for i < len(got) && i < len(want) && got[i] == want[i] {
+				i++
+			}
+			lo := max(0, i-120)
+			t.Errorf("Execute+BuildViewModel differs from HandleTableRequest for %s at byte %d:\n execute: %q\n handler: %q", raw, i, got[lo:min(len(got), i+120)], want[lo:min(len(want), i+120)])
+		}
+	}
+}
+
+var parseQueryRowRE = regexp.MustCompile(`(?s)\s*<li class="perf-timing-item">\s*<span class="perf-operation">Parse Query</span>.*?</li>`)

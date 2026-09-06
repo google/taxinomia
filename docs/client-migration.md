@@ -305,6 +305,56 @@ your `go.mod`). With Bazel and rules_go, put the same keys in your
 your `--workspace_status_command`. Leaving `revision` and `date` unset
 keeps the source-recorded values; setting only `commit` is fine.
 
+## Run queries through `Execute` — do not rebuild the pipeline
+
+Not a deprecation, but the most important item on this page for a server
+that embeds taxinomia. Several importers reassembled the request pipeline
+from the public building blocks (`GetOrCreateTableView`,
+`ProcessJoinsAndUpdateColumns`, `ApplyFilters`, `GroupTable`,
+`BuildViewModel`). That works, and it is slow: the pieces that keep a
+request cheap lived only inside the HTML handler, so a rebuilt pipeline
+misses them. Measured on a 10M-row table, first grouping on a 5-value
+column:
+
+| Pipeline | Grouping |
+|---|---|
+| `Execute` (or the handler) | 7 ms |
+| rebuilt, aggregate needs never set | 1,786 ms |
+| rebuilt, encodings never selected | 168 ms |
+| rebuilt, unchunked `StringColumn`s | 2,691 ms |
+
+Since r174 the pipeline is public. Replace the reassembly with:
+
+```go
+q := urlquery.NewQuery(r.URL)                       // or build a Query yourself
+exec, res := srv.Execute(ctx, q, handlers.ExecOptions{
+    User:           user,                           // scopes the per-user view cache
+    DefaultColumns: product.GetDefaultColumns(q.Table),
+})
+if res != nil { /* res.StatusCode, res.Message */ }
+
+// Either taxinomia's page:
+vm := srv.BuildViewModel(exec)                      // timing, build version, info pane set
+renderer.Render(w, vm)                              // rendering.NewTableRenderer()
+
+// or your own output from the executed view:
+tv := exec.TableView                                // filtered, joined, grouped
+```
+
+`Execute` validates the resource limits, resolves the table, selects the
+display columns, selects the table's storage encodings on first use,
+updates joins and computed columns, applies filters, and groups with the
+aggregate needs, level-0 aggregate sort and viewport. `exec.Timing` holds
+the phase breakdown; `exec.Validation` the per-column errors.
+`HandleTableRequestContext` is now a fifteen-line client of the same
+function, and a demo test pins the two paths byte-identical.
+
+If you assemble tables yourself (not through a loader), also note:
+`DataTable.EnsureEncodings` is called by Execute, so encodings are no
+longer your responsibility — but build columns as chunked columns
+(`columns.NewChunkedStringColumn` etc.), not the unchunked `StringColumn`;
+unchunked storage groups 4x slower and cannot be encoded.
+
 ## The Performance tab shows no breakdown?
 
 Then your table route does not go through `HandleTableRequestContext`,
