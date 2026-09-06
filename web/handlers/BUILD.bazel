@@ -1,8 +1,19 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_test(
+    name = "handlers_test",
+    srcs = ["hrclock_test.go"],
+    embed = [":handlers"],
+)
 
 go_library(
     name = "handlers",
-    srcs = ["server.go"],
+    srcs = [
+        "hrclock.go",
+        "hrclock_other.go",
+        "hrclock_windows.go",
+        "server.go",
+    ],
     importpath = "github.com/google/taxinomia/web/handlers",
     visibility = [
         "//core/query:__pkg__",

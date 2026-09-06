@@ -249,22 +249,24 @@ func (s *Server) validateFilters(tableView *tables.TableView, filters map[string
 	return errors
 }
 
-// TimingCollector collects timing measurements for various operations
+// TimingCollector collects timing measurements for various operations.
+// Phases are measured with the high-resolution clock (hrNow/hrSince), so
+// sub-millisecond phases show real values instead of 0.00ms.
 type TimingCollector struct {
 	entries []viewmodel.TimingEntry
-	start   time.Time
+	start   hrTime
 }
 
 // NewTimingCollector creates a new timing collector
 func NewTimingCollector() *TimingCollector {
-	return &TimingCollector{start: time.Now()}
+	return &TimingCollector{start: hrNow()}
 }
 
 // Record records a timing entry
 func (tc *TimingCollector) Record(operation string, duration time.Duration) {
 	tc.entries = append(tc.entries, viewmodel.TimingEntry{
 		Operation:  operation,
-		DurationMs: fmt.Sprintf("%.2f", float64(duration.Microseconds())/1000.0),
+		DurationMs: formatMs(duration),
 	})
 }
 
@@ -275,7 +277,12 @@ func (tc *TimingCollector) GetEntries() []viewmodel.TimingEntry {
 
 // TotalMs returns total elapsed time in milliseconds as formatted string
 func (tc *TimingCollector) TotalMs() string {
-	return fmt.Sprintf("%.2f", float64(time.Since(tc.start).Microseconds())/1000.0)
+	return formatMs(hrSince(tc.start))
+}
+
+// formatMs renders a duration as milliseconds with two decimals, rounded.
+func formatMs(d time.Duration) string {
+	return fmt.Sprintf("%.2f", float64(d.Microseconds())/1000.0)
 }
 
 // HandleTableRequest processes a table request and writes the response
@@ -295,9 +302,9 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	timing := NewTimingCollector()
 
 	// Parse URL into Query
-	parseStart := time.Now()
+	parseStart := hrNow()
 	q := urlquery.NewQuery(requestURL)
-	timing.Record("Parse Query", time.Since(parseStart))
+	timing.Record("Parse Query", hrSince(parseStart))
 
 	// Get user from URL parameter - cache is user-specific
 	userName := requestURL.Query().Get("user")
@@ -356,35 +363,35 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	}
 
 	// Get or create a cached TableView for this user+table combination
-	cacheStart := time.Now()
+	cacheStart := hrNow()
 	tableView := viewmodel.GetOrCreateTableView(cacheKey, table, s.tableViewCache)
-	timing.Record("Get TableView", time.Since(cacheStart))
+	timing.Record("Get TableView", hrSince(cacheStart))
 
 	// Update joined columns to match the current request
-	joinStart := time.Now()
+	joinStart := hrNow()
 	viewmodel.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
-	timing.Record("Process Joins", time.Since(joinStart))
+	timing.Record("Process Joins", hrSince(joinStart))
 
 	// Create validation result to collect errors
 	validation := NewValidationResult()
 
 	// Create computed columns from the query (with caching)
-	computedStart := time.Now()
+	computedStart := hrNow()
 	validation.ComputedColumnErrors = s.updateComputedColumns(tableView, q, cacheKey)
-	timing.Record("Computed Columns", time.Since(computedStart))
+	timing.Record("Computed Columns", hrSince(computedStart))
 
 	// Validate filter columns exist before applying
 	validation.FilterErrors = s.validateFilters(tableView, q.Filters)
 
 	// Apply filters to the table view (even with errors, apply valid filters)
-	filterStart := time.Now()
+	filterStart := hrNow()
 	if err := tableView.ApplyFiltersContext(ctx, q.Filters); err != nil {
 		return &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 	}
-	timing.Record("Apply Filters", time.Since(filterStart))
+	timing.Record("Apply Filters", hrSince(filterStart))
 
 	// Apply grouping if grouped columns are specified
-	groupStart := time.Now()
+	groupStart := hrNow()
 	if len(q.GroupedColumns) > 0 {
 		// Build ascending map from sort order for grouped columns
 		ascMap := make(map[string]bool)
@@ -446,10 +453,10 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	} else {
 		tableView.ClearGroupings()
 	}
-	timing.Record("Grouping", time.Since(groupStart))
+	timing.Record("Grouping", hrSince(groupStart))
 
 	// Build the view model from the table view
-	vmStart := time.Now()
+	vmStart := hrNow()
 	title := strings.Title(q.Table)
 	urlResolver, allURLsResolver, primaryKeyResolver, descResolver, hierarchyContextBuilder, relatedTablesResolver := s.effectiveResolvers()
 	var primaryKeyEntityType string
@@ -461,7 +468,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 		entityTypeDescResolver = viewmodel.EntityTypeDescriptionResolver(descResolver)
 	}
 	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, tableView, view, title, q, validation.ComputedColumnErrors, validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
-	timing.Record("Build ViewModel", time.Since(vmStart))
+	timing.Record("Build ViewModel", hrSince(vmStart))
 
 	// Set timing information
 	viewModel.RenderTimeMs = timing.TotalMs()
@@ -479,7 +486,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	viewModel.ShowColumnTypes = requestURL.Query().Get("types") == "1"
 
 	// Set content type and render
-	renderStart := time.Now()
+	renderStart := hrNow()
 	setHeader("Content-Type", "text/html; charset=utf-8")
 	setHeader(versionHeader, viewModel.Build.Version())
 	if err := s.renderer.Render(w, viewModel); err != nil {
