@@ -54,8 +54,8 @@ type Query struct {
 	ShowInfoPane    bool   // Whether the info pane is visible (default: true)
 	InfoPaneTab     string // Active tab in info pane ("url" or "perf")
 	ShowColumnTypes bool   // Whether the column types row is shown ("types=1")
-	AnimatedColumn string // Column to animate (e.g., just grouped) - transient, not persisted in subsequent URLs
-	SelectedRowID  string // Primary key value of the selected row (empty = no selection)
+	AnimatedColumn  string // Column to animate (e.g., just grouped) - transient, not persisted in subsequent URLs
+	SelectedRowID   string // Primary key value of the selected row (empty = no selection)
 }
 
 // NewQuery creates a Query from a URL
