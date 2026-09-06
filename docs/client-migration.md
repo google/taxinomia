@@ -305,6 +305,13 @@ your `go.mod`). With Bazel and rules_go, put the same keys in your
 your `--workspace_status_command`. Leaving `revision` and `date` unset
 keeps the source-recorded values; setting only `commit` is fine.
 
+## The Performance tab shows no breakdown?
+
+Then your table route does not go through `HandleTableRequestContext`,
+which is the only producer of the phase timings. `docs/perf-timing.md`
+explains the symptom, the two fixes (route through the handler, or time
+your own pipeline with `handlers.TimingCollector`), and the clock.
+
 ## Timing the perf breakdown with your own clock
 
 Also new and additive. The perf tab's phase timings come from an

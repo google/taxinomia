@@ -1,4 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_test(
+    name = "rendering_test",
+    srcs = ["renderer_test.go"],
+    embed = [":rendering"],
+    deps = ["//web/viewmodel"],
+)
 
 go_library(
     name = "rendering",
