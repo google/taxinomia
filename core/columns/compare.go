@@ -20,7 +20,6 @@ package columns
 
 import (
 	"math"
-	"strings"
 	"time"
 )
 
@@ -30,7 +29,7 @@ import (
 func CompareAtIndex(col IDataColumn, i, j uint32) int {
 	switch c := col.(type) {
 	case *StringColumn:
-		return strings.Compare(c.data[i], c.data[j])
+		return CompareStrings(c.columnDef.collation, c.data[i], c.data[j])
 
 	case *Uint32Column:
 		if c.data[i] < c.data[j] {
@@ -78,7 +77,7 @@ func CompareAtIndex(col IDataColumn, i, j uint32) int {
 		if errI != nil || errJ != nil {
 			return compareErrors(errI, errJ)
 		}
-		return strings.Compare(vi, vj)
+		return CompareStrings(c.ColumnDef().collation, vi, vj)
 
 	case *ComputedUint32Column:
 		vi, errI := c.GetValue(i)
@@ -160,7 +159,11 @@ func CompareAtIndex(col IDataColumn, i, j uint32) int {
 		if errI != nil || errJ != nil {
 			return compareErrors(errI, errJ)
 		}
-		return strings.Compare(si, sj)
+		var coll Collation
+		if def := col.ColumnDef(); def != nil {
+			coll = def.collation
+		}
+		return CompareStrings(coll, si, sj)
 	}
 }
 

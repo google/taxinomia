@@ -49,6 +49,8 @@ message ColumnAnnotation {
   string name = 1;           // Column name (matches field name in data)
   string display_name = 2;   // Human-readable name for UI
   string entity_type = 3;    // Entity type for joins (e.g., "customer_id")
+  Collation collation = 4;   // Ordering of string values: COLLATION_DEFAULT (bytewise)
+                             // or COLLATION_NATURAL ("k9" < "k10", "item-2" < "item-10")
 }
 
 message ColumnAnnotations {

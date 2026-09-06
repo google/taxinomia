@@ -101,3 +101,49 @@ func TestSortedRowsStorageFastPath(t *testing.T) {
 		t.Errorf("filtered key-first: %v, want %v", got, want)
 	}
 }
+
+// TestNaturalCollationOrdersGroupsAndRows: a string column declared with
+// natural collation groups and sorts like numbers ("k9" before "k10"),
+// through the dictionary-encoded and the raw chunked shapes alike.
+func TestNaturalCollationOrdersGroupsAndRows(t *testing.T) {
+	for _, encode := range []bool{false, true} {
+		id := columns.NewChunkedStringColumn(columns.NewColumnDef("id", "id", ""))
+		tag := columns.NewChunkedStringColumn(columns.NewColumnDef("tag", "tag", "").SetCollation(columns.CollationNatural))
+		vals := []string{"k10", "k9", "k100", "k2", "k9", "k10", "k2", "k1"}
+		for i, v := range vals {
+			id.Append(fmt.Sprintf("r%02d", i))
+			tag.Append(v)
+		}
+		id.FinalizeColumn()
+		tag.FinalizeColumn()
+		tbl := NewDataTable()
+		tbl.AddColumn(id)
+		tbl.AddColumn(tag)
+		if err := tbl.SortByKey([]string{"id"}); err != nil {
+			t.Fatal(err)
+		}
+		if encode {
+			tbl.SelectEncodings()
+		}
+		tv := NewTableView(tbl, "t")
+		tv.SetAggregateNeeds(map[string]bool{})
+		tv.GroupTable([]string{"tag"}, nil, map[string]Compare{}, map[string]bool{"tag": true})
+		var got []string
+		for _, g := range tv.GetFirstBlock().Groups {
+			v, _ := tbl.GetColumn("tag").GetString(g.First)
+			got = append(got, v)
+		}
+		if want := "[k1 k2 k9 k10 k100]"; fmt.Sprint(got) != want {
+			t.Errorf("encode=%v: group order %v, want %s (column %T)", encode, got, want, tbl.GetColumn("tag"))
+		}
+		tv.ClearGroupings()
+		rows := tv.GetFilteredRowsSorted([]string{"id", "tag"}, []queryspec.SortColumn{{Name: "tag"}}, 4)
+		var tags []string
+		for _, r := range rows {
+			tags = append(tags, r["tag"])
+		}
+		if want := "[k1 k2 k2 k9]"; fmt.Sprint(tags) != want {
+			t.Errorf("encode=%v: sorted rows %v, want %s", encode, tags, want)
+		}
+	}
+}

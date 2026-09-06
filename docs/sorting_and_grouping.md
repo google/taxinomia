@@ -27,6 +27,12 @@ priority — a column's significance is its position.
   grouping levels are the most significant keys.
 - **Ties**: rows equal on every visible column follow the table's storage
   key (its primary key), so the order is always deterministic.
+- **String columns that hold numbers or numbered identifiers** ("k9", "k10";
+  "item-2", "item-10") compare bytewise by default, which puts "k10" before
+  "k9". Declare `collation: COLLATION_NATURAL` on the column in the data
+  source annotations (or `SetCollation(columns.CollationNatural)` on a
+  programmatic column definition) and every comparison — row sort, group
+  order, storage sort — orders the digit runs as numbers.
 
 The default view — the key column leftmost, everything ascending — is read
 straight from storage at no cost. Any other order is a bounded top-K

@@ -33,6 +33,21 @@ message ColumnAnnotation {
   // Entity type for join support (e.g., "customer_id", "order_id").
   // Columns with matching entity types across tables can be joined.
   string entity_type = 3;
+
+  // How the column's string values are ordered — for sorting rows, ordering
+  // groups and the storage sort. Ignored for non-string columns (they order
+  // by their own type).
+  Collation collation = 4;
+}
+
+// Collation specifies the ordering of a string column's values.
+enum Collation {
+  // Bytewise: "k10" < "k9", "Zebra" < "apple".
+  COLLATION_DEFAULT = 0;
+  // Like numbers wherever both values carry digits: "k9" < "k10",
+  // "item-2" < "item-10". Use for string columns holding identifiers or
+  // numbers that must not be typed numeric.
+  COLLATION_NATURAL = 1;
 }
 
 // ColumnAnnotations defines annotations for columns in a data source.

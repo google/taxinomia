@@ -426,7 +426,7 @@ func (c *ChunkedArenaStringColumn) GroupIndices(indices []uint32, columnView *Co
 
 // CompareRows compares the values at rows i and j, satisfying RowComparator.
 func (c *ChunkedArenaStringColumn) CompareRows(i, j uint32) int {
-	return strings.Compare(c.value(i), c.value(j))
+	return CompareStrings(c.columnDef.collation, c.value(i), c.value(j))
 }
 
 // --- IGroupOps ---

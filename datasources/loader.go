@@ -96,6 +96,7 @@ type EnrichedColumn struct {
 	Type        ColumnType
 	DisplayName string
 	EntityType  string
+	Collation   columns.Collation // ordering of string values (from the annotation's collation)
 }
 
 // DataSourceLoader is the interface that all data source loaders must implement.
@@ -135,6 +136,7 @@ func EnrichSchema(schema *TableSchema, annotations *ColumnAnnotations) []*Enrich
 				enriched.DisplayName = ann.GetDisplayName()
 			}
 			enriched.EntityType = ann.GetEntityType()
+			enriched.Collation = collationFromProto(ann.GetCollation())
 		}
 
 		result[i] = enriched
@@ -156,7 +158,16 @@ func AnnotationsToColumnMap(annotations *ColumnAnnotations) map[string]*ColumnAn
 
 // CreateColumnDef creates a columns.ColumnDef from an EnrichedColumn.
 func CreateColumnDef(col *EnrichedColumn) *columns.ColumnDef {
-	return columns.NewColumnDef(col.Name, col.DisplayName, col.EntityType)
+	return columns.NewColumnDef(col.Name, col.DisplayName, col.EntityType).SetCollation(col.Collation)
+}
+
+// collationFromProto maps the configured collation onto the column
+// definition's.
+func collationFromProto(c Collation) columns.Collation {
+	if c == Collation_COLLATION_NATURAL {
+		return columns.CollationNatural
+	}
+	return columns.CollationDefault
 }
 
 // CreateTable creates an empty DataTable with columns based on enriched schema.

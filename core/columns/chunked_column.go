@@ -424,6 +424,10 @@ func (c *chunkedColumn[T, K]) CompareRows(i, j uint32) int {
 			return -1
 		}
 	}
+	// String values honour the column definition's collation.
+	if sa, ok := any(a).(string); ok {
+		return CompareStrings(c.columnDef.collation, sa, any(b).(string))
+	}
 	return c.compare(a, b)
 }
 

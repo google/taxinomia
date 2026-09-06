@@ -123,6 +123,21 @@ type ColumnDef struct {
 	name        string // must not contain any of the following characters: & = : ,
 	displayName string
 	entityType  string
+	collation   Collation // how string values order (sorting, grouping, storage sort); see Collation
+}
+
+// Collation is how this column's string values are ordered.
+func (cd *ColumnDef) Collation() Collation {
+	return cd.collation
+}
+
+// SetCollation declares how the column's string values are ordered — set
+// it in the table/column definition, before the column is finalized or the
+// table sorted, since the storage sort and every comparison honour it.
+// Returns the definition for chaining.
+func (cd *ColumnDef) SetCollation(c Collation) *ColumnDef {
+	cd.collation = c
+	return cd
 }
 
 // NewColumnDef creates a new ColumnDef with the given name and display name

@@ -157,7 +157,7 @@ func (l *CsvLoader) Load(config map[string]string, enrichedColumns []*EnrichedCo
 	// Create columns (all string columns for CSV), chunked storage
 	stringCols := make([]*columns.ChunkedStringColumn, len(enrichedColumns))
 	for i, enriched := range enrichedColumns {
-		colDef := columns.NewColumnDef(enriched.Name, enriched.DisplayName, enriched.EntityType)
+		colDef := CreateColumnDef(enriched)
 		stringCols[i] = columns.NewChunkedStringColumn(colDef)
 	}
 
@@ -337,7 +337,7 @@ func (l *CsvLoaderTyped) Load(config map[string]string, enrichedColumns []*Enric
 
 	// Create and populate columns based on enriched types
 	for i, enriched := range enrichedColumns {
-		colDef := columns.NewColumnDef(enriched.Name, enriched.DisplayName, enriched.EntityType)
+		colDef := CreateColumnDef(enriched)
 
 		switch enriched.Type {
 		case TypeInt64:

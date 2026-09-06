@@ -209,7 +209,7 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 			}
 		}
 
-		colDef := columns.NewColumnDef(enriched.Name, enriched.DisplayName, enriched.EntityType)
+		colDef := CreateColumnDef(enriched)
 		fd := fieldDescs[i]
 
 		switch enriched.Type {

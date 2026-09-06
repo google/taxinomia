@@ -524,3 +524,17 @@ func TestLoadDataBadSortKeyFails(t *testing.T) {
 		t.Fatal("expected error for sort key naming an unknown column")
 	}
 }
+
+// TestAnnotationCollationReachesColumnDef: the collation declared in a
+// column annotation lands on the column definition the loaders build.
+func TestAnnotationCollationReachesColumnDef(t *testing.T) {
+	schema := &TableSchema{Columns: []*ColumnSchema{{Name: "sku", Type: TypeString}, {Name: "name", Type: TypeString}}}
+	ann := &ColumnAnnotations{Columns: []*ColumnAnnotation{{Name: "sku", Collation: Collation_COLLATION_NATURAL}}}
+	enriched := EnrichSchema(schema, ann)
+	if got := CreateColumnDef(enriched[0]).Collation(); got != columns.CollationNatural {
+		t.Errorf("sku collation = %v, want natural", got)
+	}
+	if got := CreateColumnDef(enriched[1]).Collation(); got != columns.CollationDefault {
+		t.Errorf("name collation = %v, want default", got)
+	}
+}
