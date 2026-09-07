@@ -59,6 +59,11 @@ func aggregateSetting(cols ...string) StepSetting {
 	return StepSetting{Kind: "aggregate", Columns: cols}
 }
 
+// LastFiltersRecomputed reports whether the last ApplyFilters call scanned
+// the table, as opposed to reusing the cached selection for unchanged
+// filters — the perf tab attributes rows to the phase only when it did.
+func (t *TableView) LastFiltersRecomputed() bool { return t.filtersRecomputed }
+
 // LastGroupingSteps returns the timed steps of the last grouping call, in
 // execution order. Empty when the view has never been grouped.
 func (t *TableView) LastGroupingSteps() []GroupingStep {

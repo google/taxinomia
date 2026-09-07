@@ -104,6 +104,9 @@ type TableView struct {
 
 	// Filtering
 	filterSel   *columns.Selection // Cached filter selection bitmap (nil = no filter, all rows shown)
+	// filtersRecomputed reports whether the last ApplyFilters call scanned
+	// the table (false: filters unchanged, selection reused).
+	filtersRecomputed bool
 	lastFilters map[string]string  // Filters that produced current selection (for change detection)
 
 	// Grouping cache tracking
@@ -290,6 +293,7 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 // recomputes them. Filters on columns without structured filter support are
 // scanned per row; those scans observe the context only between columns.
 func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]string) error {
+	t.filtersRecomputed = false
 	// Check if filters are unchanged - skip recomputation
 	if t.filtersEqual(filters) {
 		return nil
@@ -301,6 +305,7 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 		t.lastFilters = nil
 		return nil
 	}
+	t.filtersRecomputed = true
 
 	// Initialize the selection - start with all rows passing
 	t.filterSel = columns.NewSelectionAll(t.baseTable.Length())

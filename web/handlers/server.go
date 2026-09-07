@@ -564,7 +564,11 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	var filterLinks []viewmodel.SettingLink
 	filterRows := 0
 	if len(q.Filters) > 0 {
-		filterRows = table.Length()
+		if tableView.LastFiltersRecomputed() {
+			filterRows = table.Length()
+		} else {
+			filterLinks = append(filterLinks, viewmodel.SettingLink{Text: "cached: filters unchanged"})
+		}
 		for col, value := range q.Filters {
 			nq := q.Clone()
 			delete(nq.Filters, col)
