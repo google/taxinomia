@@ -270,7 +270,7 @@ func (t *TableView) filterAggLeafColumns(leafColumns []string) []string {
 //   - If filter value is enclosed in double quotes (e.g., "exact"), performs case-sensitive exact match
 //   - Otherwise, performs case-insensitive substring match
 //
-// All filters must match (AND logic) for a row to pass
+// # All filters must match (AND logic) for a row to pass
 //
 // Optimization: Processes each column once, applying filter logic column-by-column
 // rather than row-by-row. This minimizes redundant condition checks and improves
@@ -657,12 +657,13 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	// entity subtrees to display 25 — seconds of wasted build).
 	childParents := parentBlocks
 	if s := t.level0AggSort; s != nil && s.AggType != queryspec.AggSubgroupCount {
-		step = t.stepStart()
+		// (the level-0 aggregates it needs record their own steps)
 		if err := t.computeLevelZeroAggregates(ctx); err != nil {
 			return err
 		}
+		step = t.stepStart()
 		t.sortBlockByAggregate(t.firstBlock, map[string]*queryspec.GroupAggSort{groupingOrder[0]: s})
-		t.recordStep(fmt.Sprintf("rank level 0 by %s(%s) over all groups", s.AggType, s.LeafColumn), step)
+		t.recordStep(fmt.Sprintf("rank all %d level-0 groups by %s(%s)", len(t.firstBlock.Groups), s.AggType, s.LeafColumn), step)
 		if displayLimit > 0 && displayLimit < len(t.firstBlock.Groups) {
 			// Groups outside the display window stay in the block (the
 			// ranking and totals are complete) but become final leaves:
@@ -1604,23 +1605,33 @@ func (tv *TableView) computeAggregates(ctx context.Context, leafColumns []string
 		return err
 	}
 
+	// Columns whose level-0 state is already there (merged partials above,
+	// or the ranking pass) only pay the per-row pass on deeper levels; the
+	// others pay it on every level.
+	var allLevels, deeperOnly []string
+	for _, colName := range leafColumns {
+		_, viaBulk := bulk[colName]
+		have := len(tv.firstBlock.Groups) > 0 && tv.firstBlock.Groups[0].Aggregates != nil && tv.firstBlock.Groups[0].Aggregates[colName] != nil
+		if viaBulk || have {
+			deeperOnly = append(deeperOnly, colName)
+		} else {
+			allLevels = append(allLevels, colName)
+		}
+	}
+
 	// Walk the hierarchy bottom-up, starting from leaves
 	step := tv.stepStart()
 	err = tv.computeAggregatesForBlock(ctx, tv.firstBlock, leafColumns, columnTypes, bulk)
-	perRow := make([]string, 0, len(leafColumns))
-	for _, colName := range leafColumns {
-		if _, viaBulk := bulk[colName]; !viaBulk {
-			perRow = append(perRow, colName)
-		}
+	var parts []string
+	if len(allLevels) > 0 {
+		parts = append(parts, strings.Join(allLevels, ", ")+" (all levels)")
 	}
-	switch {
-	case len(perRow) > 0 && len(tv.groupingOrder) > 1:
-		tv.recordStep(fmt.Sprintf("aggregates per row for %s (all levels; deeper levels for every column)", strings.Join(perRow, ", ")), step)
-	case len(perRow) > 0:
-		tv.recordStep(fmt.Sprintf("aggregates per row for %s", strings.Join(perRow, ", ")), step)
-	case len(tv.groupingOrder) > 1:
-		tv.recordStep("aggregates per row for deeper levels", step)
-	default:
+	if len(deeperOnly) > 0 && len(tv.groupingOrder) > 1 {
+		parts = append(parts, strings.Join(deeperOnly, ", ")+" (deeper levels)")
+	}
+	if len(parts) > 0 {
+		tv.recordStep("aggregates per row: "+strings.Join(parts, "; "), step)
+	} else {
 		tv.recordStep("assemble level-0 states from partials", step)
 	}
 	return err

@@ -80,7 +80,7 @@ func TestGroupingStepsCoverTheBuild(t *testing.T) {
 	tv.SetAggregateNeeds(map[string]bool{"id": true})
 	group(tv, []string{"grp", "sub"})
 	got = stepNames(tv.LastGroupingSteps())
-	for _, want := range []string{"partition by grp", "level 1 by sub: 3 blocks, 6 groups", "aggregates per row for id"} {
+	for _, want := range []string{"partition by grp", "level 1 by sub: 3 blocks, 6 groups", "aggregates per row: id (all levels)"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("two-level steps %q lack %q", got, want)
 		}
