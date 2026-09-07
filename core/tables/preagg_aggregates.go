@@ -97,7 +97,7 @@ func (tv *TableView) bulkLevel0Aggregates(ctx context.Context, leafColumns []str
 		}
 		bulk[colName] = aggs
 		bulkAggregatedColumns.Add(1)
-		tv.recordStep(fmt.Sprintf("aggregates level 0 for %s: merge per-chunk partials", colName), step)
+		tv.recordStep(fmt.Sprintf("aggregates level 0 for %s: merge per-chunk partials", colName), step, tv.GetFilteredRowCount(), aggregateSetting(colName))
 	}
 	return bulk, nil
 }

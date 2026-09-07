@@ -520,6 +520,50 @@
             border-radius: 3px;
         }
 
+        /* Setting chips (with their disable links) and the volume column */
+        .perf-settings {
+            flex: 1;
+            margin: 0 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .perf-setting {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            background-color: #eef3f8;
+            color: #2c5d8a;
+            text-decoration: none;
+            border: 1px solid #d5e2ee;
+            white-space: nowrap;
+        }
+
+        .perf-setting:hover {
+            background-color: #dbe7f3;
+        }
+
+        .perf-setting.plain {
+            background-color: #f3f3f3;
+            color: #777;
+            border-color: #e4e4e4;
+        }
+
+        .perf-volume {
+            color: #999;
+            font-size: 11px;
+            white-space: nowrap;
+            margin-right: 14px;
+            min-width: 20em;
+            text-align: right;
+        }
+
+        .perf-duration {
+            min-width: 6em;
+            text-align: right;
+        }
+
         /* A step within the phase above it (e.g. the grouping build's parts) */
         .perf-timing-item.sub {
             margin-left: 28px;
@@ -3267,42 +3311,62 @@ Use &quot;quotes&quot; for exact match">
                     </div>
                     
                     <div class="tab-content" id="tab-perf">
-                        <h3 class="perf-section-title">Server-side Timing Breakdown</h3>
+                        <h3 class="perf-section-title">Data</h3>
+                        <ul class="perf-timing-list perf-data">
+                            <li class="perf-timing-item"><span class="perf-operation">Table</span><span class="perf-build">BUILD</span></li>
+                            <li class="perf-timing-item"><span class="perf-operation">After filters</span><span class="perf-build">BUILD</span></li>
+                            <li class="perf-timing-item"><span class="perf-operation">Displayed</span><span class="perf-build">BUILD</span></li>
+                        </ul>
+                        <h3 class="perf-section-title" style="margin-top: 15px;">Server-side Timing Breakdown</h3>
                         
                         <ul class="perf-timing-list">
                             
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Parse Query</span>
+                                <span class="perf-settings"></span>
+                                <span class="perf-volume"></span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Get TableView</span>
+                                <span class="perf-settings"></span>
+                                <span class="perf-volume"></span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Process Joins</span>
+                                <span class="perf-settings"></span>
+                                <span class="perf-volume"></span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Computed Columns</span>
+                                <span class="perf-settings"></span>
+                                <span class="perf-volume"></span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Apply Filters</span>
+                                <span class="perf-settings"></span>
+                                <span class="perf-volume"></span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Grouping</span>
+                                <span class="perf-settings"></span>
+                                <span class="perf-volume"></span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             
                             <li class="perf-timing-item">
                                 <span class="perf-operation">Build ViewModel</span>
+                                <span class="perf-settings"><span class="perf-setting plain">limit 25</span></span>
+                                <span class="perf-volume">VOLUME</span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             

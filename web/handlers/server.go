@@ -24,6 +24,7 @@ import (
 	"io"
 	"log"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -312,6 +313,57 @@ func (tc *TimingCollector) RecordSub(step string, duration time.Duration) {
 	})
 }
 
+// RecordEntry records a fully described entry (volume, settings).
+func (tc *TimingCollector) RecordEntry(e viewmodel.TimingEntry) {
+	tc.entries = append(tc.entries, e)
+}
+
+// entry builds a phase entry with its duration, volume and settings.
+func entry(operation string, d time.Duration, rows int, settings ...viewmodel.SettingLink) viewmodel.TimingEntry {
+	return viewmodel.TimingEntry{Operation: operation, DurationMs: formatMs(d), Settings: settings}.WithVolume(d, rows)
+}
+
+// stepEntry turns a grouping step into an indented entry, attaching the
+// links that switch off the setting behind it.
+func stepEntry(q *urlquery.Query, tv *tables.TableView, step tables.GroupingStep) viewmodel.TimingEntry {
+	e := viewmodel.TimingEntry{Operation: step.Name, DurationMs: formatMs(step.Duration), Sub: true}.WithVolume(step.Duration, step.Rows)
+	e.Settings = settingLinks(q, tv, step.Setting)
+	return e
+}
+
+// settingLinks maps a grouping step's setting onto the query's toggles.
+func settingLinks(q *urlquery.Query, tv *tables.TableView, s tables.StepSetting) []viewmodel.SettingLink {
+	var links []viewmodel.SettingLink
+	switch s.Kind {
+	case "group":
+		col := s.Columns[0]
+		links = append(links, viewmodel.SettingLink{Text: "grouped by " + col, Title: "ungroup " + col, URL: viewmodel.BuildToggleGroupingURL(q, col), HasURL: true})
+	case "aggsort":
+		col := s.Columns[0]
+		nq := q.Clone()
+		delete(nq.GroupAggregateSorts, col)
+		links = append(links, viewmodel.SettingLink{Text: "group sort on " + col, Title: "sort " + col + " by value instead", URL: nq.ToSafeURL(), HasURL: true})
+	case "aggregate":
+		for _, col := range s.Columns {
+			enabled := q.GetEnabledAggregates(col, tv.GetColumnType(col))
+			n := 0
+			for _, agg := range enabled {
+				if agg == urlquery.AggCount {
+					continue
+				}
+				n++
+				links = append(links, viewmodel.SettingLink{Text: urlquery.AggregateSymbol(agg) + " on " + col, Title: "disable " + string(agg) + " on " + col, URL: q.WithAggregateToggled(col, agg), HasURL: true})
+			}
+			if n == 0 {
+				// State needed without a displayed aggregate: a group sort
+				// ranks by it, or the column is computed/joined.
+				links = append(links, viewmodel.SettingLink{Text: "state for " + col + " (group sort or virtual column)"})
+			}
+		}
+	}
+	return links
+}
+
 // GetEntries returns all timing entries
 func (tc *TimingCollector) GetEntries() []viewmodel.TimingEntry {
 	return tc.entries
@@ -474,7 +526,13 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	// Update joined columns to match the current request
 	joinStart := timing.Now()
 	viewmodel.ProcessJoinsAndUpdateColumns(tableView, &view, s.dataModel)
-	timing.Record("Process Joins", timing.Since(joinStart))
+	var joinLinks []viewmodel.SettingLink
+	for _, col := range view.Columns {
+		if strings.Contains(col, ".") {
+			joinLinks = append(joinLinks, viewmodel.SettingLink{Text: "joined column " + col, Title: "hide " + col, URL: q.WithoutColumn(col), HasURL: true})
+		}
+	}
+	timing.RecordEntry(entry("Process Joins", timing.Since(joinStart), 0, joinLinks...))
 
 	// Create validation result to collect errors
 	validation := NewValidationResult()
@@ -482,7 +540,18 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	// Create computed columns from the query (with caching)
 	computedStart := timing.Now()
 	validation.ComputedColumnErrors = s.updateComputedColumns(tableView, q, cacheKey)
-	timing.Record("Computed Columns", timing.Since(computedStart))
+	var computedLinks []viewmodel.SettingLink
+	for _, c := range q.ComputedColumns {
+		nq := q.Clone()
+		nq.ComputedColumns = nil
+		for _, o := range q.ComputedColumns {
+			if o.Name != c.Name {
+				nq.ComputedColumns = append(nq.ComputedColumns, o)
+			}
+		}
+		computedLinks = append(computedLinks, viewmodel.SettingLink{Text: "computed column " + c.Name, Title: "remove " + c.Name, URL: nq.ToSafeURL(), HasURL: true})
+	}
+	timing.RecordEntry(entry("Computed Columns", timing.Since(computedStart), 0, computedLinks...))
 
 	// Validate filter columns exist before applying
 	validation.FilterErrors = s.validateFilters(tableView, q.Filters)
@@ -492,7 +561,18 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	if err := tableView.ApplyFiltersContext(ctx, q.Filters); err != nil {
 		return nil, &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 	}
-	timing.Record("Apply Filters", timing.Since(filterStart))
+	var filterLinks []viewmodel.SettingLink
+	filterRows := 0
+	if len(q.Filters) > 0 {
+		filterRows = table.Length()
+		for col, value := range q.Filters {
+			nq := q.Clone()
+			delete(nq.Filters, col)
+			filterLinks = append(filterLinks, viewmodel.SettingLink{Text: "filter " + col + " = " + value, Title: "clear the filter on " + col, URL: nq.ToSafeURL(), HasURL: true})
+		}
+		sort.Slice(filterLinks, func(i, j int) bool { return filterLinks[i].Text < filterLinks[j].Text })
+	}
+	timing.RecordEntry(entry("Apply Filters", timing.Since(filterStart), filterRows, filterLinks...))
 
 	// Apply grouping if grouped columns are specified
 	groupStart := timing.Now()
@@ -554,10 +634,11 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	}
 	timing.Record("Grouping", timing.Since(groupStart))
 	// The grouping build's own steps (partition, level sorts, per-column
-	// aggregates, release), listed under the phase.
+	// aggregates, release), listed under the phase with their volume and
+	// the setting that caused each.
 	if len(q.GroupedColumns) > 0 {
 		for _, step := range tableView.LastGroupingSteps() {
-			timing.RecordSub(step.Name, step.Duration)
+			timing.RecordEntry(stepEntry(q, tableView, step))
 		}
 	}
 
@@ -583,11 +664,16 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 		entityTypeDescResolver = viewmodel.EntityTypeDescriptionResolver(descResolver)
 	}
 	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, exec.TableView, exec.View, title, q, exec.Validation.ComputedColumnErrors, exec.Validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
-	timing.Record("Build ViewModel", timing.Since(vmStart))
+	displayed := len(viewModel.Rows)
+	if viewModel.IsGrouped {
+		displayed = viewModel.DisplayedRows
+	}
+	timing.RecordEntry(entry("Build ViewModel", timing.Since(vmStart), displayed, viewmodel.SettingLink{Text: fmt.Sprintf("limit %d", q.Limit)}))
 
 	// Set timing information
 	viewModel.RenderTimeMs = timing.TotalMs()
 	viewModel.TimingBreakdown = timing.GetEntries()
+	viewModel.Perf = perfData(exec.TableView, q, displayed)
 
 	// Set info pane state from Query (already parsed from URL)
 	viewModel.ShowInfoPane = q.ShowInfoPane
@@ -601,6 +687,26 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	viewModel.ShowColumnTypes = q.ShowColumnTypes
 
 	return viewModel
+}
+
+// perfData assembles the Performance tab's "Data" section: the sizes the
+// request's costs are proportional to.
+func perfData(tv *tables.TableView, q *urlquery.Query, displayed int) viewmodel.PerfData {
+	total, filtered := tv.NumRows(), tv.GetFilteredRowCount()
+	d := viewmodel.PerfData{
+		TableRows:    viewmodel.FormatCount(total),
+		Columns:      viewmodel.FormatCount(len(tv.GetBaseTable().GetColumnNames())),
+		FilteredRows: viewmodel.FormatCount(filtered),
+		Displayed:    viewmodel.FormatCount(displayed),
+		VisibleCols:  viewmodel.FormatCount(len(q.Columns)),
+	}
+	if len(q.Filters) > 0 && total > 0 {
+		d.Selectivity = fmt.Sprintf("%.1f%%", 100*float64(filtered)/float64(total))
+	}
+	for _, col := range q.GroupedColumns {
+		d.Levels = append(d.Levels, viewmodel.PerfLevel{Column: col, Groups: viewmodel.FormatCount(tv.GetGroupCount(col))})
+	}
+	return d
 }
 
 // versionHeader carries the serving build's version (core/buildinfo) on

@@ -4,6 +4,7 @@ go_library(
     name = "viewmodel",
     srcs = [
         "landing_viewmodel.go",
+        "perf_viewmodel.go",
         "format.go",
         "table_viewmodel.go",
         "view.go",

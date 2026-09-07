@@ -74,10 +74,13 @@ func goldenSetup(t *testing.T) (*handlers.Server, *ProductRegistry) {
 var (
 	timingRE = regexp.MustCompile(`(class="(?:perf-duration|timing-value)">)[0-9][0-9.]*ms`)
 	buildRE  = regexp.MustCompile(`(class="(?:build-version|perf-build)")(?: title="[^"]*")?>[^<]*<`)
+	// The perf tab's per-row cost and rate derive from the durations.
+	volumeRE = regexp.MustCompile(`(class="perf-volume">)[^<]+<`)
 )
 
 func normalizeHTML(b []byte) []byte {
 	b = timingRE.ReplaceAll(b, []byte(`${1}0.00ms`))
+	b = volumeRE.ReplaceAll(b, []byte(`${1}VOLUME<`))
 	return buildRE.ReplaceAll(b, []byte(`${1}>BUILD<`))
 }
 

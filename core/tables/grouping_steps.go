@@ -33,6 +33,30 @@ import (
 type GroupingStep struct {
 	Name     string
 	Duration time.Duration
+	// Rows is the number of rows the step processed (0 when the step is not
+	// per-row: sorts over groups, cache hits, release). Duration/Rows is the
+	// step's cost per row.
+	Rows int
+	// Setting names the query setting that caused the step, so the UI can
+	// offer to switch it off.
+	Setting StepSetting
+}
+
+// StepSetting identifies the query setting behind a grouping step.
+type StepSetting struct {
+	// Kind: "group" (grouping by Columns[0]), "aggsort" (aggregate group
+	// sort on Columns[0]), "aggregate" (aggregates enabled on Columns), or
+	// "" (inherent to grouping).
+	Kind    string
+	Columns []string
+}
+
+func groupSetting(col string) StepSetting { return StepSetting{Kind: "group", Columns: []string{col}} }
+func aggSortSetting(col string) StepSetting {
+	return StepSetting{Kind: "aggsort", Columns: []string{col}}
+}
+func aggregateSetting(cols ...string) StepSetting {
+	return StepSetting{Kind: "aggregate", Columns: cols}
 }
 
 // LastGroupingSteps returns the timed steps of the last grouping call, in
@@ -58,9 +82,9 @@ func (t *TableView) stepClock() hrclock.Clock {
 // stepStart marks the beginning of a step; pair with recordStep.
 func (t *TableView) stepStart() hrclock.Stamp { return t.stepClock().Now() }
 
-// recordStep appends a step that started at s.
-func (t *TableView) recordStep(name string, s hrclock.Stamp) {
-	t.groupingSteps = append(t.groupingSteps, GroupingStep{Name: name, Duration: t.stepClock().Since(s)})
+// recordStep appends a step that started at s and processed rows rows.
+func (t *TableView) recordStep(name string, s hrclock.Stamp, rows int, setting StepSetting) {
+	t.groupingSteps = append(t.groupingSteps, GroupingStep{Name: name, Duration: t.stepClock().Since(s), Rows: rows, Setting: setting})
 }
 
 // noteStep appends a step that took no measurable time (a cache hit).
