@@ -1817,3 +1817,9 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
             font-family: Consolas, 'Cascadia Code', monospace;
         }
+
+        /* While a navigation is in flight the whole page shows the busy cursor */
+        body.waiting-cursor,
+        body.waiting-cursor * {
+            cursor: progress !important;
+        }

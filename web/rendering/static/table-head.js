@@ -157,6 +157,7 @@
             if (!el) return;
             waiting.start = performance.now();
             el.hidden = false;
+            document.body.classList.add('waiting-cursor');
             const secs = document.getElementById('waiting-secs');
             if (waiting.timer) clearInterval(waiting.timer);
             waiting.timer = setInterval(function() {
@@ -167,6 +168,7 @@
         function hideWaiting() {
             const el = document.getElementById('waiting');
             if (el) el.hidden = true;
+            document.body.classList.remove('waiting-cursor');
             if (waiting.timer) {
                 clearInterval(waiting.timer);
                 waiting.timer = null;
