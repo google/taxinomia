@@ -6,11 +6,29 @@
     <title>Orders</title>
     
     
-    <link rel="stylesheet" href="/static/r184/table.css">
-    <script src="/static/r184/table.js" defer></script>
+    <link rel="stylesheet" href="/static/r185/table.css">
+    <script src="/static/r185/table.js" defer></script>
     
 </head>
 <body>
+    
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 4l6 8H2z"/></symbol>
+        <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 12L2 4h12z"/></symbol>
+        <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8-1.5-1.4-6 6.4-2.1-2.1z"/></symbol>
+        <symbol id="i-circle" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+        <symbol id="i-key" viewBox="0 0 16 16"><path d="M10.5 1a4.5 4.5 0 0 0-4.3 5.8L1 12v3h3l1-1v-2h2v-2h2l1.2-1.2A4.5 4.5 0 1 0 10.5 1zm1 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></symbol>
+        <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2L7.8 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9.5 6.5a3 3 0 0 0-4.2 0L2.8 9a3 3 0 0 0 4.2 4.2L8.2 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+        <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2 3.5h12M2 8h12M2 12.5h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+        <symbol id="i-blocked" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 4l8 8" stroke="currentColor" stroke-width="1.8"/></symbol>
+        <symbol id="i-cycle" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2v3.5H9.5z"/></symbol>
+        <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    </svg>
+    
+    <div id="waiting" class="waiting" hidden>
+        <div class="waiting-bar"></div>
+        <div class="waiting-text">Waiting for the server… <span id="waiting-secs">0.0</span> s</div>
+    </div>
     <div class="container">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -25,7 +43,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=status%2Cregion%2Ccategory&amp;grouped=region&amp;limit=25&amp;table=orders" class="visible" title="Regular column">
-                                ✓ Amount
+                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Amount
                             </a>
                             
                         </div>
@@ -35,7 +53,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=status%2Cregion%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="visible" title="Entity column (non-unique)">
-                                ✓ Category 🔗
+                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Category <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
                             </a>
                             
                         </div>
@@ -45,7 +63,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=status%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="visible" title="Entity column (non-unique)">
-                                ✓ Region 🔗
+                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Region <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
                             </a>
                             
                             <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;expanded=region&amp;grouped=region&amp;limit=25&amp;table=orders" class="join-toggle" title="Show/hide join targets">
@@ -59,7 +77,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=region%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="visible" title="Entity column (non-unique)">
-                                ✓ Status 🔗
+                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Status <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
                             </a>
                             
                         </div>
@@ -81,7 +99,7 @@
         </aside>
         <main class="main-content" id="main-content">
             <button class="sidebar-open-btn" id="sidebar-open-btn" onclick="toggleSidebar()">
-                <span>☰</span> Menu
+                <svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg> Menu
             </button>
 
             
@@ -114,7 +132,7 @@
                 
                 
                 
-                <th data-col-index="0" data-col-name="status" data-col-width="0"    class="">
+                <th draggable="true" data-col-index="0" data-col-name="status" data-col-width="0"    class="">
                     
                     <span class="th-content">Status</span>
                     <span class="th-internal-name">status</span>
@@ -127,7 +145,7 @@
                 
                 
                 
-                <th data-col-index="1" data-col-name="region" data-col-width="0"  data-is-grouped="true"  class="">
+                <th draggable="true" data-col-index="1" data-col-name="region" data-col-width="0"  data-is-grouped="true"  class="">
                     
                     <span class="th-content">Region</span>
                     <span class="th-internal-name">region</span>
@@ -140,7 +158,7 @@
                 
                 
                 
-                <th data-col-index="2" data-col-name="category" data-col-width="0"    class="">
+                <th draggable="true" data-col-index="2" data-col-name="category" data-col-width="0"    class="">
                     
                     <span class="th-content">Category</span>
                     <span class="th-internal-name">category</span>
@@ -153,7 +171,7 @@
                 
                 
                 
-                <th data-col-index="3" data-col-name="amount" data-col-width="0"    class="">
+                <th draggable="true" data-col-index="3" data-col-name="amount" data-col-width="0"    class="">
                     
                     <span class="th-content">Amount</span>
                     <span class="th-internal-name">amount</span>
@@ -178,7 +196,7 @@
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-status&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
-                        ▲
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
@@ -217,12 +235,12 @@
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-region&amp;table=orders" class="sort-toggle-btn" title="Groups sorted ascending by this column - click to flip; order between columns is left to right">
-                        ▲
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;groupsort%3Aregion=%2B%3Arows&amp;limit=25&amp;table=orders" class="agg-sort-toggle-btn" title="Sort by grouped value - click to sort by aggregate">⟳</a>
+                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;groupsort%3Aregion=%2B%3Arows&amp;limit=25&amp;table=orders" class="agg-sort-toggle-btn" title="Sort by grouped value - click to sort by aggregate"><svg class="icon" aria-hidden="true"><use href="#i-cycle"></use></svg></a>
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=25&amp;table=orders" class="group-toggle-btn grouped" title="Grouping level 1 — click to ungroup, drag to reorder">
@@ -247,7 +265,7 @@
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-category&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
-                        ▲
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
@@ -286,7 +304,7 @@
                     
                     
                     <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-amount&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
-                        ▲
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
@@ -446,7 +464,7 @@ Use &quot;quotes&quot; for exact match">
                                title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
 Use &quot;quotes&quot; for exact match">
                         <button type="button" class="filter-clear" data-column="region" title="Clear filter">×</button>
-                        <button type="button" class="multiselect-toggle" data-column="region" title="Multi-select filter mode">☑</button>
+                        <button type="button" class="multiselect-toggle" data-column="region" title="Multi-select filter mode"><svg class="icon" aria-hidden="true"><use href="#i-check-square"></use></svg></button>
                     </div>
                 </td>
                 
@@ -683,7 +701,7 @@ Use &quot;quotes&quot; for exact match">
         </tbody>
     </table>
 
-            <div class="info-pane" id="info-pane">
+            <div class="info-pane collapsed" id="info-pane">
                 <div class="info-pane-header">
                     <div class="info-pane-tabs">
                         <a href="javascript:void(0)" class="info-tab active" data-tab="url" onclick="switchInfoTab('url')">URL</a>
@@ -695,7 +713,8 @@ Use &quot;quotes&quot; for exact match">
                     </span>
                     <span class="info-pane-actions">
                         
-                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="hideInfoPane()" title="Collapse the pane to the status bar">Hide</a>
+                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="showInfoPane('url')" title="Open the URL and parameter breakdown">Show URL</a>
+                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="showInfoPane('perf')" title="Open the server and browser timing breakdown">Show perf</a>
                         
                         <span class="build-version">BUILD</span>
                     </span>

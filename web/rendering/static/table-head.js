@@ -1,4 +1,26 @@
-        // Toggle sidebar visibility
+        // Table page script. Every UI action changes the URL, which is the
+        // single source of truth; the server renders the page for a URL.
+        // Navigations between table pages are done as fragment navigations
+        // (navigate()): the new page is fetched, its sidebar and main content
+        // are swapped in, and the URL is pushed — no full reload, no re-parse
+        // of this script or the stylesheet, scroll and sidebar state kept.
+        // Anything the page cannot swap falls back to a full navigation.
+        //
+        // All event handling is delegated from the document, so a swapped-in
+        // page needs no per-element wiring; afterSwap() does the little
+        // per-page work that remains.
+        //
+        // Self-test hook: opening a page with "#navtest=<url>" performs one
+        // fragment navigation to <url> on load and sets data-navtest="swapped"
+        // on <html> when done (used by the headless smoke test).
+
+        // ---------- URL helpers ----------
+
+        function currentUrl() {
+            return new URL(window.location);
+        }
+
+        // Toggle sidebar visibility (page-local state, not in the URL)
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.getElementById('main-content');
@@ -11,35 +33,32 @@
 
         // Open the info pane on the given tab ('url' or 'perf'; updates URL)
         function showInfoPane(tabName) {
-            const url = new URL(window.location);
-            url.searchParams.delete('info');
+            const url = currentUrl();
+            url.searchParams.set('info', '1');
             if (tabName === 'perf') {
                 url.searchParams.set('infotab', 'perf');
             } else {
                 url.searchParams.delete('infotab');
             }
-            window.location.href = url.toString();
+            navigate(url);
         }
 
         // Collapse the info pane to the status bar (updates URL)
         function hideInfoPane() {
-            const url = new URL(window.location);
-            url.searchParams.set('info', '0');
-            window.location.href = url.toString();
+            const url = currentUrl();
+            url.searchParams.delete('info');
+            navigate(url);
         }
 
         // Toggle column types row visibility (updates URL)
         function toggleColumnTypes() {
-            const url = new URL(window.location);
-            const isCurrentlyVisible = url.searchParams.get('types') === '1';
-
-            if (isCurrentlyVisible) {
+            const url = currentUrl();
+            if (url.searchParams.get('types') === '1') {
                 url.searchParams.delete('types');
             } else {
                 url.searchParams.set('types', '1');
             }
-
-            window.location.href = url.toString();
+            navigate(url);
         }
 
         // Switch info pane tab (updates URL)
@@ -47,17 +66,17 @@
             showInfoPane(tabName);
         }
 
-        // Parse URL parameters
+        // Fill the URL tab: the current URL and its parameters. Only when the
+        // pane is open; a collapsed pane's content is not displayed.
         function parseUrlParams() {
-            const urlParams = new URLSearchParams(window.location.search);
+            const pane = document.getElementById('info-pane');
             const paramList = document.getElementById('param-list');
+            if (!pane || !paramList || pane.classList.contains('collapsed')) return;
+            const urlParams = new URLSearchParams(window.location.search);
 
-            // Clear existing items
             paramList.innerHTML = '';
-
-            // Add each parameter. URLSearchParams already yields decoded
-            // values; decoding again would throw on a literal '%' (e.g. a
-            // filter for "100%") and abort the rest of page initialization.
+            // URLSearchParams already yields decoded values; decoding again
+            // would throw on a literal '%' (e.g. a filter for "100%").
             for (const [key, value] of urlParams) {
                 const item = document.createElement('li');
                 item.className = 'param-item';
@@ -69,11 +88,10 @@
                 const valueSpan = document.createElement('span');
                 valueSpan.className = 'param-value';
 
-                // Special formatting for columns parameter
                 if (key === 'columns') {
                     const columns = value.split(',');
                     const formattedColumns = columns.map(col => {
-                        // Check if it's a joined column (format: fromColumn.toTable.toColumn.selectedColumn)
+                        // Joined column (format: fromColumn.toTable.toColumn.selectedColumn)
                         if (col.includes('.') && col.split('.').length === 4) {
                             const parts = col.split('.');
                             return `${parts[0]} → ${parts[1]}.${parts[3]}`;
@@ -90,8 +108,6 @@
                 paramList.appendChild(item);
             }
 
-            // Update URL display (readable form; fall back to the raw href
-            // if it contains a sequence that does not decode)
             const urlDisplay = document.getElementById('url-display');
             let readableHref = window.location.href;
             try {
@@ -102,129 +118,180 @@
             urlDisplay.textContent = readableHref;
         }
 
-        // Handle filter input events
-        function setupFilterInputs() {
-            const filterInputs = document.querySelectorAll('.filter-input');
-            filterInputs.forEach(input => {
-                // Store original value for escape key
-                input.dataset.originalValue = input.value;
-
-                // Handle Enter key - apply filter immediately
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        applyFilter(this.dataset.column, this.value);
-                    }
-                    // Handle Escape key - clear filter and revert to original
-                    else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        this.value = '';
-                        applyFilter(this.dataset.column, '');
-                    }
-                });
-
-                // Handle blur (clicking away/tab out) - apply filter if changed
-                input.addEventListener('blur', function() {
-                    if (this.value !== this.dataset.originalValue) {
-                        applyFilter(this.dataset.column, this.value);
-                    }
-                });
-
-                // Handle focus - update original value when input is focused
-                input.addEventListener('focus', function() {
-                    this.dataset.originalValue = this.value;
-                });
-            });
-        }
-
-        // Handle filter clear button clicks
-        function setupFilterClearButtons() {
-            const clearButtons = document.querySelectorAll('.filter-clear');
-            clearButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const columnName = this.dataset.column;
-                    // Clear the corresponding input
-                    const input = document.querySelector(`.filter-input[data-column="${columnName}"]`);
-                    if (input) {
-                        input.value = '';
-                    }
-                    applyFilter(columnName, '');
-                });
-            });
-        }
-
-        // Multi-select filter mode handling
-        function setupMultiselectMode() {
-            const toggleButtons = document.querySelectorAll('.multiselect-toggle');
-            const table = document.getElementById('data-table');
-            if (!table) return;
-
-            toggleButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const columnName = this.dataset.column;
-                    const isActive = this.classList.contains('active');
-
-                    if (isActive) {
-                        // Exiting multi-select mode - apply filter with selected values
-                        const checkboxes = table.querySelectorAll(`.multiselect-checkbox[data-column="${columnName}"]:checked`);
-                        const values = Array.from(checkboxes).map(cb => cb.dataset.value);
-
-                        // Remove multiselect-active class from cells
-                        table.querySelectorAll(`td[data-column="${columnName}"]`).forEach(td => {
-                            td.classList.remove('multiselect-active');
-                        });
-                        this.classList.remove('active');
-
-                        // Apply multi-value filter if any values selected
-                        if (values.length > 0) {
-                            applyFilter(columnName, values.join('|'));
-                        }
-                    } else {
-                        // Entering multi-select mode
-                        this.classList.add('active');
-                        // Add multiselect-active class to cells of this column
-                        table.querySelectorAll(`td[data-column="${columnName}"]`).forEach(td => {
-                            td.classList.add('multiselect-active');
-                        });
-                        // Uncheck all checkboxes for this column
-                        table.querySelectorAll(`.multiselect-checkbox[data-column="${columnName}"]`).forEach(cb => {
-                            cb.checked = false;
-                        });
-                    }
-                });
-            });
-        }
-
         // Apply filter by updating URL
         function applyFilter(columnName, filterValue) {
-            const url = new URL(window.location);
+            const url = currentUrl();
             const paramKey = 'filter:' + columnName;
 
             if (filterValue && filterValue.trim() !== '') {
-                // Add or update filter parameter
                 url.searchParams.set(paramKey, filterValue.trim());
             } else {
-                // Remove filter parameter if empty
                 url.searchParams.delete(paramKey);
             }
-
-            // Navigate to new URL
-            window.location.href = url.toString();
+            navigate(url);
         }
 
-        // Restore scroll position from URL parameter
+        // Restore scroll position from URL parameter (full loads only; a
+        // fragment navigation keeps the scroll position by itself)
         function restoreScrollPosition() {
-            const url = new URL(window.location);
+            const url = currentUrl();
             const scrollY = parseInt(url.searchParams.get('scrollY'), 10);
-            if (scrollY > 0) {
-                window.scrollTo(0, scrollY);
-                // Remove scrollY from URL to keep it clean
+            if (url.searchParams.has('scrollY')) {
+                if (scrollY > 0 && !fragmentState.swapped) {
+                    window.scrollTo(0, scrollY);
+                }
                 url.searchParams.delete('scrollY');
-                history.replaceState(null, '', url.toString());
+                history.replaceState(history.state, '', url.toString());
             }
         }
 
-        // Calculate and display browser timing metrics
+        // ---------- Waiting indicator ----------
+
+        // Shown the moment a navigation starts — full or fragment — with an
+        // elapsed-time counter, so a slow query is visibly in progress
+        // instead of leaving the old page frozen.
+        const waiting = { timer: null, start: 0 };
+
+        function showWaiting() {
+            const el = document.getElementById('waiting');
+            if (!el) return;
+            waiting.start = performance.now();
+            el.hidden = false;
+            const secs = document.getElementById('waiting-secs');
+            if (waiting.timer) clearInterval(waiting.timer);
+            waiting.timer = setInterval(function() {
+                if (secs) secs.textContent = ((performance.now() - waiting.start) / 1000).toFixed(1);
+            }, 100);
+        }
+
+        function hideWaiting() {
+            const el = document.getElementById('waiting');
+            if (el) el.hidden = true;
+            if (waiting.timer) {
+                clearInterval(waiting.timer);
+                waiting.timer = null;
+            }
+        }
+
+        // ---------- Fragment navigation ----------
+
+        const fragmentState = { swapped: false, inflight: null, navtest: false };
+
+        // isFragmentTarget: same origin and the same route as this page — a
+        // table page of this product. Anything else (landing page, entity
+        // URLs elsewhere, other products) is a full navigation.
+        function isFragmentTarget(url) {
+            return url.origin === window.location.origin && url.pathname === window.location.pathname;
+        }
+
+        // navigate replaces window.location.href assignments: a fragment
+        // navigation when the target is a table page, a full one otherwise or
+        // when anything goes wrong (the error page then shows as before).
+        function navigate(target, options) {
+            const url = new URL(target, window.location);
+            const push = !(options && options.push === false);
+            if (!isFragmentTarget(url) || !window.fetch || !window.DOMParser) {
+                showWaiting();
+                window.location.href = url.toString();
+                return;
+            }
+            showWaiting();
+            const t0 = performance.now();
+            const controller = window.AbortController ? new AbortController() : null;
+            if (fragmentState.inflight) fragmentState.inflight.abort();
+            fragmentState.inflight = controller;
+            const req = fetch(url.toString(), {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'text/html', 'X-Taxinomia-Fragment': '1' },
+                signal: controller ? controller.signal : undefined
+            });
+            req.then(function(resp) {
+                const ct = resp.headers.get('Content-Type') || '';
+                if (!resp.ok || ct.indexOf('text/html') === -1) throw new Error('not a page: ' + resp.status);
+                return resp.text();
+            }).then(function(html) {
+                const t1 = performance.now();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const newMain = doc.getElementById('main-content');
+                const newSidebar = doc.getElementById('sidebar');
+                if (!newMain || !newSidebar) throw new Error('not a table page');
+                swapPage(doc, newMain, newSidebar);
+                if (push) {
+                    history.pushState({ taxinomia: true }, '', url.toString());
+                } else {
+                    history.replaceState({ taxinomia: true }, '', url.toString());
+                }
+                fragmentState.swapped = true;
+                afterSwap();
+                recordFragmentTiming(t0, t1);
+            }).catch(function(err) {
+                if (err && err.name === 'AbortError') return;
+                window.location.href = url.toString();
+            });
+        }
+
+        // swapPage replaces the sidebar (only if it changed) and the main
+        // content; the outer elements keep their page-local state (sidebar
+        // collapsed, main expanded).
+        function swapPage(doc, newMain, newSidebar) {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.innerHTML !== newSidebar.innerHTML) {
+                sidebar.innerHTML = newSidebar.innerHTML;
+            }
+            document.getElementById('main-content').innerHTML = newMain.innerHTML;
+            document.title = doc.title;
+        }
+
+        // afterSwap does the per-page work a fresh load does at
+        // DOMContentLoaded; everything else is delegated and needs nothing.
+        function afterSwap() {
+            applyColumnWidths();
+            updateHiddenRowsCount();
+            parseUrlParams();
+            restoreScrollPosition();
+            focusNewComputedColumn();
+            scheduleAnimCleanup();
+            hideWaiting();
+            if (fragmentState.navtest) {
+                document.documentElement.setAttribute('data-navtest', 'swapped');
+            }
+        }
+
+        // recordFragmentTiming fills the status bar's Total and the perf
+        // tab's browser section for a fragment navigation: fetch (server +
+        // transfer) and swap + layout, measured to the next frame.
+        function recordFragmentTiming(t0, t1) {
+            requestAnimationFrame(function() {
+                const t2 = performance.now();
+                const total = t2 - t0;
+                const timingElement = document.getElementById('browser-timing');
+                if (timingElement) timingElement.textContent = total.toFixed(0) + 'ms';
+                const perfElement = document.getElementById('perf-browser-total');
+                if (perfElement) perfElement.textContent = total.toFixed(0) + 'ms';
+                const list = document.getElementById('browser-timing-list');
+                const totalItem = document.getElementById('perf-browser-total-item');
+                if (!list || !totalItem) return;
+                const add = function(label, ms) {
+                    const li = document.createElement('li');
+                    li.className = 'perf-timing-item';
+                    const op = document.createElement('span');
+                    op.className = 'perf-operation';
+                    op.textContent = label;
+                    const dur = document.createElement('span');
+                    dur.className = 'perf-duration';
+                    dur.textContent = ms.toFixed(1) + 'ms';
+                    li.appendChild(op);
+                    li.appendChild(dur);
+                    list.insertBefore(li, totalItem);
+                };
+                add('Fragment navigation: fetch (server + transfer)', t1 - t0);
+                add('Fragment navigation: swap, layout and paint', t2 - t1);
+                totalItem.querySelector('.perf-operation').textContent = 'Total (click to painted)';
+            });
+        }
+
+        // ---------- Browser timing (full loads) ----------
+
         // Fills the status bar's "Total" and the Performance tab's "Browser
         // Timing" section from the browser's own Navigation, Resource and
         // Paint timing entries: where the time between the server finishing
@@ -273,8 +340,6 @@
                 list.insertBefore(li, totalItem);
             };
 
-            // Phases of this navigation, in order. Each is a delta between two
-            // Navigation Timing marks (all relative to navigation start).
             if (nav.connectEnd - nav.startTime > 1) {
                 addRow('Connect (DNS, TCP, TLS)', ms(nav.connectEnd - nav.startTime));
             }
@@ -289,7 +354,6 @@
                     addRow('First contentful paint', ms(p.startTime), 'from navigation start');
                 }
             });
-            // The page's stylesheet and script: cached or fetched.
             performance.getEntriesByType('resource').forEach(function(r) {
                 const file = r.name.split('/').pop().split('?')[0];
                 if (file !== 'table.css' && file !== 'table.js') return;
@@ -299,17 +363,7 @@
             });
         }
 
-        // Initialize on page load
-        window.addEventListener('DOMContentLoaded', function() {
-            parseUrlParams();
-            setupFilterInputs();
-            setupFilterClearButtons();
-            setupMultiselectMode();
-            initColumnResize();
-            initColumnDragDrop();
-            restoreScrollPosition();
-            updateHiddenRowsCount();
-        });
+        // ---------- Rows ----------
 
         // Calculate and display hidden rows count
         function updateHiddenRowsCount() {
@@ -320,21 +374,10 @@
             const totalRows = parseInt(table.dataset.totalRows, 10) || 0;
             const displayedRows = parseInt(table.dataset.displayedRows, 10) || 0;
             const hiddenRows = totalRows - displayedRows;
-
-            if (hiddenRows > 0) {
-                hiddenRowsSpan.textContent = hiddenRows.toLocaleString();
-            }
+            hiddenRowsSpan.textContent = hiddenRows.toLocaleString();
         }
 
-        // Display browser timing after page is fully loaded
-        window.addEventListener('load', function() {
-            // Use setTimeout to ensure loadEventEnd is populated
-            setTimeout(displayBrowserTiming, 0);
-        });
-
-        // =====================
-        // Column Resize Feature
-        // =====================
+        // ---------- Column widths ----------
 
         // Get current column widths from table headers
         function getCurrentColumnWidths() {
@@ -356,7 +399,7 @@
         // Update URL with current column widths
         // If reload is true, navigates to the new URL; otherwise uses replaceState
         function updateUrlWithWidths(reload) {
-            const url = new URL(window.location);
+            const url = currentUrl();
             const columnsParam = url.searchParams.get('columns');
             if (!columnsParam) return;
 
@@ -374,8 +417,6 @@
                         colName = col.substring(0, colonIdx);
                     }
                 }
-
-                // Add new width if we have one
                 if (widths[colName]) {
                     return colName + ':' + widths[colName];
                 }
@@ -385,11 +426,9 @@
             url.searchParams.set('columns', newColumns.join(','));
 
             if (reload) {
-                // Save scroll position before reload
-                url.searchParams.set('scrollY', Math.round(window.scrollY).toString());
-                window.location.href = url.toString();
+                navigate(url);
             } else {
-                history.replaceState(null, '', url.toString());
+                history.replaceState(history.state, '', url.toString());
             }
         }
 
@@ -407,232 +446,12 @@
             });
         }
 
-        // Initialize column resize functionality
-        function initColumnResize() {
-            const table = document.getElementById('data-table');
-            if (!table) return;
-
-            // Apply widths from backend (stored in data attributes)
-            applyColumnWidths();
-
-            const headers = table.querySelectorAll('thead tr:first-child th');
-
-            headers.forEach(function(th) {
-                const handle = th.querySelector('.resize-handle');
-                if (!handle) return;
-
-                let startX, startWidth;
-
-                handle.addEventListener('mousedown', function(e) {
-                    e.preventDefault();
-                    startX = e.pageX;
-                    startWidth = th.offsetWidth;
-
-                    // Add resizing class for visual feedback
-                    handle.classList.add('resizing');
-                    document.body.classList.add('resizing');
-
-                    // Add mousemove and mouseup listeners to document
-                    document.addEventListener('mousemove', onMouseMove);
-                    document.addEventListener('mouseup', onMouseUp);
-                });
-
-                function onMouseMove(e) {
-                    const diff = e.pageX - startX;
-                    const newWidth = Math.max(50, startWidth + diff); // Minimum 50px width
-                    th.style.width = newWidth + 'px';
-                }
-
-                function onMouseUp(e) {
-                    // Remove event listeners
-                    document.removeEventListener('mousemove', onMouseMove);
-                    document.removeEventListener('mouseup', onMouseUp);
-
-                    // Remove resizing classes
-                    handle.classList.remove('resizing');
-                    document.body.classList.remove('resizing');
-
-                    // Update URL with new widths and reload
-                    updateUrlWithWidths(true);
-                }
-            });
-        }
-
-        // ===========================
-        // Column Drag-and-Drop Feature
-        // ===========================
-
-        // Initialize column drag-and-drop functionality
-        function initColumnDragDrop() {
-            const table = document.getElementById('data-table');
-            if (!table) return;
-
-            const headers = table.querySelectorAll('thead tr:first-child th');
-            let draggedHeader = null;
-
-            // The server orders columns by zone (filtered, grouped, others);
-            // a drag only means something within one zone. Grouped columns
-            // reorder the grouping hierarchy; the other zones reorder the
-            // columns parameter.
-            function columnZone(th) {
-                if (th.dataset.isGrouped) return 'grouped';
-                if (th.dataset.isFiltered) return 'filtered';
-                return 'other';
-            }
-
-            headers.forEach(function(th) {
-                // Make headers draggable
-                th.setAttribute('draggable', 'true');
-
-                th.addEventListener('dragstart', function(e) {
-                    draggedHeader = th;
-                    th.classList.add('dragging');
-                    document.body.classList.add('column-dragging');
-
-                    // Set drag data
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', th.dataset.colName);
-
-                    // Use setTimeout to allow the drag image to be captured before adding opacity
-                    setTimeout(function() {
-                        th.classList.add('dragging');
-                    }, 0);
-                });
-
-                th.addEventListener('dragend', function(e) {
-                    th.classList.remove('dragging');
-                    document.body.classList.remove('column-dragging');
-                    draggedHeader = null;
-
-                    // Remove all drag-over classes
-                    headers.forEach(function(header) {
-                        header.classList.remove('drag-over-left', 'drag-over-right');
-                    });
-                });
-
-                th.addEventListener('dragover', function(e) {
-                    if (!draggedHeader || draggedHeader === th) return;
-                    // Cross-zone drops are no-ops (the server snaps zones
-                    // back); without preventDefault the browser shows the
-                    // no-drop cursor and no indicators appear.
-                    if (columnZone(draggedHeader) !== columnZone(th)) return;
-                    e.preventDefault();
-
-                    e.dataTransfer.dropEffect = 'move';
-
-                    // Determine if we're on the left or right half of the header
-                    const rect = th.getBoundingClientRect();
-                    const midpoint = rect.left + rect.width / 2;
-                    const isLeftHalf = e.clientX < midpoint;
-
-                    // Remove existing drag-over classes from all headers
-                    headers.forEach(function(header) {
-                        header.classList.remove('drag-over-left', 'drag-over-right');
-                    });
-
-                    // Add appropriate class
-                    if (isLeftHalf) {
-                        th.classList.add('drag-over-left');
-                    } else {
-                        th.classList.add('drag-over-right');
-                    }
-                });
-
-                th.addEventListener('dragleave', function(e) {
-                    th.classList.remove('drag-over-left', 'drag-over-right');
-                });
-
-                th.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    if (!draggedHeader || draggedHeader === th) return;
-                    if (columnZone(draggedHeader) !== columnZone(th)) return;
-
-                    // Determine drop position (left or right of target)
-                    const rect = th.getBoundingClientRect();
-                    const midpoint = rect.left + rect.width / 2;
-                    const dropOnLeft = e.clientX < midpoint;
-
-                    const url = new URL(window.location);
-
-                    // Grouped columns: their display order is the grouping
-                    // hierarchy (the grouped= parameter), not the columns=
-                    // order — reorder the hierarchy itself. Expansion paths
-                    // (gexp) encode the old level order, so drop them.
-                    if (columnZone(draggedHeader) === 'grouped') {
-                        const grouped = (url.searchParams.get('grouped') || '').split(',').filter(Boolean);
-                        const draggedName = draggedHeader.dataset.colName;
-                        const from = grouped.indexOf(draggedName);
-                        let to = grouped.indexOf(th.dataset.colName);
-                        if (from === -1 || to === -1) return;
-                        grouped.splice(from, 1);
-                        if (from < to) to--;
-                        grouped.splice(dropOnLeft ? to : to + 1, 0, draggedName);
-                        url.searchParams.set('grouped', grouped.join(','));
-                        url.searchParams.delete('gexp');
-                        url.searchParams.set('scrollY', Math.round(window.scrollY).toString());
-                        window.location.href = url.toString();
-                        return;
-                    }
-
-                    // Get current column order from URL or build from table headers
-                    let columnsParam = url.searchParams.get('columns');
-
-                    // If no columns param, build it from current table headers
-                    if (!columnsParam) {
-                        const colNames = [];
-                        headers.forEach(function(header) {
-                            const colName = header.dataset.colName;
-                            const width = header.style.width ? parseInt(header.style.width, 10) : 0;
-                            if (colName) {
-                                colNames.push(width > 0 ? colName + ':' + width : colName);
-                            }
-                        });
-                        columnsParam = colNames.join(',');
-                    }
-
-                    // Parse columns (preserving widths)
-                    const columns = columnsParam.split(',');
-                    const draggedColName = draggedHeader.dataset.colName;
-                    const targetColName = th.dataset.colName;
-
-                    // Find indices
-                    let draggedIdx = -1;
-                    let targetIdx = -1;
-                    columns.forEach(function(col, idx) {
-                        const colName = col.split(':')[0];
-                        if (colName === draggedColName) draggedIdx = idx;
-                        if (colName === targetColName) targetIdx = idx;
-                    });
-
-                    if (draggedIdx === -1 || targetIdx === -1) return;
-
-                    // Remove dragged column from array
-                    const draggedCol = columns.splice(draggedIdx, 1)[0];
-
-                    // Recalculate target index after removal
-                    if (draggedIdx < targetIdx) {
-                        targetIdx--;
-                    }
-
-                    // Insert at new position
-                    const insertIdx = dropOnLeft ? targetIdx : targetIdx + 1;
-                    columns.splice(insertIdx, 0, draggedCol);
-
-                    // Update URL and reload
-                    url.searchParams.set('columns', columns.join(','));
-                    url.searchParams.set('scrollY', Math.round(window.scrollY).toString());
-                    window.location.href = url.toString();
-                });
-            });
-        }
-
         // Reset column widths to default (removes widths from URL)
         function resetColumnWidths() {
-            const url = new URL(window.location);
+            const url = currentUrl();
             const columnsParam = url.searchParams.get('columns');
             if (!columnsParam) return;
 
-            // Strip all widths from columns param
             const columns = columnsParam.split(',').map(function(col) {
                 const colonIdx = col.lastIndexOf(':');
                 if (colonIdx !== -1) {
@@ -645,15 +464,398 @@
             });
 
             url.searchParams.set('columns', columns.join(','));
+            navigate(url);
+        }
 
-            // Remove inline widths from all headers
+        // ---------- Column resize (delegated) ----------
+
+        const resize = { th: null, handle: null, startX: 0, startWidth: 0 };
+
+        function onResizeMouseMove(e) {
+            const diff = e.pageX - resize.startX;
+            const newWidth = Math.max(50, resize.startWidth + diff); // Minimum 50px width
+            resize.th.style.width = newWidth + 'px';
+        }
+
+        function onResizeMouseUp() {
+            document.removeEventListener('mousemove', onResizeMouseMove);
+            document.removeEventListener('mouseup', onResizeMouseUp);
+            resize.handle.classList.remove('resizing');
+            document.body.classList.remove('resizing');
+            resize.th = null;
+            resize.handle = null;
+            // Update URL with new widths and navigate
+            updateUrlWithWidths(true);
+        }
+
+        document.addEventListener('mousedown', function(e) {
+            const handle = e.target.closest('.resize-handle');
+            if (!handle) return;
+            const th = handle.closest('th');
+            if (!th) return;
+            e.preventDefault();
+            resize.th = th;
+            resize.handle = handle;
+            resize.startX = e.pageX;
+            resize.startWidth = th.offsetWidth;
+            handle.classList.add('resizing');
+            document.body.classList.add('resizing');
+            document.addEventListener('mousemove', onResizeMouseMove);
+            document.addEventListener('mouseup', onResizeMouseUp);
+        });
+
+        // ---------- Column drag-and-drop (delegated) ----------
+
+        let draggedHeader = null;
+
+        // The server orders columns by zone (filtered, grouped, others); a
+        // drag only means something within one zone. Grouped columns reorder
+        // the grouping hierarchy; the other zones reorder the columns
+        // parameter.
+        function columnZone(th) {
+            if (th.dataset.isGrouped) return 'grouped';
+            if (th.dataset.isFiltered) return 'filtered';
+            return 'other';
+        }
+
+        function headerCells() {
             const table = document.getElementById('data-table');
-            if (table) {
-                const headers = table.querySelectorAll('thead tr:first-child th');
-                headers.forEach(function(th) {
-                    th.style.width = '';
-                });
+            return table ? table.querySelectorAll('thead tr:first-child th') : [];
+        }
+
+        function clearDragIndicators() {
+            headerCells().forEach(function(header) {
+                header.classList.remove('drag-over-left', 'drag-over-right');
+            });
+        }
+
+        function dragTarget(e) {
+            return e.target.closest ? e.target.closest('thead tr:first-child th[data-col-name]') : null;
+        }
+
+        document.addEventListener('dragstart', function(e) {
+            const th = dragTarget(e);
+            if (!th) return;
+            draggedHeader = th;
+            document.body.classList.add('column-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', th.dataset.colName);
+            // Let the drag image be captured before adding opacity
+            setTimeout(function() {
+                th.classList.add('dragging');
+            }, 0);
+        });
+
+        document.addEventListener('dragend', function(e) {
+            const th = dragTarget(e);
+            if (th) th.classList.remove('dragging');
+            document.body.classList.remove('column-dragging');
+            draggedHeader = null;
+            clearDragIndicators();
+        });
+
+        document.addEventListener('dragover', function(e) {
+            const th = dragTarget(e);
+            if (!th || !draggedHeader || draggedHeader === th) return;
+            // Cross-zone drops are no-ops (the server snaps zones back);
+            // without preventDefault the browser shows the no-drop cursor and
+            // no indicators appear.
+            if (columnZone(draggedHeader) !== columnZone(th)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = th.getBoundingClientRect();
+            const isLeftHalf = e.clientX < rect.left + rect.width / 2;
+            clearDragIndicators();
+            th.classList.add(isLeftHalf ? 'drag-over-left' : 'drag-over-right');
+        });
+
+        document.addEventListener('dragleave', function(e) {
+            const th = dragTarget(e);
+            if (th) th.classList.remove('drag-over-left', 'drag-over-right');
+        });
+
+        document.addEventListener('drop', function(e) {
+            const th = dragTarget(e);
+            if (!th) return;
+            e.preventDefault();
+            if (!draggedHeader || draggedHeader === th) return;
+            if (columnZone(draggedHeader) !== columnZone(th)) return;
+
+            const rect = th.getBoundingClientRect();
+            const dropOnLeft = e.clientX < rect.left + rect.width / 2;
+            const url = currentUrl();
+
+            // Grouped columns: their display order is the grouping hierarchy
+            // (the grouped= parameter), not the columns= order — reorder the
+            // hierarchy itself. Expansion paths (gexp) encode the old level
+            // order, so drop them.
+            if (columnZone(draggedHeader) === 'grouped') {
+                const grouped = (url.searchParams.get('grouped') || '').split(',').filter(Boolean);
+                const draggedName = draggedHeader.dataset.colName;
+                const from = grouped.indexOf(draggedName);
+                let to = grouped.indexOf(th.dataset.colName);
+                if (from === -1 || to === -1) return;
+                grouped.splice(from, 1);
+                if (from < to) to--;
+                grouped.splice(dropOnLeft ? to : to + 1, 0, draggedName);
+                url.searchParams.set('grouped', grouped.join(','));
+                url.searchParams.delete('gexp');
+                navigate(url);
+                return;
             }
 
-            history.replaceState(null, '', url.toString());
+            // Current column order from the URL, or built from the headers
+            let columnsParam = url.searchParams.get('columns');
+            if (!columnsParam) {
+                const colNames = [];
+                headerCells().forEach(function(header) {
+                    const colName = header.dataset.colName;
+                    const width = header.style.width ? parseInt(header.style.width, 10) : 0;
+                    if (colName) {
+                        colNames.push(width > 0 ? colName + ':' + width : colName);
+                    }
+                });
+                columnsParam = colNames.join(',');
+            }
+
+            const columns = columnsParam.split(',');
+            const draggedColName = draggedHeader.dataset.colName;
+            const targetColName = th.dataset.colName;
+            let draggedIdx = -1;
+            let targetIdx = -1;
+            columns.forEach(function(col, idx) {
+                const colName = col.split(':')[0];
+                if (colName === draggedColName) draggedIdx = idx;
+                if (colName === targetColName) targetIdx = idx;
+            });
+            if (draggedIdx === -1 || targetIdx === -1) return;
+
+            const draggedCol = columns.splice(draggedIdx, 1)[0];
+            if (draggedIdx < targetIdx) {
+                targetIdx--;
+            }
+            columns.splice(dropOnLeft ? targetIdx : targetIdx + 1, 0, draggedCol);
+            url.searchParams.set('columns', columns.join(','));
+            navigate(url);
+        });
+
+        // ---------- Filters, multiselect, computed columns (delegated) ----------
+
+        document.addEventListener('focusin', function(e) {
+            const t = e.target;
+            if (t.matches && (t.matches('.filter-input') || t.matches('.th-name-input') || t.matches('.formula-cell .formula-input'))) {
+                t.dataset.originalValue = t.value;
+            }
+        });
+
+        document.addEventListener('focusout', function(e) {
+            const t = e.target;
+            if (!t.matches) return;
+            if (t.matches('.filter-input')) {
+                if (t.value !== t.dataset.originalValue) {
+                    applyFilter(t.dataset.column, t.value);
+                }
+            } else if (t.matches('.th-name-input')) {
+                const originalName = t.dataset.originalValue;
+                const newName = t.value.trim();
+                if (newName && newName !== originalName) {
+                    renameComputedColumn(originalName, newName);
+                } else {
+                    t.value = originalName;
+                }
+            } else if (t.matches('.formula-cell .formula-input')) {
+                const originalValue = t.dataset.originalValue;
+                const newValue = t.value.trim();
+                if (newValue !== originalValue && newValue !== '') {
+                    updateComputedFormula(t.dataset.column, newValue);
+                } else if (newValue === '') {
+                    t.value = originalValue;
+                }
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            const t = e.target;
+            if (!t.matches) return;
+            if (t.matches('.filter-input')) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyFilter(t.dataset.column, t.value);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    t.value = '';
+                    applyFilter(t.dataset.column, '');
+                }
+            } else if (t.matches('.th-name-input')) {
+                const originalName = t.dataset.originalValue !== undefined ? t.dataset.originalValue : t.value;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const newName = t.value.trim();
+                    if (newName !== originalName) {
+                        renameComputedColumn(originalName, newName);
+                    }
+                    t.blur();
+                } else if (e.key === 'Escape') {
+                    t.value = originalName;
+                    t.blur();
+                }
+            } else if (t.matches('.formula-cell .formula-input')) {
+                const originalValue = t.dataset.originalValue !== undefined ? t.dataset.originalValue : t.value;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const newValue = t.value.trim();
+                    if (newValue !== originalValue) {
+                        updateComputedFormula(t.dataset.column, newValue);
+                    }
+                    t.blur();
+                } else if (e.key === 'Escape') {
+                    t.value = originalValue;
+                    t.blur();
+                }
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            const clear = e.target.closest('.filter-clear');
+            if (clear) {
+                const columnName = clear.dataset.column;
+                const input = document.querySelector(`.filter-input[data-column="${columnName}"]`);
+                if (input) input.value = '';
+                applyFilter(columnName, '');
+                return;
+            }
+
+            const toggle = e.target.closest('.multiselect-toggle');
+            if (toggle) {
+                const table = document.getElementById('data-table');
+                if (!table) return;
+                const columnName = toggle.dataset.column;
+                if (toggle.classList.contains('active')) {
+                    // Exiting multi-select mode - apply filter with selected values
+                    const checkboxes = table.querySelectorAll(`.multiselect-checkbox[data-column="${columnName}"]:checked`);
+                    const values = Array.from(checkboxes).map(cb => cb.dataset.value);
+                    table.querySelectorAll(`td[data-column="${columnName}"]`).forEach(td => {
+                        td.classList.remove('multiselect-active');
+                    });
+                    toggle.classList.remove('active');
+                    if (values.length > 0) {
+                        applyFilter(columnName, values.join('|'));
+                    }
+                } else {
+                    toggle.classList.add('active');
+                    table.querySelectorAll(`td[data-column="${columnName}"]`).forEach(td => {
+                        td.classList.add('multiselect-active');
+                    });
+                    table.querySelectorAll(`.multiselect-checkbox[data-column="${columnName}"]`).forEach(cb => {
+                        cb.checked = false;
+                    });
+                }
+                return;
+            }
+
+            if (e.target.closest('#add-computed-btn')) {
+                createNewComputedColumn();
+                return;
+            }
+
+            const remove = e.target.closest('.remove-computed-btn');
+            if (remove) {
+                const columnName = remove.dataset.columnName;
+                if (columnName) removeComputedColumn(columnName);
+                return;
+            }
+
+            // Row selection (flat rows only): a click on a row that is not on
+            // a control opens the detail panel; on the selected row, closes it.
+            const row = e.target.closest('tbody tr[data-row-id]');
+            if (row && !e.target.closest('a, button, input, .filter-link, .entity-link, .multiselect-checkbox')) {
+                const rowId = row.dataset.rowId;
+                if (rowId) {
+                    const currentRowId = currentUrl().searchParams.get('row') || '';
+                    if (currentRowId === rowId) {
+                        deselectRow();
+                    } else {
+                        selectRow(rowId);
+                    }
+                }
+                return;
+            }
+
+            // Plain links to table pages become fragment navigations.
+            const a = e.target.closest('a[href]');
+            if (!a) return;
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            if (a.target && a.target !== '_self') return;
+            if (a.hasAttribute('download')) return;
+            const href = a.getAttribute('href');
+            if (!href || href.startsWith('javascript:') || href.startsWith('#')) return;
+            const url = new URL(a.href, window.location);
+            if (!isFragmentTarget(url)) return;
+            e.preventDefault();
+            navigate(url);
+        });
+
+        // Back/forward: re-fetch the page for the URL the browser moved to.
+        window.addEventListener('popstate', function() {
+            if (fragmentState.swapped || (history.state && history.state.taxinomia)) {
+                navigate(window.location.href, { push: false });
+            }
+        });
+
+        // ---------- Per-page work ----------
+
+        // Focus the formula input of a just-created computed column
+        function focusNewComputedColumn() {
+            if (!window.location.hash.startsWith('#focus=')) return;
+            const columnName = window.location.hash.substring(7);
+            const formulaInput = document.querySelector('.formula-input[data-column="' + columnName + '"]');
+            if (formulaInput) {
+                formulaInput.focus();
+                formulaInput.select();
+                // Clear the hash to avoid re-focusing on refresh
+                history.replaceState(history.state, '', window.location.pathname + window.location.search);
+            }
         }
+
+        // Clean up the _anim parameter after the grouping animation plays, so a
+        // refresh does not replay it
+        function scheduleAnimCleanup() {
+            if (!currentUrl().searchParams.has('_anim')) return;
+            setTimeout(function() {
+                const u = currentUrl();
+                if (u.searchParams.has('_anim')) {
+                    u.searchParams.delete('_anim');
+                    history.replaceState(history.state, '', u.toString());
+                }
+            }, 1500);
+        }
+
+        function initPage() {
+            applyColumnWidths();
+            updateHiddenRowsCount();
+            parseUrlParams();
+            restoreScrollPosition();
+            focusNewComputedColumn();
+            scheduleAnimCleanup();
+            // Self-test hook (see the file comment)
+            if (window.location.hash.startsWith('#navtest=')) {
+                fragmentState.navtest = true;
+                const target = decodeURIComponent(window.location.hash.substring(9));
+                history.replaceState(null, '', window.location.pathname + window.location.search);
+                navigate(target);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', initPage);
+
+        // Display browser timing after page is fully loaded
+        window.addEventListener('load', function() {
+            // Use setTimeout to ensure loadEventEnd is populated
+            setTimeout(displayBrowserTiming, 0);
+        });
+
+        // A full navigation starts: show the indicator until the new page
+        // replaces this one. pageshow (including back/forward cache restores)
+        // hides it again.
+        window.addEventListener('beforeunload', showWaiting);
+        window.addEventListener('pageshow', hideWaiting);

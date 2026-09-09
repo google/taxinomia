@@ -1763,3 +1763,57 @@
             margin-left: 4px;
         }
 
+
+        /* ---- Icons (inline SVG symbols, see the sprite at the top of the body) ---- */
+        .icon {
+            width: 1em;
+            height: 1em;
+            vertical-align: -0.15em;
+            fill: currentColor;
+        }
+
+        .sort-toggle-btn .icon {
+            width: 0.8em;
+            height: 0.8em;
+            vertical-align: -0.05em;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        /* ---- Waiting indicator: a navigation is in flight ---- */
+        .waiting {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 2000;
+            pointer-events: none;
+        }
+
+        .waiting-bar {
+            height: 3px;
+            background: linear-gradient(90deg, transparent 0%, #3498db 40%, #3498db 60%, transparent 100%);
+            background-size: 50% 100%;
+            animation: waiting-slide 1s linear infinite;
+        }
+
+        @keyframes waiting-slide {
+            from { background-position: -50% 0; }
+            to { background-position: 150% 0; }
+        }
+
+        .waiting-text {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 14px;
+            background: rgba(44, 62, 80, 0.92);
+            color: white;
+            font-size: 13px;
+            border-radius: 14px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            font-family: Consolas, 'Cascadia Code', monospace;
+        }

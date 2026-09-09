@@ -8,7 +8,7 @@
         <div class="join-target-item{{if .IsBlocked}} join-target-blocked{{end}}">
             <div class="join-target-header">
                 <span class="join-target-text" title="{{if .IsBlocked}}Already visited - cycle prevented{{else}}Join target: {{.TableName}} table{{end}}">
-                    {{.DisplayName}}{{if .IsBlocked}}<span class="blocked-icon" title="Cycle prevented">⛔</span>{{end}}
+                    {{.DisplayName}}{{if .IsBlocked}}<span class="blocked-icon" title="Cycle prevented"><svg class="icon" aria-hidden="true"><use href="#i-blocked"></use></svg></span>{{end}}
                 </span>
                 {{if not .IsBlocked}}
                 <a href="{{.ToggleURL}}" class="columns-toggle" title="Show/hide available columns">
@@ -22,7 +22,7 @@
                 <div class="column-summary">
                     <div class="column-summary-header">
                         <a href="{{.AddColumnURL}}" class="column-link{{if .IsSelected}} selected{{end}}" title="{{if .IsSelected}}Click to remove this column from view{{else}}Click to add this column to view{{end}}">
-                            {{if .IsSelected}}✓{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
+                            {{if .IsSelected}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}} {{.DisplayName}}{{if .IsKey}} <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}} <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
                         </a>
                         {{if .HasJoinTargets}}
                         <a href="{{.ToggleURL}}" class="join-expand-btn" title="Show/hide join targets">
@@ -52,6 +52,24 @@
     {{end}}
 </head>
 <body>
+    {{/* Icons as inline SVG symbols: no font fallback lookups for symbol glyphs, which cost tens of milliseconds of layout per page. */}}
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 4l6 8H2z"/></symbol>
+        <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 12L2 4h12z"/></symbol>
+        <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8-1.5-1.4-6 6.4-2.1-2.1z"/></symbol>
+        <symbol id="i-circle" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+        <symbol id="i-key" viewBox="0 0 16 16"><path d="M10.5 1a4.5 4.5 0 0 0-4.3 5.8L1 12v3h3l1-1v-2h2v-2h2l1.2-1.2A4.5 4.5 0 1 0 10.5 1zm1 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></symbol>
+        <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2L7.8 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9.5 6.5a3 3 0 0 0-4.2 0L2.8 9a3 3 0 0 0 4.2 4.2L8.2 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+        <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2 3.5h12M2 8h12M2 12.5h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+        <symbol id="i-blocked" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 4l8 8" stroke="currentColor" stroke-width="1.8"/></symbol>
+        <symbol id="i-cycle" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2v3.5H9.5z"/></symbol>
+        <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    </svg>
+    {{/* Shown while the browser waits for the server after any navigation (table-head.js: showWaiting/hideWaiting). */}}
+    <div id="waiting" class="waiting" hidden>
+        <div class="waiting-bar"></div>
+        <div class="waiting-text">Waiting for the server… <span id="waiting-secs">0.0</span> s</div>
+    </div>
     <div class="container">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -66,7 +84,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="{{.ToggleColumnURL}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}" title="{{if .IsKey}}Unique entity column{{else if .HasEntityType}}Entity column (non-unique){{else}}Regular column{{end}}">
-                                {{if .IsVisible}}✓{{else}}○{{end}} {{.DisplayName}}{{if .IsKey}} 🔑{{else if .HasEntityType}} 🔗{{end}}
+                                {{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{else}}<svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg>{{end}} {{.DisplayName}}{{if .IsKey}} <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}} <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
                             </a>
                             {{if .JoinTargets}}
                             <a href="{{.ToggleURL}}" class="join-toggle" title="Show/hide join targets">
@@ -94,7 +112,7 @@
                     {{range .ComputedColumns}}
                     <div class="computed-column-item">
                         <a href="{{.ToggleURL}}" class="{{if .IsVisible}}visible{{end}}">
-                            {{if .IsVisible}}✓{{else}}○{{end}} {{.Name}}
+                            {{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{else}}<svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg>{{end}} {{.Name}}
                         </a>
                         <button class="remove-computed-btn" data-column-name="{{.Name}}" title="Remove computed column">×</button>
                     </div>
@@ -105,7 +123,7 @@
         </aside>
         <main class="main-content" id="main-content">
             <button class="sidebar-open-btn" id="sidebar-open-btn" onclick="toggleSidebar()">
-                <span>☰</span> Menu
+                <svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg> Menu
             </button>
 
             <!-- Info Pane with Tabs -->
@@ -202,7 +220,7 @@
                 {{$isComputed := index $.IsComputedColumn $colName}}
                 {{$isGroupedCol := false}}{{$isFilteredCol := false}}{{range $.AllColumns}}{{if eq .Name $colName}}{{$isGroupedCol = .IsGrouped}}{{$isFilteredCol = .IsFiltered}}{{end}}{{end}}
                 {{$isAnimated := eq $colName $.AnimatedColumn}}
-                <th data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}} {{if $isGroupedCol}}data-is-grouped="true"{{end}} {{if $isFilteredCol}}data-is-filtered="true"{{end}} class="{{if $isAnimated}}just-grouped{{end}}">
+                <th draggable="true" data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}} {{if $isGroupedCol}}data-is-grouped="true"{{end}} {{if $isFilteredCol}}data-is-filtered="true"{{end}} class="{{if $isAnimated}}just-grouped{{end}}">
                     {{if $isComputed}}
                     <input type="text" class="th-name-input" data-column="{{$colName}}" value="{{$colName}}" title="Edit column name and press Enter">
                     {{else}}
@@ -226,16 +244,16 @@
                     {{if .HasAggSort}}
                     {{/* When aggregate sort is active, the up/down button toggles aggregate sort direction */}}
                     <a href="{{.AggSortDirectionURL}}" class="sort-toggle-btn active primary" title="Sorting by {{.AggSortLeafCol}} {{.AggSortAggType}} ({{if .IsAggSortDescending}}descending{{else}}ascending{{end}}) - click to toggle direction">
-                        {{if .IsAggSortDescending}}▼{{else}}▲{{end}}
+                        {{if .IsAggSortDescending}}<svg class="icon" aria-hidden="true"><use href="#i-down"></use></svg>{{else}}<svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>{{end}}
                     </a>
                     {{else}}
                     <a href="{{.ToggleSortURL}}" class="sort-toggle-btn{{if .IsSortDescending}} active{{end}}" title="{{if .IsGrouped}}Groups{{else}}Rows{{end}} sorted {{if .IsSortDescending}}descending{{else}}ascending{{end}} by this column - click to flip; order between columns is left to right">
-                        {{if .IsSortDescending}}▼{{else}}▲{{end}}
+                        {{if .IsSortDescending}}<svg class="icon" aria-hidden="true"><use href="#i-down"></use></svg>{{else}}<svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>{{end}}
                     </a>
                     {{end}}
                     {{/* Aggregate sort toggle for grouped columns */}}
                     {{if and $.IsGrouped .IsGrouped}}
-                    <a href="{{.AggSortToggleURL}}" class="agg-sort-toggle-btn{{if .HasAggSort}} active{{end}}" title="{{if .HasAggSort}}Sorting by {{.AggSortLeafCol}} {{.AggSortAggType}} - click to change{{else}}Sort by grouped value - click to sort by aggregate{{end}}">⟳</a>
+                    <a href="{{.AggSortToggleURL}}" class="agg-sort-toggle-btn{{if .HasAggSort}} active{{end}}" title="{{if .HasAggSort}}Sorting by {{.AggSortLeafCol}} {{.AggSortAggType}} - click to change{{else}}Sort by grouped value - click to sort by aggregate{{end}}"><svg class="icon" aria-hidden="true"><use href="#i-cycle"></use></svg></a>
                     {{end}}
                     {{/* Group control - middle. Full label in wide columns, initial in narrow ones (container query on .grouping-controls). */}}
                     <a href="{{.ToggleGroupingURL}}" class="group-toggle-btn {{if .IsGrouped}}grouped{{end}}" title="{{if .IsGrouped}}Grouping level {{.GroupLevel}} — click to ungroup, drag to reorder{{else}}Group by this column{{end}}">
@@ -313,7 +331,7 @@
                                title="{{if $filterError.Message}}Error: {{$filterError.Message}} - {{end}}Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
 Use &quot;quotes&quot; for exact match">
                         <button type="button" class="filter-clear" data-column="{{$colName}}" title="Clear filter">×</button>
-                        {{range $.AllColumns}}{{if eq .Name $colName}}{{if .IsGrouped}}<button type="button" class="multiselect-toggle" data-column="{{$colName}}" title="Multi-select filter mode">☑</button>{{end}}{{end}}{{end}}
+                        {{range $.AllColumns}}{{if eq .Name $colName}}{{if .IsGrouped}}<button type="button" class="multiselect-toggle" data-column="{{$colName}}" title="Multi-select filter mode"><svg class="icon" aria-hidden="true"><use href="#i-check-square"></use></svg></button>{{end}}{{end}}{{end}}
                     </div>
                 </td>
                 {{end}}

@@ -6,11 +6,29 @@
     <title>Google_clusters</title>
     
     
-    <link rel="stylesheet" href="/static/r184/table.css">
-    <script src="/static/r184/table.js" defer></script>
+    <link rel="stylesheet" href="/static/r185/table.css">
+    <script src="/static/r185/table.js" defer></script>
     
 </head>
 <body>
+    
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 4l6 8H2z"/></symbol>
+        <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 12L2 4h12z"/></symbol>
+        <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8-1.5-1.4-6 6.4-2.1-2.1z"/></symbol>
+        <symbol id="i-circle" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+        <symbol id="i-key" viewBox="0 0 16 16"><path d="M10.5 1a4.5 4.5 0 0 0-4.3 5.8L1 12v3h3l1-1v-2h2v-2h2l1.2-1.2A4.5 4.5 0 1 0 10.5 1zm1 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></symbol>
+        <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2L7.8 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9.5 6.5a3 3 0 0 0-4.2 0L2.8 9a3 3 0 0 0 4.2 4.2L8.2 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+        <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2 3.5h12M2 8h12M2 12.5h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+        <symbol id="i-blocked" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 4l8 8" stroke="currentColor" stroke-width="1.8"/></symbol>
+        <symbol id="i-cycle" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2v3.5H9.5z"/></symbol>
+        <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    </svg>
+    
+    <div id="waiting" class="waiting" hidden>
+        <div class="waiting-bar"></div>
+        <div class="waiting-text">Waiting for the server… <span id="waiting-secs">0.0</span> s</div>
+    </div>
     <div class="container">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -25,7 +43,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=zone%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="visible" title="Unique entity column">
-                                ✓ Cluster 🔑
+                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Cluster <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>
                             </a>
                             
                             <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=cluster&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="join-toggle" title="Show/hide join targets">
@@ -39,7 +57,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cgeneration&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                ○ Generation
+                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Generation
                             </a>
                             
                         </div>
@@ -49,7 +67,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=cluster%2Czone%2Cregion%2Ctotal_machines&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                ○ Machines
+                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Machines
                             </a>
                             
                         </div>
@@ -59,7 +77,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cpurpose&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                ○ Purpose
+                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Purpose
                             </a>
                             
                         </div>
@@ -69,7 +87,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=cluster%2Czone%2Cregion%2Crack_count&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                ○ Racks
+                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Racks
                             </a>
                             
                         </div>
@@ -79,7 +97,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=cluster%2Czone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="visible" title="Entity column (non-unique)">
-                                ✓ Region 🔗
+                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Region <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
                             </a>
                             
                             <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=region&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="join-toggle" title="Show/hide join targets">
@@ -93,7 +111,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cstatus&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                ○ Status
+                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Status
                             </a>
                             
                         </div>
@@ -103,7 +121,7 @@
                     <li class="column-item">
                         <div class="column-main">
                             <a href="/default/table?columns=cluster%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="visible" title="Entity column (non-unique)">
-                                ✓ Zone 🔗
+                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Zone <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
                             </a>
                             
                             <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=zone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="join-toggle" title="Show/hide join targets">
@@ -129,7 +147,7 @@
         </aside>
         <main class="main-content" id="main-content">
             <button class="sidebar-open-btn" id="sidebar-open-btn" onclick="toggleSidebar()">
-                <span>☰</span> Menu
+                <svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg> Menu
             </button>
 
             
@@ -162,7 +180,7 @@
                 
                 
                 
-                <th data-col-index="0" data-col-name="cluster" data-col-width="0"    class="">
+                <th draggable="true" data-col-index="0" data-col-name="cluster" data-col-width="0"    class="">
                     
                     <span class="th-content">Cluster</span>
                     <span class="th-internal-name">cluster</span>
@@ -175,7 +193,7 @@
                 
                 
                 
-                <th data-col-index="1" data-col-name="zone" data-col-width="0"    class="">
+                <th draggable="true" data-col-index="1" data-col-name="zone" data-col-width="0"    class="">
                     
                     <span class="th-content">Zone</span>
                     <span class="th-internal-name">zone</span>
@@ -188,7 +206,7 @@
                 
                 
                 
-                <th data-col-index="2" data-col-name="region" data-col-width="0"    class="">
+                <th draggable="true" data-col-index="2" data-col-name="region" data-col-width="0"    class="">
                     
                     <span class="th-content">Region</span>
                     <span class="th-internal-name">region</span>
@@ -207,7 +225,7 @@
                     
                     
                     <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;sort=-cluster&amp;table=google_clusters" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
-                        ▲
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
@@ -259,7 +277,7 @@
                     
                     
                     <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;sort=-zone&amp;table=google_clusters" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
-                        ▲
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
@@ -293,7 +311,7 @@
                     
                     
                     <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;sort=-region&amp;table=google_clusters" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
-                        ▲
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
@@ -547,7 +565,7 @@ Use &quot;quotes&quot; for exact match">
         </tbody>
     </table>
 
-            <div class="info-pane" id="info-pane">
+            <div class="info-pane collapsed" id="info-pane">
                 <div class="info-pane-header">
                     <div class="info-pane-tabs">
                         <a href="javascript:void(0)" class="info-tab active" data-tab="url" onclick="switchInfoTab('url')">URL</a>
@@ -559,7 +577,8 @@ Use &quot;quotes&quot; for exact match">
                     </span>
                     <span class="info-pane-actions">
                         
-                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="hideInfoPane()" title="Collapse the pane to the status bar">Hide</a>
+                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="showInfoPane('url')" title="Open the URL and parameter breakdown">Show URL</a>
+                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="showInfoPane('perf')" title="Open the server and browser timing breakdown">Show perf</a>
                         
                         <span class="build-version">BUILD</span>
                     </span>
