@@ -346,21 +346,25 @@ func TestInfoPaneParams(t *testing.T) {
 		}
 		return NewQuery(u)
 	}
-	// Defaults: pane open on the URL tab, nothing emitted back into the URL.
+	// Defaults: pane collapsed, URL tab selected, nothing emitted back into the URL.
 	q := parse("/default/table?table=orders")
-	if !q.ShowInfoPane || q.InfoPaneTab != "url" {
+	if q.ShowInfoPane || q.InfoPaneTab != "url" {
 		t.Errorf("defaults: show=%v tab=%q", q.ShowInfoPane, q.InfoPaneTab)
 	}
 	if s := q.ToURL(); strings.Contains(s, "info") {
 		t.Errorf("defaults leaked into URL: %s", s)
 	}
-	// Collapsed pane and perf tab round-trip.
-	q = parse("/default/table?table=orders&info=0&infotab=perf")
-	if q.ShowInfoPane || q.InfoPaneTab != "perf" {
-		t.Errorf("info=0&infotab=perf: show=%v tab=%q", q.ShowInfoPane, q.InfoPaneTab)
+	// Open pane on the perf tab round-trips.
+	q = parse("/default/table?table=orders&info=1&infotab=perf")
+	if !q.ShowInfoPane || q.InfoPaneTab != "perf" {
+		t.Errorf("info=1&infotab=perf: show=%v tab=%q", q.ShowInfoPane, q.InfoPaneTab)
 	}
-	if s := q.ToURL(); !strings.Contains(s, "info=0") || !strings.Contains(s, "infotab=perf") {
+	if s := q.ToURL(); !strings.Contains(s, "info=1") || !strings.Contains(s, "infotab=perf") {
 		t.Errorf("round-trip lost pane state: %s", s)
+	}
+	// The old way of closing it still parses as closed.
+	if q := parse("/default/table?table=orders&info=0"); q.ShowInfoPane {
+		t.Error("info=0 must still mean collapsed")
 	}
 	// Unknown tab names fall back to the URL tab instead of selecting no tab.
 	q = parse("/default/table?table=orders&infotab=bogus")

@@ -53,7 +53,7 @@ type Query struct {
 	GroupAggregateSorts map[string]*GroupAggSort   // Aggregate sort for grouped columns (groupedColumn -> sort spec)
 
 	// UI state
-	ShowInfoPane    bool   // Whether the info pane is visible (default: true)
+	ShowInfoPane    bool   // Whether the info pane is open (default: collapsed; "info=1" opens, "info=0" closes)
 	InfoPaneTab     string // Active tab in info pane ("url" or "perf")
 	ShowColumnTypes bool   // Whether the column types row is shown ("types=1")
 	AnimatedColumn  string // Column to animate (e.g., just grouped) - transient, not persisted in subsequent URLs
@@ -73,7 +73,7 @@ func NewQuery(u *url.URL) *Query {
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
 		Descending:          make(map[string]bool),
 		Limit:               25,    // Default limit
-		ShowInfoPane:        true,  // Default to showing info pane
+		ShowInfoPane:        false, // The pane starts collapsed to the status bar (info=1 opens it)
 		InfoPaneTab:         "url", // Default to URL tab
 	}
 
@@ -187,10 +187,9 @@ func NewQuery(u *url.URL) *Query {
 	}
 
 	// Extract info pane state parameters
-	infoParam := q.Get("info")
-	if infoParam == "0" {
-		state.ShowInfoPane = false
-	}
+	// The pane is collapsed unless info=1 (info=0, the old way to close it,
+	// still parses).
+	state.ShowInfoPane = q.Get("info") == "1"
 	// Only the two known tabs are accepted; anything else would open the
 	// pane with no active tab and no content.
 	if q.Get("infotab") == "perf" {
@@ -740,8 +739,8 @@ func (s *Query) ToURL() string {
 	}
 
 	// Add info pane state parameters
-	if !s.ShowInfoPane {
-		q.Set("info", "0")
+	if s.ShowInfoPane {
+		q.Set("info", "1")
 	}
 	if s.InfoPaneTab != "" && s.InfoPaneTab != "url" {
 		q.Set("infotab", s.InfoPaneTab)
