@@ -225,35 +225,78 @@
         }
 
         // Calculate and display browser timing metrics
+        // Fills the status bar's "Total" and the Performance tab's "Browser
+        // Timing" section from the browser's own Navigation, Resource and
+        // Paint timing entries: where the time between the server finishing
+        // and the page being usable went (transfer, HTML parse, scripts,
+        // layout/paint), plus whether the stylesheet and script came from
+        // the cache.
         function displayBrowserTiming() {
-            // Use Performance Navigation Timing API (modern) or fall back to deprecated timing
-            const entries = performance.getEntriesByType('navigation');
+            const nav = performance.getEntriesByType('navigation')[0];
             let totalTime;
-
-            if (entries.length > 0) {
-                // Modern Navigation Timing API (Level 2)
-                const navTiming = entries[0];
-                // Total time from navigation start to load event end
-                totalTime = navTiming.loadEventEnd - navTiming.startTime;
+            if (nav) {
+                totalTime = nav.loadEventEnd - nav.startTime;
             } else if (performance.timing) {
-                // Deprecated Navigation Timing API (Level 1) - fallback
-                const timing = performance.timing;
-                totalTime = timing.loadEventEnd - timing.navigationStart;
+                totalTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
             }
-
+            const ms = function(v) { return (v > 0 ? v : 0).toFixed(1) + 'ms'; };
+            const kb = function(b) { return b >= 1024 ? (b / 1024).toFixed(1) + ' KB' : b + ' B'; };
             const timeStr = (totalTime && totalTime > 0) ? totalTime.toFixed(0) + 'ms' : 'N/A';
 
-            // Update the pagination info timing
             const timingElement = document.getElementById('browser-timing');
             if (timingElement) {
                 timingElement.textContent = timeStr;
             }
-
-            // Update the performance tab timing
             const perfElement = document.getElementById('perf-browser-total');
             if (perfElement) {
                 perfElement.textContent = timeStr;
             }
+
+            const list = document.getElementById('browser-timing-list');
+            const totalItem = document.getElementById('perf-browser-total-item');
+            if (!list || !nav) return;
+            const addRow = function(label, value, detail, sub) {
+                const li = document.createElement('li');
+                li.className = 'perf-timing-item' + (sub ? ' sub' : '');
+                const op = document.createElement('span');
+                op.className = 'perf-operation';
+                op.textContent = label;
+                const vol = document.createElement('span');
+                vol.className = 'perf-volume';
+                vol.textContent = detail || '';
+                const dur = document.createElement('span');
+                dur.className = 'perf-duration';
+                dur.textContent = value;
+                li.appendChild(op);
+                li.appendChild(vol);
+                li.appendChild(dur);
+                list.insertBefore(li, totalItem);
+            };
+
+            // Phases of this navigation, in order. Each is a delta between two
+            // Navigation Timing marks (all relative to navigation start).
+            if (nav.connectEnd - nav.startTime > 1) {
+                addRow('Connect (DNS, TCP, TLS)', ms(nav.connectEnd - nav.startTime));
+            }
+            addRow('Request to first byte (server + network)', ms(nav.responseStart - nav.requestStart));
+            addRow('Download HTML', ms(nav.responseEnd - nav.responseStart),
+                nav.encodedBodySize ? kb(nav.encodedBodySize) + ' on the wire → ' + kb(nav.decodedBodySize) : '');
+            addRow('Parse HTML (to DOM interactive)', ms(nav.domInteractive - nav.responseEnd));
+            addRow('Scripts and DOMContentLoaded handlers', ms(nav.domContentLoadedEventEnd - nav.domInteractive));
+            addRow('Layout and paint (to load event)', ms(nav.loadEventEnd - nav.domContentLoadedEventEnd));
+            performance.getEntriesByType('paint').forEach(function(p) {
+                if (p.name === 'first-contentful-paint') {
+                    addRow('First contentful paint', ms(p.startTime), 'from navigation start');
+                }
+            });
+            // The page's stylesheet and script: cached or fetched.
+            performance.getEntriesByType('resource').forEach(function(r) {
+                const file = r.name.split('/').pop().split('?')[0];
+                if (file !== 'table.css' && file !== 'table.js') return;
+                const fromCache = r.transferSize === 0;
+                addRow(file + (fromCache ? ' (from cache)' : ' (fetched)'), ms(r.duration),
+                    fromCache ? kb(r.decodedBodySize) : kb(r.transferSize) + ' on the wire → ' + kb(r.decodedBodySize), true);
+            });
         }
 
         // Initialize on page load

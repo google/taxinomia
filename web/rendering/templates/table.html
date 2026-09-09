@@ -428,8 +428,9 @@ Use &quot;quotes&quot; for exact match">
                         <p class="perf-empty">No phase timings were recorded for this page. Timings are produced by taxinomia's table handler (HandleTableRequestContext); a server that builds the view model itself must record them with a TimingCollector. See docs/perf-timing.md in the taxinomia repository.</p>
                         {{end}}
                         <h3 class="perf-section-title" style="margin-top: 15px;">Browser Timing</h3>
-                        <ul class="perf-timing-list">
-                            <li class="perf-timing-item">
+                        {{/* Filled by displayBrowserTiming() from the browser's Navigation, Resource and Paint timing entries once the page has loaded. */}}
+                        <ul class="perf-timing-list" id="browser-timing-list">
+                            <li class="perf-timing-item total" id="perf-browser-total-item">
                                 <span class="perf-operation">Total (navigation to load)</span>
                                 <span class="perf-duration" id="perf-browser-total">...</span>
                             </li>

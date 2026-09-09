@@ -143,3 +143,15 @@ revisions:
 Before r170 the breakdown existed but the only way to reach it was the
 `infotab=perf` URL parameter. The collapsed status bar has offered
 **Show URL** / **Show perf** buttons since r168.
+
+## Browser timing
+
+The tab's "Browser Timing" section is filled by the page's own script from
+the browser's Navigation, Resource and Paint timing entries, so it shows
+where the time after the server finished went: connect (when not reused),
+request to first byte (server time plus network latency), HTML download
+with bytes on the wire and decoded, HTML parse, scripts and
+DOMContentLoaded handlers, layout and paint up to the load event, first
+contentful paint, and — for the page's stylesheet and script — whether
+they came from the cache or were fetched, with their sizes. The status
+bar's **Total** is the same navigation-to-load figure.
