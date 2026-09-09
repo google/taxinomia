@@ -837,12 +837,16 @@
             restoreScrollPosition();
             focusNewComputedColumn();
             scheduleAnimCleanup();
-            // Self-test hook (see the file comment)
+            // Self-test hook (see the file comment). Only a table page of this
+            // route qualifies: the hash must never be able to send the
+            // browser elsewhere.
             if (window.location.hash.startsWith('#navtest=')) {
-                fragmentState.navtest = true;
-                const target = decodeURIComponent(window.location.hash.substring(9));
+                const target = new URL(decodeURIComponent(window.location.hash.substring(9)), window.location);
                 history.replaceState(null, '', window.location.pathname + window.location.search);
-                navigate(target);
+                if (isFragmentTarget(target)) {
+                    fragmentState.navtest = true;
+                    navigate(target);
+                }
             }
         }
 
