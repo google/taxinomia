@@ -33,6 +33,8 @@ var templateFS embed.FS
 type TableRenderer struct {
 	tableTemplate   *template.Template
 	landingTemplate *template.Template
+	assets          *staticAssets // the page's stylesheet and script (static.go)
+	staticBase      string        // "" = inline them; else the URL prefix StaticHandler is mounted at
 }
 
 // NewTableRenderer creates a new table renderer
@@ -59,14 +61,23 @@ func NewTableRenderer() (*TableRenderer, error) {
 		return nil, err
 	}
 
+	assets, err := loadStaticAssets()
+	if err != nil {
+		return nil, err
+	}
+
 	return &TableRenderer{
 		tableTemplate:   tableTemplate,
 		landingTemplate: landingTemplate,
+		assets:          assets,
 	}, nil
 }
 
-// Render renders a TableViewModel to the provided writer
+// Render renders a TableViewModel to the provided writer. The page's
+// stylesheet and script are delivered the way the renderer is configured
+// (inline by default, external files after UseStaticAssets).
 func (r *TableRenderer) Render(w io.Writer, vm viewmodel.TableViewModel) error {
+	vm.Assets = r.assetsFor()
 	return r.tableTemplate.Execute(w, vm)
 }
 

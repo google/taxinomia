@@ -171,6 +171,9 @@ func TestExecuteMatchesHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Same asset delivery as the demo server (SetupDemoServer), or the
+	// page heads differ.
+	renderer.UseStaticAssets("/static")
 	for _, raw := range []string{
 		"/default/table?table=orders&limit=10",
 		"/default/table?table=orders&grouped=region&limit=25&infotab=perf",

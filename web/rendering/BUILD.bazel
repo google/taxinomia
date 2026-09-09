@@ -9,10 +9,16 @@ go_test(
 
 go_library(
     name = "rendering",
-    srcs = ["renderer.go"],
+    srcs = [
+        "renderer.go",
+        "static.go",
+    ],
     embedsrcs = [
         "templates/landing.html",
         "templates/table.html",
+        "static/table.css",
+        "static/table-head.js",
+        "static/table-body.js",
     ],
     importpath = "github.com/google/taxinomia/web/rendering",
     visibility = [
@@ -25,6 +31,9 @@ go_library(
     ],
     deps = [
         "//web/viewmodel",
+        "//core/buildinfo",
+        "@com_github_google_safehtml//:safehtml",
         "@com_github_google_safehtml//template",
+        "@com_github_google_safehtml//uncheckedconversions",
     ],
 )

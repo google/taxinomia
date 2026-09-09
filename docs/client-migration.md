@@ -388,3 +388,29 @@ srv.SetClock(tracingClock{inner: hrclock.System()})   // nil restores the defaul
 `Stamp` is opaque: only the clock that produced it interprets it, so an
 implementation may use ticks, nanoseconds, or anything else. Servers that
 build their own `TimingCollector` use `NewTimingCollectorWithClock`.
+
+## Faster pages: static assets, compression, Server-Timing (r184)
+
+Three additive knobs on `handlers.Server`, all off by default so nothing
+changes for a server that does not opt in:
+
+```go
+mux := http.NewServeMux()
+srv.UseStaticAssets("/static")            // page links its CSS/JS instead of inlining ~117 KB
+mux.Handle("/static/", srv.StaticHandler()) // …served versioned + immutable (a year), ETag
+mux.HandleFunc("/", yourTableRoute)         // Execute / HandleTableRequestContext as before
+http.ListenAndServe(addr, handlers.GzipHandler(mux))   // 6–19× fewer bytes for gzip clients
+```
+
+- **Static assets**: a 25-row page shrinks from 122 KB to ~5 KB and the
+  browser reuses its parsed script across navigations. The asset URLs
+  carry the build version (`/static/r184-abc1234/table.js`), so a redeploy
+  never serves a stale cached copy; an unstamped build uses a content
+  hash. If you render pages without mounting the handler, leave
+  `UseStaticAssets` unset: the inline form is the default.
+- **Gzip**: wrap your top-level handler. Responses that already set a
+  Content-Encoding pass through.
+- **Server-Timing**: every table page now carries a `Server-Timing`
+  header with the phase durations (`grouping;dur=12.3;desc="Grouping"`,
+  …, `total;dur=…`), which browser devtools show in the network panel's
+  timing tab. Nothing to enable.

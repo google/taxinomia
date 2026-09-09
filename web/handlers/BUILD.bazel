@@ -2,9 +2,13 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "handlers",
-    srcs = ["server.go"],
+    srcs = [
+        "http.go",
+        "server.go",
+    ],
     importpath = "github.com/google/taxinomia/web/handlers",
     visibility = [
+        "//:__pkg__",
         "//core/query:__pkg__",
         "//core/rendering:__pkg__",
         "//core/server:__pkg__",

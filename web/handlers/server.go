@@ -300,6 +300,7 @@ func (tc *TimingCollector) Record(operation string, duration time.Duration) {
 	tc.entries = append(tc.entries, viewmodel.TimingEntry{
 		Operation:  operation,
 		DurationMs: formatMs(duration),
+		Duration:   duration,
 	})
 }
 
@@ -309,6 +310,7 @@ func (tc *TimingCollector) RecordSub(step string, duration time.Duration) {
 	tc.entries = append(tc.entries, viewmodel.TimingEntry{
 		Operation:  step,
 		DurationMs: formatMs(duration),
+		Duration:   duration,
 		Sub:        true,
 	})
 }
@@ -320,13 +322,13 @@ func (tc *TimingCollector) RecordEntry(e viewmodel.TimingEntry) {
 
 // entry builds a phase entry with its duration, volume and settings.
 func entry(operation string, d time.Duration, rows int, settings ...viewmodel.SettingLink) viewmodel.TimingEntry {
-	return viewmodel.TimingEntry{Operation: operation, DurationMs: formatMs(d), Settings: settings}.WithVolume(d, rows)
+	return viewmodel.TimingEntry{Operation: operation, DurationMs: formatMs(d), Duration: d, Settings: settings}.WithVolume(d, rows)
 }
 
 // stepEntry turns a grouping step into an indented entry, attaching the
 // links that switch off the setting behind it.
 func stepEntry(q *urlquery.Query, tv *tables.TableView, step tables.GroupingStep) viewmodel.TimingEntry {
-	e := viewmodel.TimingEntry{Operation: step.Name, DurationMs: formatMs(step.Duration), Sub: true}.WithVolume(step.Duration, step.Rows)
+	e := viewmodel.TimingEntry{Operation: step.Name, DurationMs: formatMs(step.Duration), Duration: step.Duration, Sub: true}.WithVolume(step.Duration, step.Rows)
 	e.Settings = settingLinks(q, tv, step.Setting)
 	return e
 }
@@ -413,6 +415,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	// Set content type and render
 	setHeader("Content-Type", "text/html; charset=utf-8")
 	setHeader(versionHeader, viewModel.Build.Version())
+	setHeader("Server-Timing", timing.ServerTimingHeader())
 	if err := s.renderer.Render(w, viewModel); err != nil {
 		log.Printf("Template rendering error: %v", err)
 		return &TableHandlerResult{Error: err}

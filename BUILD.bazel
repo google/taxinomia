@@ -24,6 +24,7 @@ go_library(
     deps = [
         "//datasources",
         "//demo",
+        "//web/handlers",
     ],
 )
 

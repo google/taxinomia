@@ -76,6 +76,9 @@ type TableViewModel struct {
 	// Build that produced the serving binary (status bar + perf tab)
 	Build buildinfo.Info
 
+	// Stylesheet and script delivery (filled by the renderer; see Assets)
+	Assets Assets
+
 	// Animation state (transient, from _anim URL parameter)
 	AnimatedColumn string // Column that was just grouped (triggers animation)
 

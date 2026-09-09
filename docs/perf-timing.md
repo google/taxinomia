@@ -34,6 +34,10 @@ time down by phase:
 | Build ViewModel | turning the result window into template data |
 | Total Server Time | wall time from the start of the request to rendering |
 
+The same phases are sent as a `Server-Timing` response header, which the
+browser's devtools show in the network panel's timing tab — useful when the
+page itself is what you are debugging.
+
 A warm request on a cached view legitimately reads a fraction of a
 millisecond in every phase: everything was cached. That is a real number,
 not a missing one.

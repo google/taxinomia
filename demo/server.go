@@ -197,6 +197,9 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	if err != nil {
 		return nil, nil, err
 	}
+	// The page's stylesheet and script come from cacheable static files;
+	// main.go mounts srv.StaticHandler() at this prefix.
+	srv.UseStaticAssets("/static")
 
 	// Build the navigation catalog: tables (with primary keys and column
 	// entity types), hierarchies, entity type descriptions and URL templates,

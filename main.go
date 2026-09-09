@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/google/taxinomia/demo"
+	"github.com/google/taxinomia/web/handlers"
 )
 
 const serverAddress = "127.0.0.1:8097"
@@ -38,9 +39,15 @@ func main() {
 		log.Fatalf("Failed to create server: %v", err)
 	}
 
+	// The page's stylesheet and script are served as versioned, cacheable
+	// files instead of being inlined in every page; responses are gzipped.
+	mux := http.NewServeMux()
+	srv.UseStaticAssets("/static")
+	mux.Handle("/static/", srv.StaticHandler())
+
 	// Handle all requests and route based on product path
 	// URL format: /{product}/ or /{product}/table
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
 		// Parse product name and action from path
@@ -74,7 +81,7 @@ func main() {
 	for _, p := range products.GetAll() {
 		fmt.Printf("  - /%s/\n", p.Name)
 	}
-	log.Fatal(http.ListenAndServe(serverAddress, nil))
+	log.Fatal(http.ListenAndServe(serverAddress, handlers.GzipHandler(mux)))
 }
 
 // parseProductPath extracts the product name and action from a URL path.

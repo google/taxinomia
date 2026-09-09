@@ -30,9 +30,10 @@ import (
 // the step processed and which query setting caused it, so a slow request
 // explains itself and offers the switch that turns the cost off.
 type TimingEntry struct {
-	Operation  string // Name of the operation (e.g., "Parse Query", "Apply Filters")
-	DurationMs string // Duration in milliseconds (formatted)
-	Sub        bool   // A step within the preceding phase (rendered indented; not a phase of its own)
+	Operation  string        // Name of the operation (e.g., "Parse Query", "Apply Filters")
+	DurationMs string        // Duration in milliseconds (formatted)
+	Duration   time.Duration // The measured duration (DurationMs is its display form)
+	Sub        bool          // A step within the preceding phase (rendered indented; not a phase of its own)
 
 	// Volume: rows the step processed and the derived unit costs. Empty
 	// when the step is not per-row (a sort over groups, a cache hit).
