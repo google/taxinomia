@@ -1826,28 +1826,35 @@
 
         /* Expand / collapse control on a grouped cell: opens the group's
            subgroups, or lists an innermost group's rows */
+        td.group-cell {
+            position: relative;
+            padding-right: 2em; /* room for the toggle strip */
+        }
+
+        /* The toggle is a strip along the cell's right edge, the full
+           height of the cell (all the rows it spans), caret centered */
         .group-toggle {
-            display: inline-block;
-            min-width: 1.2em;
-            text-align: center;
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 1.4em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: #666;
             text-decoration: none;
-            margin-left: 4px;
-            padding: 2px 5px;
-            border-radius: 3px;
             background-color: #f0f0f0;
-            border: 1px solid #ddd;
-            line-height: 1;
+            border-left: 1px solid #ddd;
         }
 
         .group-toggle:hover {
             color: #fff;
             background-color: #3498db;
-            border-color: #2980b9;
+            border-left-color: #2980b9;
         }
 
         .group-toggle .icon {
             width: 1em;
             height: 1em;
-            vertical-align: -0.1em;
         }
