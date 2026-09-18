@@ -1828,17 +1828,17 @@
            subgroups, or lists an innermost group's rows */
         td.group-cell {
             position: relative;
-            padding-right: 2em; /* room for the toggle strip */
+            padding-right: 2.2em; /* room for the toggle strip */
         }
 
         /* The toggle is a strip along the cell's right edge, the full
            height of the cell (all the rows it spans), caret centered */
-        .group-toggle {
+        .group-expand {
             position: absolute;
             top: 0;
             right: 0;
             bottom: 0;
-            width: 1.4em;
+            width: 1.6em;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1848,13 +1848,13 @@
             border-left: 1px solid #ddd;
         }
 
-        .group-toggle:hover {
+        .group-expand:hover {
             color: #fff;
             background-color: #3498db;
             border-left-color: #2980b9;
         }
 
-        .group-toggle .icon {
-            width: 1em;
-            height: 1em;
+        .group-expand .icon {
+            width: 1.4em;
+            height: 1.4em;
         }
