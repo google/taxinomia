@@ -76,11 +76,15 @@ var (
 	buildRE  = regexp.MustCompile(`(class="(?:build-version|perf-build)")(?: title="[^"]*")?>[^<]*<`)
 	// The perf tab's per-row cost and rate derive from the durations.
 	volumeRE = regexp.MustCompile(`(class="perf-volume">)[^<]+<`)
+	// The static asset URLs carry the build revision as a path segment,
+	// which the commit hook bumps with every commit.
+	staticRE = regexp.MustCompile(`(/static/)[^/"]+(/)`)
 )
 
 func normalizeHTML(b []byte) []byte {
 	b = timingRE.ReplaceAll(b, []byte(`${1}0.00ms`))
 	b = volumeRE.ReplaceAll(b, []byte(`${1}VOLUME<`))
+	b = staticRE.ReplaceAll(b, []byte(`${1}VERSION${2}`))
 	return buildRE.ReplaceAll(b, []byte(`${1}>BUILD<`))
 }
 
@@ -111,6 +115,11 @@ func TestGoldenDemoPages(t *testing.T) {
 		{"orders_flat", "/default/table?table=orders&limit=10"},
 		// Grouped rows: URL resolution inside the group walk.
 		{"orders_grouped", "/default/table?table=orders&grouped=region&limit=25"},
+		// Explicit expansion: level 0 collapsed except North, whose status
+		// subgroups show; North/Delivered is an opened innermost group and
+		// lists its rows (value cells with entity URLs, sorted left to
+		// right) beneath its cell; every group cell carries its toggle.
+		{"orders_grouped_open", "/default/table?table=orders&grouped=region%2Cstatus&gexp=North%2FDelivered&limit=25"},
 		// Detail panel on a textproto-loaded row: SelectedRowData with all
 		// entity URLs, hierarchy contexts via the no-position branch (the
 		// google hierarchies do not contain demo.order_id), and the related

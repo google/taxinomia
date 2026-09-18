@@ -1823,3 +1823,20 @@
         body.waiting-cursor * {
             cursor: progress !important;
         }
+
+        /* Expand / collapse control on a grouped cell: opens the group's
+           subgroups, or lists an innermost group's rows */
+        .group-toggle {
+            color: #888;
+            text-decoration: none;
+            margin-right: 2px;
+        }
+
+        .group-toggle:hover {
+            color: #3498db;
+        }
+
+        .group-toggle .icon {
+            width: 0.85em;
+            height: 0.85em;
+        }

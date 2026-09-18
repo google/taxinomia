@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "viewmodel",
@@ -29,5 +29,16 @@ go_library(
         "//core/tables",
         "//web/urlquery",
         "@com_github_google_safehtml//:safehtml",
+    ],
+)
+
+go_test(
+    name = "viewmodel_test",
+    srcs = ["grouped_rows_test.go"],
+    embed = [":viewmodel"],
+    deps = [
+        "//core/columns",
+        "//core/tables",
+        "//web/urlquery",
     ],
 )

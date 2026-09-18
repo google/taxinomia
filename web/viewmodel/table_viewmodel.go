@@ -223,6 +223,17 @@ type GroupedCell struct {
 	// IsIncomplete indicates the cell belongs to a group that was truncated due to display limits.
 	// Such cells should be visually distinguished (e.g., light grey background).
 	IsIncomplete bool
+	// GroupPath is the group's path in the grouping hierarchy (one value per
+	// level, outermost first); set on grouped column cells only.
+	GroupPath []string
+	// IsExpanded reports whether the group is open: its subgroups are shown
+	// beneath it, or — for an innermost group — its rows are listed.
+	IsExpanded bool
+	// ToggleURL opens the group when it is closed and closes it when open.
+	ToggleURL safehtml.URL
+	// IsRowValue marks a cell of a listed row (an opened innermost group's
+	// leaf rows): Value is one row's value in ColumnName, not an aggregate.
+	IsRowValue bool
 }
 
 // AggregateToggle represents a single aggregate toggle button for the UI
@@ -1309,7 +1320,7 @@ type GroupBuildResult struct {
 }
 
 // buildGroupedRows converts the hierarchical grouping structure into rows with rowspan
-// It walks the group hierarchy recursively, using group.Height() for rowspan
+// It walks the group hierarchy recursively, using the group's display height for rowspan
 // If limit > 0, stops after limit display rows and marks incomplete groups
 func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *urlquery.Query, limit int, columnEntityTypes map[string]string, urlResolver URLResolver) GroupBuildResult {
 	firstBlock := tableView.GetFirstBlock()
@@ -1317,15 +1328,25 @@ func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *u
 		return GroupBuildResult{}
 	}
 
+	w := &groupWalker{
+		tableView:         tableView,
+		q:                 q,
+		limit:             limit,
+		columnEntityTypes: columnEntityTypes,
+		urlResolver:       urlResolver,
+		openLeaf:          listedGroups(q),
+		sortOrder:         q.EffectiveSortOrder(),
+	}
+
 	// Calculate total rows without limit for display purposes
 	totalRows := 0
 	for _, g := range firstBlock.Groups {
-		totalRows += g.Height()
+		totalRows += w.height(g, []string{g.GetValue()})
 	}
 
 	var rows []GroupedRow = []GroupedRow{{Cells: []GroupedCell{}}}
 	rowCount := 0
-	truncated := walkGroupHierarchy(tableView, firstBlock, &rows, 0, q, limit, &rowCount, columnEntityTypes, urlResolver)
+	truncated := w.walk(firstBlock, &rows, 0, nil, &rowCount)
 
 	// Remove trailing empty row if present
 	if len(rows) > 0 && len(rows[len(rows)-1].Cells) == 0 {
@@ -1337,11 +1358,67 @@ func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *u
 		fixRowspans(rows)
 	}
 
+	setGroupToggles(rows, q)
+
 	return GroupBuildResult{
 		Rows:      rows,
 		Truncated: truncated,
 		TotalRows: totalRows,
 		ShownRows: len(rows),
+	}
+}
+
+// groupPathKey joins a group path into one map key.
+func groupPathKey(path []string) string {
+	return strings.Join(path, "\x1f")
+}
+
+// appendPath returns prefix + value as a fresh slice (no aliasing).
+func appendPath(prefix []string, value string) []string {
+	path := make([]string, 0, len(prefix)+1)
+	path = append(path, prefix...)
+	return append(path, value)
+}
+
+// listedGroups returns the innermost groups whose rows are listed: the
+// explicit expansion paths as long as the grouping hierarchy. Without an
+// explicit expansion no rows are listed (innermost groups show aggregates).
+func listedGroups(q *urlquery.Query) map[string]bool {
+	listed := make(map[string]bool)
+	if !q.HasExpandedGroups {
+		return listed
+	}
+	for _, p := range q.ExpandedGroups {
+		if len(p) == len(q.GroupedColumns) {
+			listed[groupPathKey(p)] = true
+		}
+	}
+	return listed
+}
+
+// setGroupToggles fills the toggle URL of every grouped cell. A page
+// rendered without gexp first materializes its displayed open groups as an
+// explicit expansion, so that its first toggle keeps every other group as
+// shown instead of collapsing the whole tree.
+func setGroupToggles(rows []GroupedRow, q *urlquery.Query) {
+	base := q
+	if !q.HasExpandedGroups {
+		var open [][]string
+		for ri := range rows {
+			for _, c := range rows[ri].Cells {
+				if c.IsGroupedColumn && c.IsExpanded {
+					open = append(open, c.GroupPath)
+				}
+			}
+		}
+		base = q.WithExplicitGroupExpansion(open)
+	}
+	for ri := range rows {
+		for ci := range rows[ri].Cells {
+			if c := &rows[ri].Cells[ci]; c.IsGroupedColumn {
+				c.ToggleURL = base.WithGroupExpansionToggled(c.GroupPath)
+			}
+		}
 	}
 }
 
@@ -1366,26 +1443,61 @@ func fixRowspans(rows []GroupedRow) {
 	}
 }
 
-// walkGroupHierarchy recursively walks the group hierarchy and builds rows
+// groupWalker carries the inputs of one grouped-rows build through the
+// recursive walk of the group hierarchy.
+type groupWalker struct {
+	tableView         *tables.TableView
+	q                 *urlquery.Query
+	limit             int               // max display rows (0 = unlimited)
+	columnEntityTypes map[string]string // column name -> entity type, for value URLs
+	urlResolver       URLResolver       // resolves entity type URLs (can be nil)
+	openLeaf          map[string]bool   // innermost groups whose rows are listed, by path key
+	sortOrder         []urlquery.SortColumn
+}
+
+// height is the number of display rows a group occupies: the sum over its
+// subgroups, the number of listed rows for an opened innermost group, one
+// otherwise.
+func (w *groupWalker) height(g *grouping.Group, path []string) int {
+	if len(w.openLeaf) == 0 {
+		return g.Height()
+	}
+	if g.ChildBlock == nil {
+		if w.openLeaf[groupPathKey(path)] && g.Length() > 1 {
+			return g.Length()
+		}
+		return 1
+	}
+	h := 0
+	for _, c := range g.ChildBlock.Groups {
+		h += w.height(c, appendPath(path, c.GetValue()))
+	}
+	return h
+}
+
+// walk recursively walks the group hierarchy and builds rows
 // level indicates the depth in the grouping hierarchy (0 = first grouped column)
-// limit is the max display rows (0 = unlimited), rowCount tracks current count
-// columnEntityTypes maps column names to their entity types for URL resolution
-// urlResolver resolves entity type URLs (can be nil)
+// prefix is the path of the block's parent group (nil at level 0)
+// rowCount tracks the display rows emitted so far
 // Returns true if truncated due to limit
-func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows *[]GroupedRow, level int, q *urlquery.Query, limit int, rowCount *int, columnEntityTypes map[string]string, urlResolver URLResolver) bool {
+func (w *groupWalker) walk(block *grouping.Block, rows *[]GroupedRow, level int, prefix []string, rowCount *int) bool {
 	if block == nil {
 		return false
 	}
+	tableView, q := w.tableView, w.q
 	// Get the column name for this grouping level
 	colName := block.GroupedColumn.DataColumn.ColumnDef().Name()
 
 	for _, group := range block.Groups {
 		// Check if we've hit the limit before processing this group
-		if limit > 0 && *rowCount >= limit {
+		if w.limit > 0 && *rowCount >= w.limit {
 			return true
 		}
 		// Get the raw value for filtering
 		rawValue := group.GetValue()
+		path := appendPath(prefix, rawValue)
+		// An opened innermost group lists its rows beneath its cell.
+		listed := group.ChildBlock == nil && w.openLeaf[groupPathKey(path)]
 		numRows := group.Length()
 		numSubgroups := group.NumSubgroups()
 
@@ -1411,14 +1523,15 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 
 		// Build column aggregates for this group
 		// Only show aggregates in grouped column cells that are NOT the last grouped column,
-		// because leaf cells already display their own aggregates.
+		// because leaf cells already display their own aggregates — unless the
+		// group's rows are listed, when its cell carries the summary instead.
 		// Also check if this grouped column has an aggregate sort to mark the sorted aggregate.
 		var columnAggs []aggregates.ColumnAggregateDisplay
 		aggSort := q.GetGroupAggSort(colName)
 		// group.Aggregates may be nil when every leaf column is count-only
 		// (SetAggregateNeeds skipped all states); nil-map reads yield nil
 		// states and aggChipsFor synthesizes the count chips.
-		if group.ChildBlock != nil {
+		if group.ChildBlock != nil || listed {
 			for _, leafColName := range tableView.GetLeafColumns() {
 				state := group.Aggregates[leafColName]
 				colType := tableView.GetColumnType(leafColName)
@@ -1453,9 +1566,9 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 
 		// Resolve URL for the cell value if entity type is defined
 		var valueURL string
-		if urlResolver != nil && rawValue != "" {
-			if entityType, ok := columnEntityTypes[colName]; ok {
-				valueURL = urlResolver(entityType, rawValue)
+		if w.urlResolver != nil && rawValue != "" {
+			if entityType, ok := w.columnEntityTypes[colName]; ok {
+				valueURL = w.urlResolver(entityType, rawValue)
 			}
 		}
 
@@ -1468,7 +1581,7 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			ValueURL:              valueURL,
 			NumRows:               numRows,
 			NumSubgroups:          numSubgroups,
-			Rowspan:               group.Height(),
+			Rowspan:               w.height(group, path),
 			Title:                 tooltip,
 			FilterURL:             q.WithFilterPathAndUngrouped(filterPath),
 			IsGroupedColumn:       true,
@@ -1479,10 +1592,17 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 			IsSubgroupCountSorted: isSubgroupCountSorted,
 			ColumnAggregates:      columnAggs,
 			IsIncomplete:          false, // Set by fixRowspans based on rowspan reduction
+			GroupPath:             path,
+			IsExpanded:            group.ChildBlock != nil || listed,
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 
-		if group.ChildBlock == nil {
+		switch {
+		case listed:
+			if w.listRows(group, rows, rowCount) {
+				return true
+			}
+		case group.ChildBlock == nil:
 			// Leaf group - add cells for "other" (non-filtered) leaf columns with their aggregates
 			for _, leafColName := range tableView.GetOtherLeafColumns() {
 				// Build aggregates for this specific leaf column
@@ -1541,15 +1661,62 @@ func walkGroupHierarchy(tableView *tables.TableView, block *grouping.Block, rows
 
 			// Start a new row for the next group
 			*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
-		} else {
+		default:
 			// Non-leaf group - recurse into child blocks
-			truncated := walkGroupHierarchy(tableView, group.ChildBlock, rows, level+1, q, limit, rowCount, columnEntityTypes, urlResolver)
-			if truncated {
+			if w.walk(group.ChildBlock, rows, level+1, path, rowCount) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// listRows emits one display row per row of an opened innermost group: the
+// filtered leaf columns to the left of the group cell, the other leaf
+// columns to its right, each carrying the row's value. The rows come sorted
+// by the visible columns left to right (the always-sorted model) and are
+// bounded by the remaining display budget; a group with more rows than fit
+// is truncated like any other, and marked incomplete by fixRowspans.
+// Returns true when the display limit cut the listing short.
+func (w *groupWalker) listRows(group *grouping.Group, rows *[]GroupedRow, rowCount *int) bool {
+	filtered := w.tableView.GetFilteredLeafColumns()
+	other := w.tableView.GetOtherLeafColumns()
+	cols := make([]string, 0, len(filtered)+len(other))
+	cols = append(append(cols, filtered...), other...)
+
+	n := group.Length()
+	if w.limit > 0 && w.limit-*rowCount < n {
+		n = w.limit - *rowCount
+	}
+	listed := w.tableView.GroupRowsSorted(group, cols, w.sortOrder, n)
+	for _, r := range listed {
+		row := &(*rows)[len(*rows)-1]
+		lead := make([]GroupedCell, len(filtered))
+		for i, col := range filtered {
+			lead[i] = w.rowValueCell(col, r[col])
+		}
+		row.Cells = append(lead, row.Cells...)
+		for _, col := range other {
+			row.Cells = append(row.Cells, w.rowValueCell(col, r[col]))
+		}
+		*rowCount++
+		*rows = append(*rows, GroupedRow{Cells: []GroupedCell{}})
+	}
+	return len(listed) < group.Length()
+}
+
+// rowValueCell builds the cell of one listed row in one leaf column.
+func (w *groupWalker) rowValueCell(col, value string) GroupedCell {
+	cell := GroupedCell{Value: value, Rowspan: 1, ColumnName: col, IsRowValue: true}
+	if w.urlResolver != nil && value != "" {
+		if entityType, ok := w.columnEntityTypes[col]; ok {
+			cell.ValueURL = w.urlResolver(entityType, value)
+		}
+	}
+	if isIntegerColumn(w.tableView.GetColumn(col)) {
+		cell.Value = FormatIntString(value)
+	}
+	return cell
 }
 
 func buildColumnStats(tableView *tables.TableView) []string {

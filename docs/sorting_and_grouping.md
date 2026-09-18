@@ -82,6 +82,32 @@ Grouped columns are specified with `grouped:` prefix:
 
 The order determines grouping hierarchy (first = outermost).
 
+### Expanding and Collapsing Groups
+
+Every group cell carries a toggle (▸ closed, ▾ open) in front of its value.
+Opening a group shows its subgroups beneath it; opening a group at the
+innermost level lists its rows — one table row per data row, sorted like the
+flat table (by the visible columns left to right) and bounded by the display
+limit like everything else. A collapsed group shows one row with its
+aggregates. Nothing is computed for closed groups, so a grouped view of a
+large table stays cheap until you open the part you want to see.
+
+The `gexp` parameter lists the open groups as paths of group values from the
+outermost level inward, each value URL-escaped, values joined by `/`, paths
+by `,`:
+
+```
+?grouped=region,status&gexp=North,North%2FDelivered
+```
+
+Opening a nested group implies opening its ancestors; closing a group closes
+everything beneath it. Without `gexp` the page shows every group of every
+level open (the historical display, with innermost groups showing aggregates
+only). The first toggle on such a page writes the currently open groups into
+`gexp`, so that closing one group leaves the others as they were. Changing
+the grouping hierarchy (grouping, ungrouping, reordering, filtering by a
+group cell) drops `gexp`, as its paths are positional.
+
 ## Aggregates
 
 When grouping is active, aggregates are computed for leaf columns (non-grouped visible columns).

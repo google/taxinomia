@@ -22,6 +22,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/google/safehtml"
 )
 
 // TestColumnReorderingOnGrouping tests that columns are reordered when grouping is toggled
@@ -432,4 +434,89 @@ func TestSortIsDirectionOnly(t *testing.T) {
 	if c.IsSortedDescending("a") || len(c.EffectiveSortOrder()) != 0 {
 		t.Error("ClearTableSpecificState kept sort state")
 	}
+}
+
+// TestGroupExpansionToggle covers the per-group open/close URL builders: the
+// open test, opening and closing under an explicit expansion, closing a
+// group whose descendants were listed, materializing an expand-all page's
+// open set, and the reset on a changed grouping hierarchy.
+func TestGroupExpansionToggle(t *testing.T) {
+	parse := func(raw string) *Query {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return NewQuery(u)
+	}
+	roundTrip := func(u safehtml.URL) *Query { return parse(u.String()) }
+
+	t.Run("expand-all opens every level but lists no rows", func(t *testing.T) {
+		q := parse("/table?table=test&grouped=status,region")
+		if !q.IsGroupExpanded([]string{"Active"}) {
+			t.Error("level-0 group must count as open without gexp")
+		}
+		if q.IsGroupExpanded([]string{"Active", "North"}) {
+			t.Error("innermost group must not count as open (rows are never listed) without gexp")
+		}
+	})
+
+	t.Run("open then close under explicit expansion", func(t *testing.T) {
+		q := parse("/table?table=test&grouped=status,region&gexp=")
+		if q.IsGroupExpanded([]string{"Active"}) {
+			t.Error("nothing is open with an empty gexp")
+		}
+		opened := roundTrip(q.WithGroupExpansionToggled([]string{"Active"}))
+		if !opened.IsGroupExpanded([]string{"Active"}) {
+			t.Fatalf("toggle did not open the group: %v", opened.ExpandedGroups)
+		}
+		closed := roundTrip(opened.WithGroupExpansionToggled([]string{"Active"}))
+		if closed.IsGroupExpanded([]string{"Active"}) || !closed.HasExpandedGroups {
+			t.Errorf("toggle did not close the group: %v (explicit=%v)", closed.ExpandedGroups, closed.HasExpandedGroups)
+		}
+	})
+
+	t.Run("closing drops listed descendants and keeps an implied parent", func(t *testing.T) {
+		// Active/North is listed; Active is only implied. Closing Active/North
+		// must leave Active open, explicitly.
+		q := parse("/table?table=test&grouped=status,region,category&gexp=Active%2FNorth%2FA,Active%2FNorth,Inactive")
+		closed := roundTrip(q.WithGroupExpansionToggled([]string{"Active", "North"}))
+		if closed.IsGroupExpanded([]string{"Active", "North"}) || closed.IsGroupExpanded([]string{"Active", "North", "A"}) {
+			t.Errorf("Active/North and its descendants must be closed: %v", closed.ExpandedGroups)
+		}
+		if !closed.IsGroupExpanded([]string{"Active"}) || !closed.IsGroupExpanded([]string{"Inactive"}) {
+			t.Errorf("Active (implied parent) and Inactive must stay open: %v", closed.ExpandedGroups)
+		}
+	})
+
+	t.Run("values with separators survive the round-trip", func(t *testing.T) {
+		q := parse("/table?table=test&grouped=a,b&gexp=")
+		path := []string{"x/y", "p,q r"}
+		opened := roundTrip(q.WithGroupExpansionToggled(path))
+		if !opened.IsGroupExpanded(path) {
+			t.Errorf("escaped path lost: %v", opened.ExpandedGroups)
+		}
+	})
+
+	t.Run("materializing an expand-all page", func(t *testing.T) {
+		q := parse("/table?table=test&grouped=status,region")
+		explicit := q.WithExplicitGroupExpansion([][]string{{"Active"}, {"Pending"}})
+		closed := roundTrip(explicit.WithGroupExpansionToggled([]string{"Active"}))
+		if closed.IsGroupExpanded([]string{"Active"}) {
+			t.Error("Active must be closed")
+		}
+		if !closed.IsGroupExpanded([]string{"Pending"}) {
+			t.Error("Pending must stay open after materialization")
+		}
+		if !closed.HasExpandedGroups {
+			t.Error("the result must carry an explicit gexp")
+		}
+	})
+
+	t.Run("changing the grouping hierarchy drops the expansion", func(t *testing.T) {
+		q := parse("/table?table=test&grouped=status,region&gexp=Active")
+		regrouped := roundTrip(q.WithGroupedColumnToggled("category"))
+		if regrouped.HasExpandedGroups {
+			t.Errorf("positional paths must not survive a regroup: %v", regrouped.ExpandedGroups)
+		}
+	})
 }

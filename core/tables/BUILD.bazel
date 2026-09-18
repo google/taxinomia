@@ -35,6 +35,7 @@ go_test(
         "filter_bench_test.go",
         "filter_context_test.go",
         "grouping_context_test.go",
+        "group_rows_test.go",
         "filter_selection_test.go",
         "golden_test.go",
         "grouping_release_test.go",

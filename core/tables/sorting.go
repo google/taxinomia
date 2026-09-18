@@ -23,6 +23,7 @@ import (
 	"sort"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/grouping"
 	"github.com/google/taxinomia/core/queryspec"
 )
 
@@ -282,8 +283,25 @@ func (t *TableView) sortedTopK(sel columns.RowSet, sortableCols []sortableColumn
 // order and is read straight from storage — the free path for the default
 // view, where the key is the leftmost column.
 func (t *TableView) GetFilteredRowsSorted(columnNames []string, sortOrder []queryspec.SortColumn, limit int) []map[string]string {
-	sel := t.rowSet()
+	return t.rowsSorted(t.rowSet(), columnNames, sortOrder, limit)
+}
 
+// GroupRowsSorted returns the rows of one group — the leaf listing of an
+// opened innermost group — sorted like GetFilteredRowsSorted and limited to
+// the top K (all rows when limit <= 0). The grouping build released the
+// group's membership, so it is re-resolved through the grouping column's
+// GroupMembers operation: one selection scan per ancestry level, then a
+// bounded top-K over the group. The grouped columns are constant within the
+// group, so listing them in sortOrder is harmless.
+func (t *TableView) GroupRowsSorted(g *grouping.Group, columnNames []string, sortOrder []queryspec.SortColumn, limit int) []map[string]string {
+	if g == nil {
+		return nil
+	}
+	return t.rowsSorted(columns.RowIndices(t.membersForGroup(g)), columnNames, sortOrder, limit)
+}
+
+// rowsSorted is GetFilteredRowsSorted over an explicit selection.
+func (t *TableView) rowsSorted(sel columns.RowSet, columnNames []string, sortOrder []queryspec.SortColumn, limit int) []map[string]string {
 	// Resolve columns and build sortable column list
 	sortableCols := make([]sortableColumn, 0, len(sortOrder)+1)
 	listed := make(map[string]bool, len(sortOrder))

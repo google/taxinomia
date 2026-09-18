@@ -834,6 +834,12 @@ func (s *Query) WithGroupedColumnToggled(column string) safehtml.URL {
 		newState.AnimatedColumn = column // Animate the newly grouped column
 	}
 
+	// Group expansion paths are positional (one value per grouping level),
+	// so a changed hierarchy invalidates every one of them: the new grouping
+	// starts from the default expansion.
+	newState.ExpandedGroups = nil
+	newState.HasExpandedGroups = false
+
 	// Reorder columns: filtered first, then grouped, then others
 	newState.reorderColumns()
 
@@ -880,6 +886,9 @@ func (s *Query) WithFilterPathAndUngrouped(path []FilterStep) safehtml.URL {
 		}
 	}
 	newState.GroupedColumns = newGrouped
+	// The hierarchy changed: positional expansion paths no longer apply.
+	newState.ExpandedGroups = nil
+	newState.HasExpandedGroups = false
 
 	// Reorder columns: filtered first, then grouped, then others
 	newState.reorderColumns()
@@ -901,6 +910,9 @@ func (s *Query) WithFilterAndUngrouped(column, value string) safehtml.URL {
 		}
 	}
 	newState.GroupedColumns = newGrouped
+	// The hierarchy changed: positional expansion paths no longer apply.
+	newState.ExpandedGroups = nil
+	newState.HasExpandedGroups = false
 
 	// Reorder columns: filtered first, then grouped, then others
 	newState.reorderColumns()
@@ -1144,4 +1156,79 @@ func (s *Query) GroupLevel(column string) int {
 		}
 	}
 	return 0
+}
+
+// groupPathKey joins a group path into one map key.
+func groupPathKey(path []string) string {
+	return strings.Join(path, "\x1f")
+}
+
+// openGroupSet returns the explicit expansion as a prefix-closed set: opening
+// a nested group implies opening every ancestor on its path (the engine's
+// normalization, mirrored so URL building and rendering agree).
+func (s *Query) openGroupSet() map[string]bool {
+	set := make(map[string]bool)
+	for _, p := range s.ExpandedGroups {
+		for i := 1; i <= len(p); i++ {
+			set[groupPathKey(p[:i])] = true
+		}
+	}
+	return set
+}
+
+// IsGroupExpanded reports whether the group at path (its values from the
+// first grouping level downward) is open. Without a gexp parameter every
+// group is open down to the innermost level, whose groups show aggregates
+// only; with one, exactly the listed paths and their ancestors are open. A
+// path as long as the grouping hierarchy names an innermost group; opening
+// it lists the group's rows.
+func (s *Query) IsGroupExpanded(path []string) bool {
+	if !s.HasExpandedGroups {
+		return len(path) < len(s.GroupedColumns)
+	}
+	return s.openGroupSet()[groupPathKey(path)]
+}
+
+// WithExplicitGroupExpansion returns a copy of the query whose expansion is
+// exactly the given open paths (a gexp parameter, even when empty). A page
+// rendered without gexp materializes its displayed open groups this way
+// before building a toggle URL, so that closing one group keeps the others
+// as they were.
+func (s *Query) WithExplicitGroupExpansion(paths [][]string) *Query {
+	newState := s.Clone()
+	newState.HasExpandedGroups = true
+	newState.ExpandedGroups = make([][]string, 0, len(paths))
+	for _, p := range paths {
+		newState.ExpandedGroups = append(newState.ExpandedGroups, append([]string(nil), p...))
+	}
+	return newState
+}
+
+// WithGroupExpansionToggled returns a URL with the group at path opened if
+// it is closed, and closed — together with every group beneath it — if it is
+// open. The query must carry an explicit expansion (see
+// WithExplicitGroupExpansion); without one the toggle starts from nothing
+// open. Opening keeps the list as it was and appends the path (ancestors are
+// implied); closing drops the path and every listed path beneath it, and
+// keeps the parent open explicitly when it was only implied by them.
+func (s *Query) WithGroupExpansionToggled(path []string) safehtml.URL {
+	newState := s.Clone()
+	newState.HasExpandedGroups = true
+	key := groupPathKey(path)
+	if !s.HasExpandedGroups || !s.openGroupSet()[key] {
+		newState.ExpandedGroups = append(newState.ExpandedGroups, append([]string(nil), path...))
+		return newState.ToSafeURL()
+	}
+	kept := make([][]string, 0, len(s.ExpandedGroups))
+	for _, p := range s.ExpandedGroups {
+		if len(p) >= len(path) && groupPathKey(p[:len(path)]) == key {
+			continue
+		}
+		kept = append(kept, append([]string(nil), p...))
+	}
+	newState.ExpandedGroups = kept
+	if len(path) > 1 && !newState.openGroupSet()[groupPathKey(path[:len(path)-1])] {
+		newState.ExpandedGroups = append(newState.ExpandedGroups, append([]string(nil), path[:len(path)-1]...))
+	}
+	return newState.ToSafeURL()
 }
