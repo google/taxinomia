@@ -1827,16 +1827,27 @@
         /* Expand / collapse control on a grouped cell: opens the group's
            subgroups, or lists an innermost group's rows */
         .group-toggle {
-            color: #888;
+            display: inline-block;
+            min-width: 1.2em;
+            text-align: center;
+            color: #666;
             text-decoration: none;
-            margin-right: 2px;
+            margin-left: 4px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            line-height: 1;
         }
 
         .group-toggle:hover {
-            color: #3498db;
+            color: #fff;
+            background-color: #3498db;
+            border-color: #2980b9;
         }
 
         .group-toggle .icon {
-            width: 0.85em;
-            height: 0.85em;
+            width: 1em;
+            height: 1em;
+            vertical-align: -0.1em;
         }
