@@ -56,6 +56,7 @@ type TableViewModel struct {
 	IsComputedColumn      map[string]bool      // Tracks which columns are computed (for UI, even if formula is empty)
 	JoinedColumnFrom      map[string]string    // Joined columns in view: the table the column comes from (header shows a join arrow and the column's own name)
 	TableFormulas         map[string]string    // Computed columns defined with the table (data source), in view: their expression (header fx mark, read-only formula)
+	ColumnRowErrors       map[string]string    // Computed columns in view whose expression failed on some row: the first failure (cells show [error])
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
@@ -590,6 +591,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		IsComputedColumn:      make(map[string]bool),
 		JoinedColumnFrom:      make(map[string]string),
 		TableFormulas:         make(map[string]string),
+		ColumnRowErrors:       make(map[string]string),
 		ComputedColumnErrors:  make(map[string]ValidationError),
 		FilterErrors:          make(map[string]ValidationError),
 		ColumnTypes:           make(map[string]string),
@@ -1139,6 +1141,16 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	for _, d := range tableView.GetBaseTable().ComputedDefinitions() {
 		if visibleCols[d.Name] {
 			vm.TableFormulas[d.Name] = d.Expression
+		}
+	}
+
+	// Computed columns that failed on some row they evaluated (flat cells,
+	// groups, aggregates, sorting): say why, once per column.
+	for _, colName := range vm.Columns {
+		if fe, ok := tableView.GetColumn(colName).(interface{ FirstError() string }); ok {
+			if msg := fe.FirstError(); msg != "" {
+				vm.ColumnRowErrors[colName] = msg
+			}
 		}
 	}
 

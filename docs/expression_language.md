@@ -229,6 +229,24 @@ order_date > ship_date
 
 Column names with special characters should be quoted (not yet supported).
 
+## Rows Where an Expression Fails
+
+A computed column's expression can fail on some rows and not others, for
+example `100 / discount_percent` where the discount is 0. Those rows stay
+in the table:
+
+- **Cells** show `[error]`; hovering shows the reason. The formula row
+  under the header says "some rows fail" with the first reason met.
+- **Grouping** puts them in one `[error]` group, so group sizes add up to
+  the table's row count.
+- **Filtering** matches them only by their label: type `[error]` (or list
+  it among `|`-separated values). A substring such as `e` never matches
+  them. The group's filter link works the same way.
+- **Sorting** treats them as the largest value: last when ascending,
+  first when descending.
+- **Aggregates** (Σ, μ, σ, min, max) leave them out and say so: `failed 2`
+  next to the aggregates means two rows could not be computed.
+
 ## Examples
 
 ### Computed Columns

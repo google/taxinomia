@@ -19,8 +19,12 @@ limitations under the License.
 package tables
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/google/taxinomia/core/aggregates"
+	"github.com/google/taxinomia/core/columns"
 )
 
 // ComputedDefinition is a computed column declared as part of a table's
@@ -67,4 +71,23 @@ func (dt *DataTable) SetComputedDefinitions(defs []ComputedDefinition) error {
 // declaration order (a copy).
 func (dt *DataTable) ComputedDefinitions() []ComputedDefinition {
 	return append([]ComputedDefinition(nil), dt.computed...)
+}
+
+// unreadableLabel is how a value that could not be read is shown and matched:
+// columns.UnmatchedLabel for a joined row without a match, columns.ErrorLabel
+// otherwise (a computed column whose expression fails on the row).
+func unreadableLabel(err error) string {
+	if errors.Is(err, columns.ErrUnmatched) {
+		return columns.UnmatchedLabel
+	}
+	return columns.ErrorLabel
+}
+
+// countFailed records a row an aggregate had to leave out because its value
+// could not be computed. A joined row without a match is not a failure (it
+// has no value by design) and is not counted.
+func countFailed(state *aggregates.NumericAggState, err error) {
+	if !errors.Is(err, columns.ErrUnmatched) {
+		state.Failed++
+	}
 }

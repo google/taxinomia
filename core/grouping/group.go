@@ -1,6 +1,8 @@
 package grouping
 
 import (
+	"errors"
+
 	"github.com/google/taxinomia/core/aggregates"
 	"github.com/google/taxinomia/core/columns"
 )
@@ -54,7 +56,15 @@ func (g *Group) GetValue() string {
 	if len(g.Indices) > 0 {
 		idx = g.Indices[0]
 	}
-	valueStr, _ := g.Block.GroupedColumn.DataColumn.GetString(idx)
+	valueStr, err := g.Block.GroupedColumn.DataColumn.GetString(idx)
+	if err != nil {
+		// The group of rows whose value could not be read (see the
+		// grouping shim); label it like a flat cell would be.
+		if errors.Is(err, columns.ErrUnmatched) {
+			return columns.UnmatchedLabel
+		}
+		return columns.ErrorLabel
+	}
 	return valueStr
 }
 

@@ -275,8 +275,8 @@ func TestGoldenJoinedColumn(t *testing.T) {
 func TestGoldenComputedColumn(t *testing.T) {
 	table, visible := demoTable()
 
-	// Computed column that errors for every 7th row; those rows are dropped
-	// from the grouping (unmapped), which the golden output pins.
+	// Computed column that errors for every 7th row; those rows form one
+	// "[error]" group (last), which the golden output pins.
 	amount := table.GetColumn("amount").(*columns.Uint32Column)
 	computed := columns.NewComputedStringColumn(
 		columns.NewColumnDef("bucket", "Bucket", ""),

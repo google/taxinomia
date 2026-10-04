@@ -353,7 +353,10 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 			}
 			t.filterSel.ForEach(func(i uint32) {
 				rowValue, err := col.GetString(i)
-				if err != nil || !valueSet[rowValue] {
+				if err != nil {
+					rowValue = unreadableLabel(err) // matches only when listed by name
+				}
+				if !valueSet[rowValue] {
 					t.filterSel.Remove(i)
 				}
 			})
@@ -385,7 +388,10 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 				}
 				t.filterSel.ForEach(func(i uint32) {
 					rowValue, err := col.GetString(i)
-					if err != nil || rowValue != exactValue {
+					if err != nil {
+						rowValue = unreadableLabel(err)
+					}
+					if rowValue != exactValue {
 						t.filterSel.Remove(i)
 					}
 				})
@@ -394,7 +400,15 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 				substringValue := strings.ToLower(filterValue)
 				t.filterSel.ForEach(func(i uint32) {
 					rowValue, err := col.GetString(i)
-					if err != nil || !strings.Contains(strings.ToLower(rowValue), substringValue) {
+					if err != nil {
+						// An unreadable row matches only its label typed in
+						// full ("[error]"), never a substring of it.
+						if !strings.EqualFold(filterValue, unreadableLabel(err)) {
+							t.filterSel.Remove(i)
+						}
+						return
+					}
+					if !strings.Contains(strings.ToLower(rowValue), substringValue) {
 						t.filterSel.Remove(i)
 					}
 				})
@@ -1778,18 +1792,26 @@ func (tv *TableView) addNumericValue(state *aggregates.NumericAggState, col colu
 	case interface{ GetValue(uint32) (float64, error) }:
 		if val, err := typedCol.GetValue(idx); err == nil {
 			state.Add(val)
+		} else {
+			countFailed(state, err)
 		}
 	case interface{ GetValue(uint32) (int64, error) }:
 		if val, err := typedCol.GetValue(idx); err == nil {
 			state.Add(float64(val))
+		} else {
+			countFailed(state, err)
 		}
 	case interface{ GetValue(uint32) (uint32, error) }:
 		if val, err := typedCol.GetValue(idx); err == nil {
 			state.AddUint32(val)
+		} else {
+			countFailed(state, err)
 		}
 	case interface{ GetValue(uint32) (uint64, error) }:
 		if val, err := typedCol.GetValue(idx); err == nil {
 			state.Add(float64(val))
+		} else {
+			countFailed(state, err)
 		}
 	default:
 		// Fallback: try to parse string as number
@@ -1798,6 +1820,8 @@ func (tv *TableView) addNumericValue(state *aggregates.NumericAggState, col colu
 			if _, err := fmt.Sscanf(strVal, "%f", &f); err == nil {
 				state.Add(f)
 			}
+		} else {
+			countFailed(state, err)
 		}
 	}
 }

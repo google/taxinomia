@@ -21,6 +21,7 @@ package columns
 import (
 	"fmt"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -42,9 +43,10 @@ type ComputeInt64Fn func(i uint32) (int64, error)
 
 // ComputedStringColumn represents a column whose values are computed from other columns.
 type ComputedStringColumn struct {
-	columnDef *ColumnDef
-	computeFn ComputeStringFn
-	length    int
+	columnDef       *ColumnDef
+	computeFn       ComputeStringFn
+	failureRecorder // first evaluation error, for display
+	length          int
 }
 
 // NewComputedStringColumn creates a new computed string column.
@@ -70,7 +72,9 @@ func (c *ComputedStringColumn) GetValue(i uint32) (string, error) {
 	if i >= uint32(c.length) {
 		return "", fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
 	}
-	return c.computeFn(i)
+	v, err := c.computeFn(i)
+	c.record(err)
+	return v, err
 }
 
 func (c *ComputedStringColumn) GetString(i uint32) (string, error) {
@@ -114,9 +118,10 @@ func (c *ComputedStringColumn) GroupIndices(indices []uint32, columnView *Column
 
 // ComputedUint32Column represents a column whose uint32 values are computed from other columns.
 type ComputedUint32Column struct {
-	columnDef *ColumnDef
-	computeFn ComputeUint32Fn
-	length    int
+	columnDef       *ColumnDef
+	computeFn       ComputeUint32Fn
+	failureRecorder // first evaluation error, for display
+	length          int
 }
 
 // NewComputedUint32Column creates a new computed uint32 column.
@@ -142,7 +147,9 @@ func (c *ComputedUint32Column) GetValue(i uint32) (uint32, error) {
 	if i >= uint32(c.length) {
 		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
 	}
-	return c.computeFn(i)
+	v, err := c.computeFn(i)
+	c.record(err)
+	return v, err
 }
 
 func (c *ComputedUint32Column) GetString(i uint32) (string, error) {
@@ -190,9 +197,10 @@ func (c *ComputedUint32Column) GroupIndices(indices []uint32, columnView *Column
 
 // ComputedFloat64Column represents a column whose float64 values are computed from other columns.
 type ComputedFloat64Column struct {
-	columnDef *ColumnDef
-	computeFn ComputeFloat64Fn
-	length    int
+	columnDef       *ColumnDef
+	computeFn       ComputeFloat64Fn
+	failureRecorder // first evaluation error, for display
+	length          int
 }
 
 // NewComputedFloat64Column creates a new computed float64 column.
@@ -218,7 +226,9 @@ func (c *ComputedFloat64Column) GetValue(i uint32) (float64, error) {
 	if i >= uint32(c.length) {
 		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
 	}
-	return c.computeFn(i)
+	v, err := c.computeFn(i)
+	c.record(err)
+	return v, err
 }
 
 func (c *ComputedFloat64Column) GetString(i uint32) (string, error) {
@@ -267,9 +277,10 @@ func (c *ComputedFloat64Column) GroupIndices(indices []uint32, columnView *Colum
 
 // ComputedInt64Column represents a column whose int64 values are computed from other columns.
 type ComputedInt64Column struct {
-	columnDef *ColumnDef
-	computeFn ComputeInt64Fn
-	length    int
+	columnDef       *ColumnDef
+	computeFn       ComputeInt64Fn
+	failureRecorder // first evaluation error, for display
+	length          int
 }
 
 // NewComputedInt64Column creates a new computed int64 column.
@@ -295,7 +306,9 @@ func (c *ComputedInt64Column) GetValue(i uint32) (int64, error) {
 	if i >= uint32(c.length) {
 		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
 	}
-	return c.computeFn(i)
+	v, err := c.computeFn(i)
+	c.record(err)
+	return v, err
 }
 
 func (c *ComputedInt64Column) GetString(i uint32) (string, error) {
@@ -347,10 +360,11 @@ type ComputeDatetimeFn func(i uint32) (int64, error) // Returns Unix nanoseconds
 
 // ComputedDatetimeColumn represents a column whose datetime values are computed from other columns.
 type ComputedDatetimeColumn struct {
-	columnDef     *ColumnDef
-	computeFn     ComputeDatetimeFn
-	length        int
-	displayFormat string
+	columnDef       *ColumnDef
+	computeFn       ComputeDatetimeFn
+	failureRecorder // first evaluation error, for display
+	length          int
+	displayFormat   string
 }
 
 // NewComputedDatetimeColumn creates a new computed datetime column.
@@ -387,7 +401,9 @@ func (c *ComputedDatetimeColumn) GetValue(i uint32) (int64, error) {
 	if i >= uint32(c.length) {
 		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
 	}
-	return c.computeFn(i)
+	v, err := c.computeFn(i)
+	c.record(err)
+	return v, err
 }
 
 func (c *ComputedDatetimeColumn) GetString(i uint32) (string, error) {
@@ -449,10 +465,11 @@ type ComputeDurationFn func(i uint32) (time.Duration, error)
 
 // ComputedDurationColumn represents a column whose duration values are computed from other columns.
 type ComputedDurationColumn struct {
-	columnDef     *ColumnDef
-	computeFn     ComputeDurationFn
-	length        int
-	displayFormat DurationFormat
+	columnDef       *ColumnDef
+	computeFn       ComputeDurationFn
+	failureRecorder // first evaluation error, for display
+	length          int
+	displayFormat   DurationFormat
 }
 
 // NewComputedDurationColumn creates a new computed duration column.
@@ -488,7 +505,9 @@ func (c *ComputedDurationColumn) GetValue(i uint32) (time.Duration, error) {
 	if i >= uint32(c.length) {
 		return 0, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
 	}
-	return c.computeFn(i)
+	v, err := c.computeFn(i)
+	c.record(err)
+	return v, err
 }
 
 func (c *ComputedDurationColumn) GetString(i uint32) (string, error) {
@@ -663,9 +682,10 @@ type ComputeBoolFn func(i uint32) (bool, error)
 
 // ComputedBoolColumn represents a column whose bool values are computed from other columns.
 type ComputedBoolColumn struct {
-	columnDef *ColumnDef
-	computeFn ComputeBoolFn
-	length    int
+	columnDef       *ColumnDef
+	computeFn       ComputeBoolFn
+	failureRecorder // first evaluation error, for display
+	length          int
 }
 
 // NewComputedBoolColumn creates a new computed bool column.
@@ -691,7 +711,9 @@ func (c *ComputedBoolColumn) GetValue(i uint32) (bool, error) {
 	if i >= uint32(c.length) {
 		return false, fmt.Errorf("index %d out of bounds (length: %d)", i, c.length)
 	}
-	return c.computeFn(i)
+	v, err := c.computeFn(i)
+	c.record(err)
+	return v, err
 }
 
 func (c *ComputedBoolColumn) GetString(i uint32) (string, error) {
@@ -738,4 +760,28 @@ func (c *ComputedBoolColumn) GroupIndices(indices []uint32, columnView *ColumnVi
 		groupedIndices[groupKey] = append(groupedIndices[groupKey], i)
 	}
 	return groupedIndices, unmapped
+}
+
+// failureRecorder keeps the first error a computed column's expression
+// returned, so the UI can say why cells show ErrorLabel. Safe for concurrent
+// evaluation; only the first failure is stored.
+type failureRecorder struct {
+	first atomic.Pointer[string]
+}
+
+func (r *failureRecorder) record(err error) {
+	if err == nil || r.first.Load() != nil {
+		return
+	}
+	msg := err.Error()
+	r.first.CompareAndSwap(nil, &msg)
+}
+
+// FirstError returns the first evaluation error this column met, or "" if
+// every row evaluated so far succeeded.
+func (r *failureRecorder) FirstError() string {
+	if p := r.first.Load(); p != nil {
+		return *p
+	}
+	return ""
 }

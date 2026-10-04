@@ -55,13 +55,19 @@ func checkGroupOpsParity(t *testing.T, col IDataColumn, ops IGroupOps, selIndice
 	t.Helper()
 	sel := RowIndices(selIndices)
 
-	grouped, _ := col.GroupIndices(selIndices, nil)
-	expected := make(map[uint32][]uint32, len(grouped)) // first member -> members
+	grouped, unmapped := col.GroupIndices(selIndices, nil)
+	expected := make(map[uint32][]uint32, len(grouped)+1) // first member -> members
 	for _, members := range grouped {
 		if len(members) == 0 {
 			t.Fatalf("GroupIndices returned an empty group")
 		}
 		expected[members[0]] = members
+	}
+	// A computed column's failing rows are one group of their own (shown as
+	// ErrorLabel); GroupIndices still reports them as unmapped. Joined rows
+	// without a match stay out of every group.
+	if _, computed := col.(interface{ FirstError() string }); computed && len(unmapped) > 0 {
+		expected[unmapped[0]] = unmapped
 	}
 
 	counts, firsts := ops.GroupCounts(sel)

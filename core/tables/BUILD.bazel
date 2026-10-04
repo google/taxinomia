@@ -33,6 +33,7 @@ go_test(
         "chunked_integration_test.go",
         "client_path_timing_test.go",
         "computed_definitions_test.go",
+        "computed_errors_test.go",
         "encoding_test.go",
         "filter_bench_test.go",
         "filter_context_test.go",

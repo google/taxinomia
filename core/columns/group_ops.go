@@ -180,7 +180,7 @@ type groupIndicesShim struct {
 // GroupIndices consumes an index list — which is the price of the
 // compatibility fallback, not of the RowSet paths.
 func (s *groupIndicesShim) partition(sel RowSet) [][]uint32 {
-	grouped, _ := s.col.GroupIndices(rowSetIndices(sel), s.view)
+	grouped, unmapped := s.col.GroupIndices(rowSetIndices(sel), s.view)
 	keys := make([]uint32, 0, len(grouped))
 	for k := range grouped {
 		keys = append(keys, k)
@@ -189,6 +189,12 @@ func (s *groupIndicesShim) partition(sel RowSet) [][]uint32 {
 	parts := make([][]uint32, len(keys))
 	for code, k := range keys {
 		parts[code] = grouped[k]
+	}
+	// Rows whose value could not be read (a computed column whose expression
+	// fails on them) form one last group instead of vanishing from the view;
+	// grouping.Group.GetValue labels it ErrorLabel.
+	if len(unmapped) > 0 {
+		parts = append(parts, unmapped)
 	}
 	return parts
 }
@@ -649,9 +655,25 @@ func (c *JoinedUint64Column) GroupMembers(sel RowSet, code uint32, offset, n int
 
 // --- native implementations: computed columns ---
 
-func (c *ComputedStringColumn) groupKeyAt(i uint32) (string, bool) {
+// computedKey is a computed column's grouping key. Rows whose expression
+// fails all get the failed key, so they form one group (shown as
+// ErrorLabel) instead of vanishing from the grouped view.
+type computedKey[T comparable] struct {
+	v      T
+	failed bool
+}
+
+func keyOf[T comparable](v T, err error) (computedKey[T], bool) {
+	if err != nil {
+		var zero T
+		return computedKey[T]{v: zero, failed: true}, true
+	}
+	return computedKey[T]{v: v}, true
+}
+
+func (c *ComputedStringColumn) groupKeyAt(i uint32) (computedKey[string], bool) {
 	v, err := c.GetValue(i)
-	return v, err == nil
+	return keyOf(v, err)
 }
 
 func (c *ComputedStringColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
@@ -666,9 +688,9 @@ func (c *ComputedStringColumn) GroupMembers(sel RowSet, code uint32, offset, n i
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
-func (c *ComputedUint32Column) groupKeyAt(i uint32) (uint32, bool) {
+func (c *ComputedUint32Column) groupKeyAt(i uint32) (computedKey[uint32], bool) {
 	v, err := c.GetValue(i)
-	return v, err == nil
+	return keyOf(v, err)
 }
 
 func (c *ComputedUint32Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
@@ -687,9 +709,9 @@ func (c *ComputedUint32Column) GroupMembers(sel RowSet, code uint32, offset, n i
 // GroupIndices used map[float64] directly, under which every NaN row is its
 // own group. Go maps give the same equality for float64 keys, so the quirk is
 // preserved bit-for-bit.
-func (c *ComputedFloat64Column) groupKeyAt(i uint32) (float64, bool) {
+func (c *ComputedFloat64Column) groupKeyAt(i uint32) (computedKey[float64], bool) {
 	v, err := c.GetValue(i)
-	return v, err == nil
+	return keyOf(v, err)
 }
 
 func (c *ComputedFloat64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
@@ -704,9 +726,9 @@ func (c *ComputedFloat64Column) GroupMembers(sel RowSet, code uint32, offset, n 
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
-func (c *ComputedInt64Column) groupKeyAt(i uint32) (int64, bool) {
+func (c *ComputedInt64Column) groupKeyAt(i uint32) (computedKey[int64], bool) {
 	v, err := c.GetValue(i)
-	return v, err == nil
+	return keyOf(v, err)
 }
 
 func (c *ComputedInt64Column) GroupCounts(sel RowSet) ([]uint32, []uint32) {
@@ -721,9 +743,9 @@ func (c *ComputedInt64Column) GroupMembers(sel RowSet, code uint32, offset, n in
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
-func (c *ComputedDatetimeColumn) groupKeyAt(i uint32) (int64, bool) {
+func (c *ComputedDatetimeColumn) groupKeyAt(i uint32) (computedKey[int64], bool) {
 	v, err := c.GetValue(i)
-	return v, err == nil
+	return keyOf(v, err)
 }
 
 func (c *ComputedDatetimeColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
@@ -738,9 +760,9 @@ func (c *ComputedDatetimeColumn) GroupMembers(sel RowSet, code uint32, offset, n
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
-func (c *ComputedDurationColumn) groupKeyAt(i uint32) (time.Duration, bool) {
+func (c *ComputedDurationColumn) groupKeyAt(i uint32) (computedKey[time.Duration], bool) {
 	v, err := c.GetValue(i)
-	return v, err == nil
+	return keyOf(v, err)
 }
 
 func (c *ComputedDurationColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {
@@ -755,9 +777,9 @@ func (c *ComputedDurationColumn) GroupMembers(sel RowSet, code uint32, offset, n
 	return groupMembersByKey(sel, c.groupKeyAt, code, offset, n)
 }
 
-func (c *ComputedBoolColumn) groupKeyAt(i uint32) (bool, bool) {
+func (c *ComputedBoolColumn) groupKeyAt(i uint32) (computedKey[bool], bool) {
 	v, err := c.GetValue(i)
-	return v, err == nil
+	return keyOf(v, err)
 }
 
 func (c *ComputedBoolColumn) GroupCounts(sel RowSet) ([]uint32, []uint32) {

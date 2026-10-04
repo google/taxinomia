@@ -48,6 +48,16 @@ type NumericAggState struct {
 	SumSq float64 // Sum of squared values (for stddev)
 	Min   float64 // Minimum value
 	Max   float64 // Maximum value
+	// Failed counts rows whose value could not be read (a computed column
+	// whose expression fails on them). They are left out of every aggregate
+	// above and reported next to them.
+	Failed int64
+}
+
+// FailedCount reports how many rows were left out because their value could
+// not be read.
+func (s *NumericAggState) FailedCount() int64 {
+	return s.Failed
 }
 
 // NewNumericAggState creates a new empty numeric aggregate state.
@@ -79,7 +89,11 @@ func (s *NumericAggState) AddUint32(value uint32) {
 // Combine merges another numeric state into this one.
 func (s *NumericAggState) Combine(other AggregateState) {
 	o, ok := other.(*NumericAggState)
-	if !ok || o.Count == 0 {
+	if !ok {
+		return
+	}
+	s.Failed += o.Failed
+	if o.Count == 0 {
 		return
 	}
 	s.Count += o.Count
@@ -573,7 +587,7 @@ func FormatAggregatesWithSort(state AggregateState, enabledAggs []queryspec.Aggr
 	if state == nil || len(enabledAggs) == 0 {
 		return nil
 	}
-	result := make([]FormattedAggregate, 0, len(enabledAggs))
+	result := make([]FormattedAggregate, 0, len(enabledAggs)+1)
 	for _, aggType := range enabledAggs {
 		isSorted := sortedColName != "" && aggType == sortedAggType
 		result = append(result, FormattedAggregate{
@@ -581,6 +595,14 @@ func FormatAggregatesWithSort(state AggregateState, enabledAggs []queryspec.Aggr
 			Value:    state.Format(aggType),
 			Title:    queryspec.AggregateTitle(aggType),
 			IsSorted: isSorted,
+		})
+	}
+	if f, ok := state.(interface{ FailedCount() int64 }); ok && f.FailedCount() > 0 {
+		n := f.FailedCount()
+		result = append(result, FormattedAggregate{
+			Symbol: "failed ",
+			Value:  fmt.Sprintf("%d", n),
+			Title:  fmt.Sprintf("%d rows could not be computed and are left out of these aggregates", n),
 		})
 	}
 	return result

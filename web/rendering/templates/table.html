@@ -306,6 +306,7 @@
                 {{$formula := index $.ColumnFormulas $colName}}
                 {{$colError := index $.ComputedColumnErrors $colName}}
                 <td class="formula-cell{{if $formula}} has-formula{{end}}{{if $colError.Message}} has-error{{end}}">
+                    {{$rowErr := index $.ColumnRowErrors $colName}}{{if $rowErr}}<div class="formula-row-error" title="Rows that cannot be computed show [error]: {{$rowErr}}">some rows fail: {{$rowErr}}</div>{{end}}
                     {{if $isComputed}}
                     {{if $colError.Message}}
                     <div class="cell-error-inline" title="{{$colError.Message}}">
@@ -395,7 +396,7 @@ Use &quot;quotes&quot; for exact match">
                 <tr data-row-id="{{$rowID}}"{{if eq $rowID $.SelectedRowID}} class="selected-row"{{end}}>
                     {{range $colName := $.Columns}}
                     {{$url := ""}}{{if $.RowURLs}}{{with index $.RowURLs $rowIdx}}{{$url = index . $colName}}{{end}}{{end}}
-                    <td>{{if $url}}<a href="{{$url}}" class="entity-link">{{index $row $colName}}</a>{{else}}{{index $row $colName}}{{end}}</td>
+                    {{$cellValue := index $row $colName}}{{$rowError := index $.ColumnRowErrors $colName}}<td>{{if and $rowError (eq $cellValue "[error]")}}<span class="cell-failed" title="Could not compute: {{$rowError}}">{{$cellValue}}</span>{{else if $url}}<a href="{{$url}}" class="entity-link">{{$cellValue}}</a>{{else}}{{$cellValue}}{{end}}</td>
                     {{end}}
                 </tr>
                 {{end}}

@@ -1932,3 +1932,19 @@
             width: auto;
             margin-right: 4px;
         }
+
+        /* Computed values that failed: the cell keeps "[error]", the formula
+           row says why (first failure met). */
+        .cell-failed {
+            color: #b03a2e;
+            cursor: help;
+        }
+
+        .formula-row-error {
+            font-size: 10px;
+            color: #b03a2e;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
