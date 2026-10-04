@@ -426,8 +426,9 @@ Use &quot;quotes&quot; for exact match">
                         {{if .ShowInfoPane}}
                         <a href="javascript:void(0)" class="info-pane-toggle" onclick="hideInfoPane()" title="Collapse the pane to the status bar">Hide</a>
                         {{else}}
-                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="showInfoPane('url')" title="Open the URL and parameter breakdown">Show URL</a>
-                        <a href="javascript:void(0)" class="info-pane-toggle" onclick="showInfoPane('perf')" title="Open the server and browser timing breakdown">Show perf</a>
+                        <a href="javascript:void(0)" class="info-pane-toggle help-toggle" id="help-toggle" title="What is each control? (Esc closes)">?</a>
+                        <a href="javascript:void(0)" class="info-pane-toggle" data-help="url" onclick="showInfoPane('url')" title="Open the URL and parameter breakdown">Show URL</a>
+                        <a href="javascript:void(0)" class="info-pane-toggle" data-help="perf" onclick="showInfoPane('perf')" title="Open the server and browser timing breakdown">Show perf</a>
                         {{end}}
                         <span class="build-version" title="{{.Build.Long}}">{{.Build.Display}}</span>
                     </span>

@@ -190,6 +190,7 @@
         // navigation when the target is a table page, a full one otherwise or
         // when anything goes wrong (the error page then shows as before).
         function navigate(target, options) {
+            hideHelp();
             const url = new URL(target, window.location);
             const push = !(options && options.push === false);
             if (!isFragmentTarget(url) || !window.fetch || !window.DOMParser) {
@@ -718,6 +719,10 @@
         });
 
         document.addEventListener('click', function(e) {
+            if (e.target.closest('#help-toggle')) {
+                toggleHelp();
+                return;
+            }
             const clear = e.target.closest('.filter-clear');
             if (clear) {
                 const columnName = clear.dataset.column;
@@ -850,6 +855,10 @@
                     navigate(target);
                 }
             }
+            // "#help" opens the control labels on load (a link docs can give).
+            if (window.location.hash === "#help") {
+                setTimeout(showHelp, 0);
+            }
         }
 
         window.addEventListener('DOMContentLoaded', initPage);
@@ -865,3 +874,133 @@
         // hides it again.
         window.addEventListener('beforeunload', showWaiting);
         window.addEventListener('pageshow', hideWaiting);
+
+        // --- Help: "what is this control" -----------------------------------
+        // The "?" button in the status bar pins a 2-3 word label on the first
+        // visible instance of each kind of control. Labels follow the page's
+        // state (a flat table says "Group by", a grouped one "Nest another
+        // level"); controls that are not on the page get none, so this works
+        // on any table. Esc, a click, scrolling or a navigation closes it; a
+        // resize places the labels again.
+        function isGroupedPage() {
+            return !!document.querySelector('.group-toggle-btn.grouped');
+        }
+
+        const HELP_LABELS = [
+            ['.limit-btn', 'Fewer / more rows'],
+            ['.type-toggle-btn', 'Column types'],
+            ['thead tr:first-child th[draggable] .th-content', 'Drag: sort priority', {inside: true}],
+            ['thead .resize-handle', 'Drag to resize'],
+            ['.sort-toggle-btn', 'Flip sort'],
+            ['.group-toggle-btn:not(.grouped)', () => isGroupedPage() ? 'Nest another level' : 'Group by'],
+            ['.group-toggle-btn.grouped', 'Ungroup'],
+            ['.agg-sort-toggle-btn', 'Sort groups by total'],
+            ['.agg-toggle-btn', 'Per-group totals'],
+            ['.stats-cell', () => isGroupedPage() ? 'Groups / filtered / total' : 'Filtered / total rows', {inside: true}],
+            ['.filter-input', 'text, "exact", a|b'],
+            ['.multiselect-toggle', 'Pick several values'],
+            ['tbody td.group-cell', 'Value [subgroups/rows]', {inside: true}],
+            ['tbody .filter-link', 'Drill into group'],
+            ['tbody .group-expand', 'List group rows'],
+            ['tbody .entity-link', 'Open related'],
+            ['tbody tr[data-row-id] td:last-child', 'Click: row details', {inside: true}],
+            ['.formula-input', 'Edit formula'],
+            ['#add-computed-btn', 'New computed column'],
+            ['#sidebar a.pane-disclosure', 'Join other tables'],
+            ['#sidebar .pane-main .pane-toggle', 'Show / hide column'],
+            ['.info-pane-toggle[data-help="url"]', 'Shareable view'],
+            ['.info-pane-toggle[data-help="perf"]', 'Query cost'],
+        ];
+
+        function firstVisible(selector) {
+            const vw = window.innerWidth, vh = window.innerHeight;
+            for (const el of document.querySelectorAll(selector)) {
+                const r = el.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0 && r.right > 0 && r.left < vw && r.bottom > 0 && r.top < vh) {
+                    return el;
+                }
+            }
+            return null;
+        }
+
+        function overlaps(a, b) {
+            return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        }
+
+        function showHelp() {
+            hideHelp();
+            const layer = document.createElement('div');
+            layer.id = 'help-layer';
+            layer.className = 'help-layer';
+            document.body.appendChild(layer);
+            const placed = [];
+            const vw = window.innerWidth, vh = window.innerHeight;
+            // Find every labelled control first, so a label avoids covering
+            // the others (large ones, such as a whole header, excepted).
+            const targets = [];
+            for (const [selector, label, opts] of HELP_LABELS) {
+                const el = firstVisible(selector);
+                if (el) targets.push({el: el, label: label, inside: !!(opts && opts.inside), r: el.getBoundingClientRect()});
+            }
+            for (const t of targets) {
+                if (t.r.width * t.r.height < 4000) placed.push({left: t.r.left, right: t.r.right, top: t.r.top, bottom: t.r.bottom});
+            }
+            // Labels inside their (large) target go first; the others avoid them.
+            targets.sort((a, b) => (b.inside ? 1 : 0) - (a.inside ? 1 : 0));
+            for (const {el, label, r, inside} of targets) {
+                el.classList.add('help-target');
+                const bubble = document.createElement('div');
+                bubble.className = 'help-bubble';
+                bubble.textContent = typeof label === 'function' ? label() : label;
+                layer.appendChild(bubble);
+                const w = bubble.offsetWidth, h = bubble.offsetHeight, gap = 7;
+                const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                const clampX = x => Math.max(4, Math.min(vw - w - 4, x));
+                // Candidate spots, nearest first: above, below, right, left;
+                // the first that is on screen and free wins. Otherwise the
+                // spot above, nudged away from the labels already placed.
+                const spots = [
+                    {left: clampX(cx - w / 2), top: r.top - h - gap, side: 'points-down'},
+                    {left: clampX(cx - w / 2), top: r.bottom + gap, side: 'points-up'},
+                    {left: r.right + gap, top: cy - h / 2, side: 'points-left'},
+                    {left: r.left - w - gap, top: cy - h / 2, side: 'points-right'},
+                ];
+                const fits = s => s.left >= 4 && s.left + w <= vw - 4 && s.top >= 4 && s.top + h <= vh - 4;
+                const free = s => !placed.some(p => overlaps(p, {left: s.left, right: s.left + w, top: s.top, bottom: s.top + h}));
+                let spot = inside
+                    ? {left: clampX(cx - w / 2), top: cy - h / 2, side: 'inside'}
+                    : spots.find(s => fits(s) && free(s));
+                if (!spot) {
+                    spot = Object.assign({}, fits(spots[0]) ? spots[0] : spots[1]);
+                    const step = spot.side === 'points-down' ? -(h + 3) : h + 3;
+                    for (let tries = 0; tries < 6 && !free(spot); tries++) spot.top += step;
+                    spot.top = Math.max(4, Math.min(vh - h - 4, spot.top));
+                }
+                const left = spot.left, top = spot.top;
+                bubble.style.left = left + 'px';
+                bubble.style.top = top + 'px';
+                bubble.classList.add(spot.side);
+                bubble.style.setProperty('--arrow-x', Math.round(cx - left) + 'px');
+                placed.push({left: left, right: left + w, top: top, bottom: top + h});
+            }
+            layer.addEventListener('click', hideHelp);
+        }
+
+        function hideHelp() {
+            const layer = document.getElementById('help-layer');
+            if (layer) layer.remove();
+            document.querySelectorAll('.help-target').forEach(el => el.classList.remove('help-target'));
+        }
+
+        function toggleHelp() {
+            if (document.getElementById('help-layer')) hideHelp(); else showHelp();
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('help-layer')) hideHelp();
+        });
+        window.addEventListener('scroll', hideHelp, {passive: true});
+        // A resize moves the controls: place the labels again rather than close.
+        window.addEventListener('resize', function() {
+            if (document.getElementById('help-layer')) showHelp();
+        });
