@@ -182,6 +182,14 @@
         // isFragmentTarget: same origin and the same route as this page — a
         // table page of this product. Anything else (landing page, entity
         // URLs elsewhere, other products) is a full navigation.
+        // The page's asset URLs (they carry the build revision); empty when
+        // the assets are inlined.
+        function assetVersion(doc) {
+            const script = doc.querySelector('script[src]');
+            const css = doc.querySelector('link[rel="stylesheet"]');
+            return (script ? script.getAttribute('src') : '') + '|' + (css ? css.getAttribute('href') : '');
+        }
+
         function isFragmentTarget(url) {
             return url.origin === window.location.origin && url.pathname === window.location.pathname;
         }
@@ -218,6 +226,9 @@
                 const newMain = doc.getElementById('main-content');
                 const newSidebar = doc.getElementById('sidebar');
                 if (!newMain || !newSidebar) throw new Error('not a table page');
+                // A new build (another script or stylesheet version) needs
+                // the full page: swapping would keep running this script.
+                if (assetVersion(doc) !== assetVersion(document)) throw new Error('new build');
                 swapPage(doc, newMain, newSidebar);
                 if (push) {
                     history.pushState({ taxinomia: true }, '', url.toString());
@@ -720,7 +731,7 @@
         });
 
         document.addEventListener('click', function(e) {
-            if (e.target.closest('#help-toggle')) {
+            if (e.target.closest('#help-toggle, #help-toggle-pane')) {
                 toggleHelp();
                 return;
             }

@@ -2157,3 +2157,34 @@
             outline: 2px solid #f0b429;
             background-color: #fffbea;
         }
+
+        /* The help button at the top of the column pane: the visible way in. */
+        .sidebar-header h2 {
+            flex: 1;
+        }
+
+        .help-open {
+            margin-right: 6px;
+            padding: 4px 10px;
+            border: none;
+            border-radius: 12px;
+            background-color: #2980b9;
+            color: #fff;
+            font: bold 12px Arial, sans-serif;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+        }
+
+        .help-open:hover {
+            background-color: #1f6391;
+        }
+
+        .info-pane-toggle.help-toggle {
+            background-color: #2980b9;
+            color: #fff;
+            border-color: #2980b9;
+        }
+
+        .info-pane-toggle.help-toggle:hover {
+            background-color: #1f6391;
+        }
