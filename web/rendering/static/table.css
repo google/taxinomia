@@ -2329,8 +2329,42 @@
             color: #a3aab3;
         }
 
+        .entity-hierarchy table,
         .entity-fields table,
         .entity-fields tr {
             border: none;
             box-shadow: none;
+        }
+
+        /* Hierarchy box: the same field/value table as the entity's row. */
+        .entity-hierarchy table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .entity-hierarchy th,
+        .entity-hierarchy td {
+            text-align: left;
+            padding: 5px 6px;
+            border: none;
+            border-bottom: 1px solid #eef0f3;
+            background: none;
+            font-size: 14px;
+            vertical-align: top;
+        }
+
+        .entity-hierarchy th {
+            width: 40%;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .entity-hierarchy .entity-below th {
+            color: #8a929c;
+        }
+
+        .entity-hierarchy-desc {
+            margin: -4px 0 8px;
+            font-size: 12px;
+            color: #8a929c;
         }

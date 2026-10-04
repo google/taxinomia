@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/google/taxinomia/core/columns"
+	"github.com/google/taxinomia/core/engine"
 	"github.com/google/taxinomia/core/tables"
 )
 
@@ -145,5 +146,27 @@ func TestBuildCatalog(t *testing.T) {
 
 	if cat.Joins != nil {
 		t.Errorf("joins should be empty, got %+v", cat.Joins)
+	}
+}
+
+// A table without a declared primary key gets one key column's entity type,
+// the same on every run: the column named like the table, else the first by
+// name.
+func TestInferredPrimaryKey(t *testing.T) {
+	cands := []engine.ColumnMeta{
+		{Name: "capital", EntityType: "capital"},
+		{Name: "region", EntityType: "region"},
+	}
+	if got := inferredPrimaryKey("regions", cands); got != "region" {
+		t.Errorf("regions: %q, want region", got)
+	}
+	if got := inferredPrimaryKey("capitals", cands); got != "capital" {
+		t.Errorf("capitals: %q, want capital", got)
+	}
+	if got := inferredPrimaryKey("cities", cands); got != "capital" {
+		t.Errorf("cities: %q, want the first by name (capital)", got)
+	}
+	if got := inferredPrimaryKey("x", nil); got != "" {
+		t.Errorf("no candidates: %q, want empty", got)
 	}
 }

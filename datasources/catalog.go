@@ -20,6 +20,7 @@ package datasources
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/google/taxinomia/core/engine"
 	"github.com/google/taxinomia/core/tables"
@@ -55,7 +56,10 @@ func (m *Manager) BuildCatalog(tbls map[string]*tables.DataTable) *engine.Catalo
 			RowCount:             int64(t.Length()),
 			PrimaryKeyEntityType: m.GetPrimaryKeyEntityType(name),
 		}
-		for _, colName := range t.GetColumnNames() {
+		colNames := t.GetColumnNames()
+		sort.Strings(colNames) // deterministic: GetColumnNames is map order
+		var keyCandidates []engine.ColumnMeta
+		for _, colName := range colNames {
 			col := t.GetColumn(colName)
 			if col == nil {
 				continue
@@ -66,10 +70,13 @@ func (m *Manager) BuildCatalog(tbls map[string]*tables.DataTable) *engine.Catalo
 				EntityType:  col.ColumnDef().EntityType(),
 				IsKey:       col.IsKey(),
 			}
-			if tm.PrimaryKeyEntityType == "" && cm.IsKey && cm.EntityType != "" {
-				tm.PrimaryKeyEntityType = cm.EntityType
+			if cm.IsKey && cm.EntityType != "" {
+				keyCandidates = append(keyCandidates, cm)
 			}
 			tm.Columns = append(tm.Columns, cm)
+		}
+		if tm.PrimaryKeyEntityType == "" {
+			tm.PrimaryKeyEntityType = inferredPrimaryKey(name, keyCandidates)
 		}
 		cat.Tables = append(cat.Tables, tm)
 	}
@@ -111,4 +118,22 @@ func (m *Manager) BuildCatalog(tbls map[string]*tables.DataTable) *engine.Catalo
 	}
 
 	return cat
+}
+
+// inferredPrimaryKey picks the primary key entity type of a table that
+// declares none, from its key columns that carry an entity type (sorted by
+// name): the one named like the table ("region" for "regions"), else the
+// first. A table with several such columns (regions: region and capital)
+// used to get whichever came first in map order, which varied between runs.
+func inferredPrimaryKey(tableName string, candidates []engine.ColumnMeta) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	singular := strings.TrimSuffix(tableName, "s")
+	for _, c := range candidates {
+		if c.Name == tableName || c.Name == singular {
+			return c.EntityType
+		}
+	}
+	return candidates[0].EntityType
 }

@@ -51,17 +51,31 @@
 
             {{range .Hierarchies}}
             {{$currentValue := .Current.Value}}
-            <section class="entity-card">
+            {{/* One hierarchy: its name on top, then one row per level, root first:
+                 the level and the entity's value at it (ancestors link to their
+                 pages), the entity's own level, then the levels below it as
+                 filtered lists. */}}
+            <section class="entity-card entity-hierarchy">
                 <h2>{{.HierarchyName}}</h2>
-                <ul class="entity-list">
+                {{if .Description}}<p class="entity-hierarchy-desc">{{.Description}}</p>{{end}}
+                <table>
                     {{range .Ancestors}}
-                    <li>In {{.DisplayName}} {{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else if .Value}}{{.Value}}{{else}}<span class="no-value">&mdash;</span>{{end}}</li>
+                    <tr>
+                        <th>{{.DisplayName}}</th>
+                        <td>{{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else if .Value}}{{.Value}}{{else}}<span class="no-value">&mdash;</span>{{end}}</td>
+                    </tr>
                     {{end}}
-                    {{if .Current.Value}}<li class="entity-current">{{.Current.DisplayName}}: <strong>{{.Current.Value}}</strong></li>{{end}}
+                    <tr class="entity-key-row">
+                        <th>{{.Current.DisplayName}}</th>
+                        <td>{{.Current.Value}}</td>
+                    </tr>
                     {{range .Descendants}}
-                    <li>{{if .Value}}Has {{.DisplayName}} {{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else}}{{.Value}}{{end}}{{else if .ListURL}}<a href="{{.ListURL}}">{{.DisplayName}}</a> in {{$currentValue}}{{else}}{{.DisplayName}}{{end}}</li>
+                    <tr class="entity-below">
+                        <th>{{.DisplayName}}</th>
+                        <td>{{if .Value}}{{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else}}{{.Value}}{{end}}{{else if .ListURL}}<a href="{{.ListURL}}">all in {{$currentValue}}</a>{{else}}<span class="no-value">&mdash;</span>{{end}}</td>
+                    </tr>
                     {{end}}
-                </ul>
+                </table>
             </section>
             {{end}}
 
