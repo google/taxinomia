@@ -8,6 +8,7 @@
     
     
     
+    
     <link rel="stylesheet" href="/static/VERSION/table.css">
     <script src="/static/VERSION/table.js" defer></script>
     
@@ -27,6 +28,7 @@
         <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-joined" viewBox="0 0 16 16"><path d="M3.5 2.5v5a3 3 0 0 0 3 3h6.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10 7.5l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
         <symbol id="i-filter" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"/></symbol>
         <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     </svg>
@@ -44,8 +46,7 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <div class="pane-section-title">In view <span class="pane-count">3</span></div>
-                <ul class="pane-list">
+                <ul class="pane-list pane-main">
                     
         <li class="pane-item">
             <div class="pane-row">
@@ -60,37 +61,6 @@
             
         </li>
     
-        <li class="pane-item">
-            <div class="pane-row">
-                <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=zone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-disclosure" title="Show the tables Zone joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
-                <a href="/default/table?columns=cluster%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle on" title="Remove Zone from the table (links to other tables)">
-                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-                    <span class="pane-name">Zone</span>
-                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=region&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-disclosure" title="Show the tables Region joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
-                <a href="/default/table?columns=cluster%2Czone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle on" title="Remove Region from the table (links to other tables)">
-                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-                    <span class="pane-name">Region</span>
-                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-                </ul>
-                
-                <div class="pane-section-title">Available <span class="pane-count">5</span></div>
-                <ul class="pane-list">
-                    
         <li class="pane-item">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
@@ -145,6 +115,19 @@
     
         <li class="pane-item">
             <div class="pane-row">
+                <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=region&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-disclosure" title="Show the tables Region joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
+                <a href="/default/table?columns=cluster%2Czone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle on" title="Remove Region from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Region</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
                 <span class="pane-disclosure"></span>
                 <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cstatus&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle" title="Add Status to the table">
                     <span class="pane-box"></span>
@@ -156,8 +139,20 @@
             
         </li>
     
+        <li class="pane-item">
+            <div class="pane-row">
+                <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=zone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-disclosure" title="Show the tables Zone joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
+                <a href="/default/table?columns=cluster%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle on" title="Remove Zone from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Zone</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
+                    
+                </a>
+            </div>
+            
+        </li>
+    
                 </ul>
-                
 
                 
                 <div class="computed-columns-section">

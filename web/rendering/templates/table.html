@@ -12,18 +12,19 @@
                 {{if .JoinTargets}}<a href="{{.ToggleURL}}" class="pane-disclosure{{if .IsExpanded}} open{{end}}" title="{{if .IsExpanded}}Hide{{else}}Show{{end}} the tables {{.PaneName}} joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>{{else}}<span class="pane-disclosure"></span>{{end}}
                 <a href="{{.ToggleColumnURL}}" class="pane-toggle{{if .IsVisible}} on{{end}}" title="{{if .IsVisible}}Remove {{.PaneName}} from the table{{else}}Add {{.PaneName}} to the table{{end}}{{if .IsKey}} (unique per row){{else if .HasEntityType}} (links to other tables){{end}}">
                     <span class="pane-box">{{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}}</span>
-                    <span class="pane-name">{{if .PaneContext}}<span class="pane-context">{{.PaneContext}}</span>{{end}}{{.PaneName}}</span>
+                    <span class="pane-name">{{.PaneName}}</span>
                     {{if .IsKey}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
                     {{if or .IsGrouped .IsFiltered .IsSortDescending}}<span class="pane-chips">{{if .IsGrouped}}<span class="pane-chip pane-chip-group" title="Grouping level {{.GroupLevel}}">G{{.GroupLevel}}</span>{{end}}{{if .IsFiltered}}<span class="pane-chip pane-chip-filter" title="Filtered"><svg class="icon" aria-hidden="true"><use href="#i-filter"></use></svg></span>{{end}}{{if .IsSortDescending}}<span class="pane-chip" title="Sorted descending"><svg class="icon" aria-hidden="true"><use href="#i-down"></use></svg></span>{{end}}</span>{{end}}
                 </a>
             </div>
-            {{if and .JoinTargets .IsExpanded}}
+            {{if .ShowJoins}}
             <ul class="pane-children">
-                {{range .JoinTargets}}{{template "renderJoinTarget" .}}{{end}}
+                {{range .JoinTargets}}{{if .Shown}}{{template "renderJoinTarget" .}}{{end}}{{end}}
             </ul>
             {{end}}
         </li>
     {{end}}
+    {{/* A joined table under its column. Collapsed, it still lists the columns that are in the view. */}}
     {{define "renderJoinTarget"}}
         <li class="pane-item pane-join{{if .IsBlocked}} blocked{{end}}">
             <div class="pane-row">
@@ -37,7 +38,7 @@
                 </a>
                 {{end}}
             </div>
-            {{if and .AvailableColumns .IsExpanded}}
+            {{if .AvailableColumns}}
             <ul class="pane-children">
                 {{range .AvailableColumns}}
                 <li class="pane-item">
@@ -47,11 +48,12 @@
                             <span class="pane-box">{{if .IsSelected}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}}</span>
                             <span class="pane-name">{{.DisplayName}}</span>
                             {{if .IsKey}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
+                            {{if or .IsGrouped .IsFiltered .IsSortDescending}}<span class="pane-chips">{{if .IsGrouped}}<span class="pane-chip pane-chip-group" title="Grouping level {{.GroupLevel}}">G{{.GroupLevel}}</span>{{end}}{{if .IsFiltered}}<span class="pane-chip pane-chip-filter" title="Filtered"><svg class="icon" aria-hidden="true"><use href="#i-filter"></use></svg></span>{{end}}{{if .IsSortDescending}}<span class="pane-chip" title="Sorted descending"><svg class="icon" aria-hidden="true"><use href="#i-down"></use></svg></span>{{end}}</span>{{end}}
                         </a>
                     </div>
-                    {{if and .HasJoinTargets .IsExpanded}}
+                    {{if .ShowJoins}}
                     <ul class="pane-children">
-                        {{range .JoinTargets}}{{template "renderJoinTarget" .}}{{end}}
+                        {{range .JoinTargets}}{{if .Shown}}{{template "renderJoinTarget" .}}{{end}}{{end}}
                     </ul>
                     {{end}}
                 </li>
@@ -83,6 +85,7 @@
         <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-joined" viewBox="0 0 16 16"><path d="M3.5 2.5v5a3 3 0 0 0 3 3h6.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10 7.5l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
         <symbol id="i-filter" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"/></symbol>
         <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     </svg>
@@ -100,16 +103,9 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <div class="pane-section-title">In view <span class="pane-count">{{len .PaneInView}}</span></div>
-                <ul class="pane-list">
-                    {{range .PaneInView}}{{template "paneColumn" .}}{{end}}
+                <ul class="pane-list pane-main">
+                    {{range .PaneColumns}}{{template "paneColumn" .}}{{end}}
                 </ul>
-                {{if .PaneAvailable}}
-                <div class="pane-section-title">Available <span class="pane-count">{{len .PaneAvailable}}</span></div>
-                <ul class="pane-list">
-                    {{range .PaneAvailable}}{{template "paneColumn" .}}{{end}}
-                </ul>
-                {{end}}
 
                 <!-- Computed Columns Section -->
                 <div class="computed-columns-section">
@@ -242,7 +238,7 @@
                     {{if $isComputed}}
                     <input type="text" class="th-name-input" data-column="{{$colName}}" value="{{$colName}}" title="Edit column name and press Enter">
                     {{else}}
-                    <span class="th-content">{{$header}}</span>
+                    {{$joinedFrom := index $.JoinedColumnFrom $colName}}<span class="th-content">{{if $joinedFrom}}<span class="th-joined" title="Joined from {{$joinedFrom}}"><svg class="icon" aria-hidden="true"><use href="#i-joined"></use></svg></span>{{end}}{{$header}}</span>
                     <span class="th-internal-name">{{$colName}}</span>
                     {{end}}
                     {{range $.AllColumns}}{{if eq .Name $colName}}<a href="{{.ToggleColumnURL}}" class="th-remove-btn" title="Remove column from view">×</a>{{end}}{{end}}

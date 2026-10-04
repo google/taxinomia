@@ -46,8 +46,7 @@ type TableViewModel struct {
 	GroupedRows           []GroupedRow         // Hierarchical rows for grouped display
 	IsGrouped             bool                 // Whether the table is currently grouped
 	AllColumns            []ColumnInfo         // All available columns with metadata
-	PaneInView            []ColumnInfo         // Column pane: the columns in view, in table order (computed columns excluded; they have their own section)
-	PaneAvailable         []ColumnInfo         // Column pane: the base table's columns not in view, alphabetical
+	PaneColumns           []ColumnInfo         // Column pane: the base table's columns, alphabetical (joined columns hang under their join, computed columns have their own section)
 	ComputedColumns       []ComputedColumnInfo // Computed columns defined by the user
 	CurrentQuery          string               // Current query string
 	CurrentURL            safehtml.URL         // Current URL for building toggle links
@@ -55,6 +54,7 @@ type TableViewModel struct {
 	ColumnFilters         map[string]string    // Filter values for each column (from URL parameters like filter:columnA=abc)
 	ColumnFormulas        map[string]string    // Formula for computed columns (columnName -> formula like "concat(a, b)")
 	IsComputedColumn      map[string]bool      // Tracks which columns are computed (for UI, even if formula is empty)
+	JoinedColumnFrom      map[string]string    // Joined columns in view: the table the column comes from (header shows a join arrow and the column's own name)
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
@@ -278,6 +278,7 @@ type ColumnInfo struct {
 	IsAggSortDescending bool         // Whether aggregate sort is descending
 	PaneName            string       // Name shown in the column pane (the column's own display name, also for joined columns)
 	PaneContext         string       // Column pane: the table a joined column comes from, shown muted before the name; empty for base columns
+	ShowJoins           bool         // Column pane: list this column's join targets (expanded, or a joined column beneath it is in the view)
 }
 
 // JoinTarget represents a column that can be joined to
@@ -287,6 +288,8 @@ type JoinTarget struct {
 	DisplayName      string          // "TableName.ColumnName" for display
 	TableLabel       string          // Column pane: the target table's title (as in the table page heading)
 	ColumnLabel      string          // Column pane: display name of the target column the join matches on
+	HasSelected      bool            // A column of this target, or of a table joined beneath it, is in the view
+	Shown            bool            // Column pane: list this target (its column is expanded, or HasSelected)
 	AvailableColumns []ColumnSummary // Columns available in the joined table
 	IsBlocked        bool            // True if this target is blocked due to cycle prevention
 	IsExpanded       bool            // Whether this join target is expanded
@@ -296,18 +299,23 @@ type JoinTarget struct {
 
 // ColumnSummary represents a column in a joined table
 type ColumnSummary struct {
-	Name           string
-	DisplayName    string
-	HasEntityType  bool
-	IsKey          bool
-	TableName      string       // The table this column belongs to
-	Path           string       // Path for URL encoding
-	JoinTargets    []JoinTarget // Tables/columns this column can join to
-	HasJoinTargets bool         // Whether this column has join targets (even if not expanded)
-	IsExpanded     bool         // Whether this column's join list is expanded
-	ToggleURL      safehtml.URL // URL to toggle expansion
-	AddColumnURL   safehtml.URL // URL to add this column and its join to the view
-	IsSelected     bool         // Whether this column is already in the current view
+	Name             string
+	DisplayName      string
+	HasEntityType    bool
+	IsKey            bool
+	TableName        string       // The table this column belongs to
+	Path             string       // Path for URL encoding
+	JoinTargets      []JoinTarget // Tables/columns this column can join to
+	HasJoinTargets   bool         // Whether this column has join targets (even if not expanded)
+	IsExpanded       bool         // Whether this column's join list is expanded
+	ToggleURL        safehtml.URL // URL to toggle expansion
+	AddColumnURL     safehtml.URL // URL to add this column and its join to the view
+	IsSelected       bool         // Whether this column is already in the current view
+	IsGrouped        bool         // Column pane chips: grouping state of the joined column
+	GroupLevel       int
+	IsFiltered       bool
+	IsSortDescending bool
+	ShowJoins        bool // List this column's join targets (expanded, or a joined column beneath it is in the view)
 }
 
 // getColumnType determines the urlquery.ColumnType for a column by checking its actual type.
@@ -421,9 +429,14 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 				target.ColumnLabel = c.ColumnDef().DisplayName()
 			}
 		}
+		// Columns of this target (or of tables joined beneath it) in the view
+		// keep the target in the column pane even while it is collapsed.
+		target.HasSelected = !isBlocked && hasColumnWithPrefix(q.Columns, fmt.Sprintf("%s.%s.%s.", columnNamePrefix, targetTableName, targetColumnName))
 		if targetTable != nil && !isBlocked {
-			// Get available columns from the target table only if expanded
-			if target.IsExpanded {
+			// Get available columns from the target table when expanded; a
+			// collapsed target lists only the columns that are in the view (or
+			// lead to columns in the view through a further join).
+			if target.IsExpanded || target.HasSelected {
 				var availableColumns []ColumnSummary
 				targetColumnNames := targetTable.GetColumnNames()
 
@@ -450,17 +463,27 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 							}
 						}
 
+						hasSelectedBelow := hasColumnWithPrefix(q.Columns, columnFullName+".")
+						if !target.IsExpanded && !isSelected && !hasSelectedBelow {
+							continue
+						}
+						_, isFiltered := q.Filters[columnFullName]
+
 						colSummary := ColumnSummary{
-							Name:          targetColName,
-							DisplayName:   targetCol.ColumnDef().DisplayName(),
-							HasEntityType: entityType != "",
-							IsKey:         targetCol.IsKey() && entityType != "",
-							TableName:     targetTableName,
-							Path:          colPath,
-							IsExpanded:    isExpanded,
-							ToggleURL:     BuildToggleExpansionURL(q, colPath),
-							AddColumnURL:  addColumnURL,
-							IsSelected:    isSelected,
+							Name:             targetColName,
+							DisplayName:      targetCol.ColumnDef().DisplayName(),
+							HasEntityType:    entityType != "",
+							IsKey:            targetCol.IsKey() && entityType != "",
+							TableName:        targetTableName,
+							Path:             colPath,
+							IsExpanded:       isExpanded,
+							ToggleURL:        BuildToggleExpansionURL(q, colPath),
+							AddColumnURL:     addColumnURL,
+							IsSelected:       isSelected,
+							IsGrouped:        q.IsColumnGrouped(columnFullName),
+							GroupLevel:       q.GroupLevel(columnFullName),
+							IsFiltered:       isFiltered,
+							IsSortDescending: q.IsSortedDescending(columnFullName),
 						}
 
 						// Check if this column can join to other tables
@@ -496,7 +519,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 
 							if hasValidJoins {
 								colSummary.HasJoinTargets = true
-								if isExpanded {
+								if isExpanded || hasSelectedBelow {
 									// Recursively build join targets for this column
 									// The new prefix is the full path to this column: prefix.table.joinCol.thisCol
 									// e.g., for "capital" column in regions with prefix "region":
@@ -505,6 +528,7 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 									//   = "region.regions.region.capital.capitals.capital.mayor"
 									newPrefix := fmt.Sprintf("%s.%s.%s.%s", columnNamePrefix, targetTableName, targetColumnName, targetColName)
 									colSummary.JoinTargets = buildJoinTargetsForColumn(dataModel, targetTableName, targetColName, colPath, newPrefix, baseTable, expandedPaths, q)
+									colSummary.ShowJoins = markJoinTargetsShown(colSummary.JoinTargets, isExpanded)
 								}
 							}
 						}
@@ -562,6 +586,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		ColumnFilters:         make(map[string]string),
 		ColumnFormulas:        make(map[string]string),
 		IsComputedColumn:      make(map[string]bool),
+		JoinedColumnFrom:      make(map[string]string),
 		ComputedColumnErrors:  make(map[string]ValidationError),
 		FilterErrors:          make(map[string]ValidationError),
 		ColumnTypes:           make(map[string]string),
@@ -691,6 +716,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				IsKey:               isKey && hasEntityType, // Only mark as key if it's also an entity type
 				JoinTargets:         joinTargets,
 				IsExpanded:          isExpanded,
+				ShowJoins:           markJoinTargetsShown(joinTargets, isExpanded),
 				Path:                colName,
 				ToggleURL:           BuildToggleExpansionURL(q, colName),
 				ToggleColumnURL:     BuildToggleColumnURL(q, colName),
@@ -866,7 +892,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		computedColNames[comp.Name] = true
 	}
 
-	vm.PaneInView, vm.PaneAvailable = paneColumns(vm.AllColumns, view.Columns, computedColNames)
+	vm.PaneColumns = paneColumns(vm.AllColumns, computedColNames)
 
 	// Build headers and columns from view
 	for _, colName := range view.Columns {
@@ -878,11 +904,18 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			parts := strings.Split(colName, ".")
 			numParts := len(parts)
 			if numParts >= 4 && (numParts-1)%3 == 0 {
-				// Build a display name from the last hop: "TableName → ColumnName"
-				// For multi-hop, use the final table and column
+				// The header shows the joined column's own display name; the
+				// template marks it with a join arrow, and the line beneath
+				// (the column path) names the table it comes from.
 				lastTable := parts[numParts-3]  // Second to last triplet's table
 				lastColumn := parts[numParts-1] // Selected column
-				displayName := fmt.Sprintf("%s → %s", lastTable, lastColumn)
+				displayName := lastColumn
+				if t := dataModel.GetTable(lastTable); t != nil {
+					if c := t.GetColumn(lastColumn); c != nil {
+						displayName = c.ColumnDef().DisplayName()
+					}
+				}
+				vm.JoinedColumnFrom[colName] = paneTableLabel(lastTable)
 				vm.Headers = append(vm.Headers, displayName)
 				vm.Columns = append(vm.Columns, colName)
 			}
@@ -1772,30 +1805,45 @@ func buildColumnStats(tableView *tables.TableView) []string {
 	return stats
 }
 
-// paneColumns splits the column pane's list in two: the columns in view, in
-// the table's own order (so the pane mirrors the table header, computed
-// columns included), and the base table's other columns, alphabetical
-// regardless of case. Hidden computed columns are listed only in the pane's
-// own computed section, where they are added, hidden and deleted.
-func paneColumns(all []ColumnInfo, viewColumns []string, computed map[string]bool) (inView, available []ColumnInfo) {
-	byName := make(map[string]ColumnInfo, len(all))
+// paneColumns is the column pane's list: the base table's columns,
+// alphabetical regardless of case, shown and hidden together (the checkbox
+// and the name's weight mark the shown ones). Joined columns are listed
+// under their join, beneath the column they join through; computed columns
+// in their own section.
+func paneColumns(all []ColumnInfo, computed map[string]bool) []ColumnInfo {
+	var cols []ColumnInfo
 	for _, c := range all {
-		byName[c.Name] = c
-	}
-	for _, name := range viewColumns {
-		if c, ok := byName[name]; ok {
-			inView = append(inView, c)
+		if !computed[c.Name] && c.PaneContext == "" {
+			cols = append(cols, c)
 		}
 	}
-	for _, c := range all {
-		if !c.IsVisible && !computed[c.Name] && c.PaneContext == "" {
-			available = append(available, c)
-		}
-	}
-	sort.SliceStable(available, func(i, j int) bool {
-		return strings.ToLower(available[i].PaneName) < strings.ToLower(available[j].PaneName)
+	sort.SliceStable(cols, func(i, j int) bool {
+		return strings.ToLower(cols[i].PaneName) < strings.ToLower(cols[j].PaneName)
 	})
-	return inView, available
+	return cols
+}
+
+// markJoinTargetsShown sets Shown on each target the column pane lists:
+// all of them while their column is expanded, otherwise only those leading
+// to a column in the view. Reports whether any is listed.
+func markJoinTargetsShown(targets []JoinTarget, columnExpanded bool) bool {
+	shown := false
+	for i := range targets {
+		targets[i].Shown = columnExpanded || targets[i].HasSelected
+		shown = shown || targets[i].Shown
+	}
+	return shown
+}
+
+// hasColumnWithPrefix reports whether any of the view's columns starts with
+// prefix (a joined column's path through a join).
+func hasColumnWithPrefix(columns []string, prefix string) bool {
+	for _, c := range columns {
+		if strings.HasPrefix(c, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // paneTableLabel is how the column pane names a table: the same title the

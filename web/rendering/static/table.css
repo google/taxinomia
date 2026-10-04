@@ -214,6 +214,14 @@
             color: #222;
         }
 
+        .pane-toggle.on .pane-name {
+            font-weight: bold;
+        }
+
+        .pane-main {
+            margin-top: 4px;
+        }
+
         .pane-box {
             flex: 0 0 14px;
             height: 14px;
@@ -242,15 +250,6 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-        }
-
-        .pane-context {
-            color: #8a929c;
-            margin-right: 4px;
-        }
-
-        .pane-context::after {
-            content: " /";
         }
 
         .pane-kind {
@@ -1843,4 +1842,16 @@
         .group-expand .icon {
             width: 0.8em;
             height: 0.8em;
+        }
+
+        /* Joined column header: a join arrow before the column's own name; the
+           line beneath (the column path) names the table it comes from. */
+        .th-joined {
+            color: #8a929c;
+            margin-right: 4px;
+        }
+
+        .th-joined .icon {
+            width: 0.85em;
+            height: 0.85em;
         }

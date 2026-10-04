@@ -8,6 +8,7 @@
     
     
     
+    
     <link rel="stylesheet" href="/static/VERSION/table.css">
     <script src="/static/VERSION/table.js" defer></script>
     
@@ -27,6 +28,7 @@
         <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-joined" viewBox="0 0 16 16"><path d="M3.5 2.5v5a3 3 0 0 0 3 3h6.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10 7.5l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
         <symbol id="i-filter" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"/></symbol>
         <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     </svg>
@@ -44,15 +46,27 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <div class="pane-section-title">In view <span class="pane-count">4</span></div>
-                <ul class="pane-list">
+                <ul class="pane-list pane-main">
                     
         <li class="pane-item">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=region%2Ccategory%2Camount&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Status from the table (links to other tables)">
+                <a href="/default/table?columns=status%2Cregion%2Ccategory&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Amount from the table">
                     <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-                    <span class="pane-name">Status</span>
+                    <span class="pane-name">Amount</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=status%2Cregion%2Camount&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Category from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Category</span>
                     <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
                 </a>
@@ -76,9 +90,9 @@
         <li class="pane-item">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=status%2Cregion%2Camount&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Category from the table (links to other tables)">
+                <a href="/default/table?columns=region%2Ccategory%2Camount&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Status from the table (links to other tables)">
                     <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-                    <span class="pane-name">Category</span>
+                    <span class="pane-name">Status</span>
                     <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
                 </a>
@@ -86,21 +100,7 @@
             
         </li>
     
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=status%2Cregion%2Ccategory&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Amount from the table">
-                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-                    <span class="pane-name">Amount</span>
-                    
-                    
-                </a>
-            </div>
-            
-        </li>
-    
                 </ul>
-                
 
                 
                 <div class="computed-columns-section">

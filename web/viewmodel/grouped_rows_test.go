@@ -232,10 +232,9 @@ func dumpRows(rows []GroupedRow) string {
 	return strings.Join(lines, "\n")
 }
 
-// The column pane lists the columns in view in table order (computed ones
-// included), then the base table's other columns alphabetically
-// (case-insensitive); hidden computed columns and joined columns not in view
-// are left out of the second list.
+// The column pane lists the base table's columns in one alphabetical list
+// (case-insensitive), shown and hidden together; computed columns and joined
+// columns (listed under their join) are left out.
 func TestPaneColumns(t *testing.T) {
 	all := []ColumnInfo{
 		{Name: "amount", PaneName: "Amount", IsVisible: true},
@@ -244,20 +243,30 @@ func TestPaneColumns(t *testing.T) {
 		{Name: "cluster", PaneName: "Cluster", IsVisible: false},
 		{Name: "r.racks.r.pos", PaneName: "Position", PaneContext: "Racks", IsVisible: true},
 		{Name: "c1", PaneName: "c1", IsVisible: true},
-		{Name: "c2", PaneName: "c2", IsVisible: false},
 	}
-	inView, available := paneColumns(all, []string{"region", "r.racks.r.pos", "amount", "c1"}, map[string]bool{"c1": true, "c2": true})
-	names := func(cs []ColumnInfo) string {
-		var s []string
-		for _, c := range cs {
-			s = append(s, c.Name)
-		}
-		return strings.Join(s, ",")
+	var got []string
+	for _, c := range paneColumns(all, map[string]bool{"c1": true}) {
+		got = append(got, c.Name)
 	}
-	if got, want := names(inView), "region,r.racks.r.pos,amount,c1"; got != want {
-		t.Errorf("in view = %s, want %s", got, want)
+	if g, want := strings.Join(got, ","), "amount,cluster,region,zone"; g != want {
+		t.Errorf("pane columns = %s, want %s", g, want)
 	}
-	if got, want := names(available), "cluster,zone"; got != want {
-		t.Errorf("available = %s, want %s", got, want)
+}
+
+// Joined targets stay listed while collapsed when they lead to a column in
+// the view; otherwise only an expanded column lists them.
+func TestMarkJoinTargetsShown(t *testing.T) {
+	targets := []JoinTarget{{TableName: "a"}, {TableName: "b", HasSelected: true}}
+	if !markJoinTargetsShown(targets, false) || targets[0].Shown || !targets[1].Shown {
+		t.Errorf("collapsed: shown = %v, %v; want false, true", targets[0].Shown, targets[1].Shown)
+	}
+	if !markJoinTargetsShown(targets, true) || !targets[0].Shown {
+		t.Errorf("expanded: target a not shown")
+	}
+	if markJoinTargetsShown([]JoinTarget{{TableName: "a"}}, false) {
+		t.Errorf("collapsed without selection: reported shown")
+	}
+	if !hasColumnWithPrefix([]string{"rack.racks.rack.zone"}, "rack.racks.rack.") || hasColumnWithPrefix([]string{"rack"}, "rack.racks.rack.") {
+		t.Errorf("hasColumnWithPrefix wrong")
 	}
 }
