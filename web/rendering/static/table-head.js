@@ -588,13 +588,25 @@
             // without preventDefault the browser shows the no-drop cursor and
             // no indicators appear.
             if (columnZone(draggedHeader) !== columnZone(th)) return;
+            const onLeft = dropOnLeftSide(draggedHeader, th, e.clientX);
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            const rect = th.getBoundingClientRect();
-            const isLeftHalf = e.clientX < rect.left + rect.width / 2;
             clearDragIndicators();
-            th.classList.add(isLeftHalf ? 'drag-over-left' : 'drag-over-right');
+            th.classList.add(onLeft ? 'drag-over-left' : 'drag-over-right');
         });
+
+        // Which side of target a drop lands on. Over a neighbour, anywhere
+        // on it moves the dragged column past it (so a swap needs no aim;
+        // its near half would otherwise put the column back where it is);
+        // further away, the half under the pointer decides.
+        function dropOnLeftSide(dragged, target, clientX) {
+            const cells = Array.from(headerCells());
+            const from = cells.indexOf(dragged), to = cells.indexOf(target);
+            if (to === from + 1) return false; // right neighbour: drop after it
+            if (to === from - 1) return true;  // left neighbour: drop before it
+            const rect = target.getBoundingClientRect();
+            return clientX < rect.left + rect.width / 2;
+        }
 
         document.addEventListener('dragleave', function(e) {
             const th = dragTarget(e);
@@ -608,8 +620,7 @@
             if (!draggedHeader || draggedHeader === th) return;
             if (columnZone(draggedHeader) !== columnZone(th)) return;
 
-            const rect = th.getBoundingClientRect();
-            const dropOnLeft = e.clientX < rect.left + rect.width / 2;
+            const dropOnLeft = dropOnLeftSide(draggedHeader, th, e.clientX);
             const url = currentUrl();
 
             // Grouped columns: their display order is the grouping hierarchy
