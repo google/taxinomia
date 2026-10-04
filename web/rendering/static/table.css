@@ -2022,3 +2022,138 @@
         .help-bubble.inside::after {
             display: none;
         }
+
+        /* Help labels are buttons (click: why use it), coloured by area. */
+        button.help-bubble {
+            border: none;
+            margin: 0;
+            cursor: pointer;
+            pointer-events: auto;
+            text-align: left;
+        }
+
+        button.help-bubble:hover {
+            filter: brightness(1.25);
+        }
+
+        .help-area-view { --help-bg: #3d4852; }
+        .help-area-sort { --help-bg: #1f5f99; }
+        .help-area-group { --help-bg: #2e7d4f; }
+        .help-area-filter { --help-bg: #8a5a00; }
+        .help-area-columns { --help-bg: #6b3fa0; }
+        .help-area-computed { --help-bg: #a3326f; }
+
+        .help-bubble[class*="help-area-"] {
+            background-color: var(--help-bg);
+        }
+
+        .help-bubble[class*="help-area-"].points-down::after { border-top-color: var(--help-bg); }
+        .help-bubble[class*="help-area-"].points-up::after { border-bottom-color: var(--help-bg); }
+        .help-bubble[class*="help-area-"].points-left::after { border-right-color: var(--help-bg); }
+        .help-bubble[class*="help-area-"].points-right::after { border-left-color: var(--help-bg); }
+
+        .help-legend {
+            position: fixed;
+            right: 16px;
+            top: 16px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background-color: #fff;
+            border: 1px solid #dde1e6;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            font: 12px Arial, sans-serif;
+            color: #333;
+            cursor: default;
+            line-height: 1.7;
+        }
+
+        .help-legend-intro {
+            color: #666;
+            margin-bottom: 2px;
+        }
+
+        .help-swatch {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 6px;
+            vertical-align: -1px;
+            background-color: var(--help-bg);
+        }
+
+        .help-card {
+            position: fixed;
+            width: 280px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            background-color: #fff;
+            border: 1px solid #dde1e6;
+            border-left: 4px solid var(--help-bg, #3d4852);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+            font: 13px Arial, sans-serif;
+            color: #333;
+            cursor: default;
+        }
+
+        .help-area-border-view { --help-bg: #3d4852; }
+        .help-area-border-sort { --help-bg: #1f5f99; }
+        .help-area-border-group { --help-bg: #2e7d4f; }
+        .help-area-border-filter { --help-bg: #8a5a00; }
+        .help-area-border-columns { --help-bg: #6b3fa0; }
+        .help-area-border-computed { --help-bg: #a3326f; }
+
+        .help-card-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .help-card-why {
+            line-height: 1.4;
+        }
+
+        .help-card-buttons {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .help-card-buttons button,
+        .help-note button {
+            font: 12px Arial, sans-serif;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #c9ced5;
+            background-color: #fff;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .help-card-buttons .help-card-show {
+            background-color: #2980b9;
+            border-color: #2980b9;
+            color: #fff;
+        }
+
+        .help-note {
+            position: fixed;
+            left: 50%;
+            bottom: 52px;
+            transform: translateX(-50%);
+            z-index: 3000;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background-color: #2b3440;
+            color: #fff;
+            font: 13px Arial, sans-serif;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-input.help-typed {
+            outline: 2px solid #f0b429;
+            background-color: #fffbea;
+        }

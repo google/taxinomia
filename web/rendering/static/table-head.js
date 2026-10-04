@@ -254,6 +254,7 @@
             restoreScrollPosition();
             focusNewComputedColumn();
             scheduleAnimCleanup();
+            showHelpNoteIfAny();
             hideWaiting();
             if (fragmentState.navtest) {
                 document.documentElement.setAttribute('data-navtest', 'swapped');
@@ -844,6 +845,7 @@
             restoreScrollPosition();
             focusNewComputedColumn();
             scheduleAnimCleanup();
+            showHelpNoteIfAny();
             // Self-test hook (see the file comment). Only a table page of this
             // route qualifies: the hash must never be able to send the
             // browser elsewhere.
@@ -858,6 +860,14 @@
             // "#help" opens the control labels on load (a link docs can give).
             if (window.location.hash === "#help") {
                 setTimeout(showHelp, 0);
+            } else if (window.location.hash.startsWith("#help-card=")) {
+                // ... and "#help-card=<label>" also opens that label's card.
+                const wanted = decodeURIComponent(window.location.hash.substring(11));
+                setTimeout(function() {
+                    showHelp();
+                    const bubble = Array.from(document.querySelectorAll(".help-bubble")).find(b => b.textContent === wanted);
+                    if (bubble) bubble.click();
+                }, 0);
             }
         }
 
@@ -875,42 +885,125 @@
         window.addEventListener('beforeunload', showWaiting);
         window.addEventListener('pageshow', hideWaiting);
 
-        // --- Help: "what is this control" -----------------------------------
+        // --- Help: what each control is, and why use it ---------------------
         // The "?" button in the status bar pins a 2-3 word label on the first
-        // visible instance of each kind of control. Labels follow the page's
-        // state (a flat table says "Group by", a grouped one "Nest another
-        // level"); controls that are not on the page get none, so this works
-        // on any table. Esc, a click, scrolling or a navigation closes it; a
-        // resize places the labels again.
+        // visible instance of each kind of control, coloured by area. Labels
+        // follow the page's state (a flat table says "Group by", a grouped
+        // one "Nest another level"); controls that are not on the page get
+        // none, so this works on any table. Clicking a label opens a card:
+        // one sentence on why to use the control and, where it applies, a
+        // "Show me" that operates the real control on this table; a note
+        // after the page changes names what happened and offers Undo (the
+        // browser's back). Esc, a click elsewhere, scrolling or a navigation
+        // closes the labels; a resize places them again.
+        // The open card's label item, and where each label was placed (for
+        // reopening the card when a resize places the labels again).
+        let openHelpItem = null;
+        let helpPlacements = new Map();
+
         function isGroupedPage() {
             return !!document.querySelector('.group-toggle-btn.grouped');
         }
 
+        const HELP_AREAS = {
+            view: 'View and sharing',
+            sort: 'Sorting',
+            group: 'Grouping and totals',
+            filter: 'Filtering',
+            columns: 'Columns and joins',
+            computed: 'Computed columns',
+        };
+
+        // show: 'click' operates the control itself; a function does
+        // something else; absent means the card only explains.
         const HELP_LABELS = [
-            ['.limit-btn', 'Fewer / more rows'],
-            ['.type-toggle-btn', 'Column types'],
-            ['thead tr:first-child th[draggable] .th-content', 'Drag: sort priority', {inside: true}],
-            ['thead .resize-handle', 'Drag to resize'],
-            ['.sort-toggle-btn', 'Flip sort'],
-            ['.group-toggle-btn:not(.grouped)', () => isGroupedPage() ? 'Nest another level' : 'Group by'],
-            ['.group-toggle-btn.grouped', 'Ungroup'],
-            ['.agg-sort-toggle-btn', 'Sort groups by total'],
-            ['.agg-toggle-btn', 'Per-group totals'],
-            ['.stats-cell', () => isGroupedPage() ? 'Groups / filtered / total' : 'Filtered / total rows', {inside: true}],
-            ['.filter-input', 'text, "exact", a|b'],
-            ['.multiselect-toggle', 'Pick several values'],
-            ['tbody td.group-cell', 'Value [subgroups/rows]', {inside: true}],
-            ['tbody .filter-link', 'Drill into group'],
-            ['tbody .group-expand', 'List group rows'],
-            ['tbody .entity-link', 'Open related'],
-            ['tbody tr[data-row-id] td:last-child', 'Click: row details', {inside: true}],
-            ['.formula-input', 'Edit formula'],
-            ['#add-computed-btn', 'New computed column'],
-            ['#sidebar a.pane-disclosure', 'Join other tables'],
-            ['#sidebar .pane-main .pane-toggle', 'Show / hide column'],
-            ['.info-pane-toggle[data-help="url"]', 'Shareable view'],
-            ['.info-pane-toggle[data-help="perf"]', 'Query cost'],
+            {sel: '.limit-btn', label: 'Fewer / more rows', area: 'view', show: 'click',
+             why: 'The table lists a screenful of rows; these list fewer or more. The rest are still counted.'},
+            {sel: '.type-toggle-btn', label: 'Column types', area: 'view', show: 'click',
+             why: 'Shows how each column is stored (text, number, date), which decides how it sorts and totals.'},
+            {sel: 'thead tr:first-child th[draggable] .th-content', label: 'Drag: sort priority', area: 'sort', inside: true, show: moveFirstColumnRight,
+             why: 'Rows are always sorted by the columns, left to right. Drag a header left to make it sort first.'},
+            {sel: 'thead .resize-handle', label: 'Drag to resize', area: 'columns',
+             why: 'Drag the edge of a header to make the column wider or narrower. Widths are kept in the link.'},
+            {sel: '.sort-toggle-btn', label: 'Flip sort', area: 'sort', show: 'click',
+             why: 'Flips this column between ascending and descending, without changing its priority.'},
+            {sel: '.group-toggle-btn:not(.grouped)', label: () => isGroupedPage() ? 'Nest another level' : 'Group by', area: 'group', show: 'click',
+             why: () => isGroupedPage()
+                ? 'Groups each group again by this column, one level deeper.'
+                : 'Collapses rows with the same value into one group, with its count and totals.'},
+            {sel: '.group-toggle-btn.grouped', label: 'Ungroup', area: 'group', show: 'click',
+             why: 'Turns this column back into a plain column.'},
+            {sel: '.agg-sort-toggle-btn', label: 'Sort groups by total', area: 'sort', show: 'click',
+             why: 'Orders the groups by a total (a count, a sum, an average) instead of by their value.'},
+            {sel: '.agg-toggle-btn', label: 'Per-group totals', area: 'group', show: 'click',
+             why: 'Shows the count, sum, average, spread, minimum or maximum of this column for each group.'},
+            {sel: '.stats-cell', label: () => isGroupedPage() ? 'Groups / filtered / total' : 'Filtered / total rows', area: 'filter', inside: true,
+             why: () => isGroupedPage()
+                ? 'How many groups there are, how many rows the filters keep, and how many rows the table has.'
+                : 'How many rows the filters keep, and how many rows the table has.'},
+            {sel: '.filter-input', label: 'text, "exact", a|b', area: 'filter', show: typeExampleFilter,
+             why: 'Type a word to find it anywhere in the value, "quoted" for an exact match, or a|b for any of several values. Enter applies it.'},
+            {sel: '.multiselect-toggle', label: 'Pick several values', area: 'filter', show: 'click',
+             why: 'Tick several groups to keep only those, as one filter.'},
+            {sel: 'tbody td.group-cell', label: 'Value [subgroups/rows]', area: 'group', inside: true,
+             why: 'Each group shows its value and, in brackets, how many subgroups and rows it holds.'},
+            {sel: 'tbody .filter-link', label: 'Drill into group', area: 'filter', show: 'click',
+             why: 'Keeps only this group\'s rows and ungroups the column, to look inside the group.'},
+            {sel: 'tbody .group-expand', label: 'List group rows', area: 'group', show: 'click',
+             why: 'Lists this group\'s own rows right under it, without leaving the grouped view.'},
+            {sel: 'tbody .entity-link', label: 'Open related', area: 'columns', show: 'click',
+             why: 'A linked value leads to the matching rows in a related table.'},
+            {sel: 'tbody tr[data-row-id] td:last-child', label: 'Click: row details', area: 'view', inside: true, show: 'click',
+             why: 'Click a row to see all its values and where it sits in the hierarchies.'},
+            {sel: '.formula-input', label: 'Edit formula', area: 'computed',
+             why: 'This column is computed from the others. Edit its expression and press Enter.'},
+            {sel: '#add-computed-btn', label: 'New computed column', area: 'computed', show: 'click',
+             why: 'Adds a column computed from an expression over the others, for this view only.'},
+            {sel: '#sidebar a.pane-disclosure', label: 'Join other tables', area: 'columns', show: 'click',
+             why: 'Opens the tables this column links to, so you can add their columns here.'},
+            {sel: '#sidebar .pane-main .pane-toggle', label: 'Show / hide column', area: 'columns', show: 'click',
+             why: 'Adds the column to the table, or removes it.'},
+            {sel: '.info-pane-toggle[data-help="url"]', label: 'Shareable view', area: 'view', show: 'click',
+             why: 'Everything you see is in the link: copy it to share or bookmark exactly this view.'},
+            {sel: '.info-pane-toggle[data-help="perf"]', label: 'Query cost', area: 'view', show: 'click',
+             why: 'Shows how long each part of this view took, with links to switch costly parts off.'},
         ];
+
+        const textOf = v => typeof v === 'function' ? v() : v;
+
+        // "Show me" for the sort-priority drag: the first column moves one
+        // place right (what dragging it would do).
+        function moveFirstColumnRight() {
+            const names = Array.from(headerCells()).map(th => th.dataset.colName).filter(Boolean);
+            if (names.length < 2) return false;
+            [names[0], names[1]] = [names[1], names[0]];
+            const url = currentUrl();
+            url.searchParams.set('columns', names.join(','));
+            navigate(url);
+            return true;
+        }
+
+        // "Show me" for the filter box: filter the first column on the start
+        // of a value from the table itself.
+        function typeExampleFilter(input) {
+            const column = input.dataset.column;
+            let sample = '';
+            const groupCell = document.querySelector('tbody td.group-cell');
+            if (groupCell) {
+                sample = groupCell.textContent.trim().split(/\s+\[/)[0];
+            } else {
+                const cells = Array.from(input.closest('tr').children);
+                const idx = cells.indexOf(input.closest('td'));
+                const firstRow = document.querySelector('tbody tr');
+                if (firstRow && firstRow.children[idx]) sample = firstRow.children[idx].textContent.trim();
+            }
+            if (!sample || sample === '[error]') return false;
+            const word = sample.length > 4 ? sample.substring(0, Math.ceil(sample.length / 2)) : sample;
+            input.value = word;
+            input.classList.add('help-typed');
+            setTimeout(() => applyFilter(column, word), 600); // let the typed text be seen
+            return true;
+        }
 
         function firstVisible(selector) {
             const vw = window.innerWidth, vh = window.innerHeight;
@@ -938,20 +1031,24 @@
             // Find every labelled control first, so a label avoids covering
             // the others (large ones, such as a whole header, excepted).
             const targets = [];
-            for (const [selector, label, opts] of HELP_LABELS) {
-                const el = firstVisible(selector);
-                if (el) targets.push({el: el, label: label, inside: !!(opts && opts.inside), r: el.getBoundingClientRect()});
+            for (const item of HELP_LABELS) {
+                const el = firstVisible(item.sel);
+                if (el) targets.push({el: el, item: item, r: el.getBoundingClientRect()});
             }
             for (const t of targets) {
                 if (t.r.width * t.r.height < 4000) placed.push({left: t.r.left, right: t.r.right, top: t.r.top, bottom: t.r.bottom});
             }
             // Labels inside their (large) target go first; the others avoid them.
-            targets.sort((a, b) => (b.inside ? 1 : 0) - (a.inside ? 1 : 0));
-            for (const {el, label, r, inside} of targets) {
+            targets.sort((a, b) => (b.item.inside ? 1 : 0) - (a.item.inside ? 1 : 0));
+            const areasShown = new Set();
+            for (const {el, item, r} of targets) {
                 el.classList.add('help-target');
-                const bubble = document.createElement('div');
-                bubble.className = 'help-bubble';
-                bubble.textContent = typeof label === 'function' ? label() : label;
+                areasShown.add(item.area);
+                const bubble = document.createElement('button');
+                bubble.type = 'button';
+                bubble.className = 'help-bubble help-area-' + item.area;
+                bubble.textContent = textOf(item.label);
+                bubble.title = 'Why use it?';
                 layer.appendChild(bubble);
                 const w = bubble.offsetWidth, h = bubble.offsetHeight, gap = 7;
                 const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -967,7 +1064,7 @@
                 ];
                 const fits = s => s.left >= 4 && s.left + w <= vw - 4 && s.top >= 4 && s.top + h <= vh - 4;
                 const free = s => !placed.some(p => overlaps(p, {left: s.left, right: s.left + w, top: s.top, bottom: s.top + h}));
-                let spot = inside
+                let spot = item.inside
                     ? {left: clampX(cx - w / 2), top: cy - h / 2, side: 'inside'}
                     : spots.find(s => fits(s) && free(s));
                 if (!spot) {
@@ -976,17 +1073,136 @@
                     for (let tries = 0; tries < 6 && !free(spot); tries++) spot.top += step;
                     spot.top = Math.max(4, Math.min(vh - h - 4, spot.top));
                 }
-                const left = spot.left, top = spot.top;
-                bubble.style.left = left + 'px';
-                bubble.style.top = top + 'px';
+                bubble.style.left = spot.left + 'px';
+                bubble.style.top = spot.top + 'px';
                 bubble.classList.add(spot.side);
-                bubble.style.setProperty('--arrow-x', Math.round(cx - left) + 'px');
-                placed.push({left: left, right: left + w, top: top, bottom: top + h});
+                bubble.style.setProperty('--arrow-x', Math.round(cx - spot.left) + 'px');
+                placed.push({left: spot.left, right: spot.left + w, top: spot.top, bottom: spot.top + h});
+                helpPlacements.set(item, {el: el, bubble: bubble});
+                bubble.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    showHelpCard(item, el, bubble);
+                });
             }
+            // Legend: the areas present on this page, in the area colours.
+            const legend = document.createElement('div');
+            legend.className = 'help-legend';
+            legend.addEventListener('click', e => e.stopPropagation());
+            const intro = document.createElement('div');
+            intro.className = 'help-legend-intro';
+            intro.textContent = 'Click a label to see why you would use it.';
+            legend.appendChild(intro);
+            for (const area of Object.keys(HELP_AREAS)) {
+                if (!areasShown.has(area)) continue;
+                const row = document.createElement('div');
+                const swatch = document.createElement('span');
+                swatch.className = 'help-swatch help-area-' + area;
+                row.appendChild(swatch);
+                row.appendChild(document.createTextNode(HELP_AREAS[area]));
+                legend.appendChild(row);
+            }
+            layer.appendChild(legend);
             layer.addEventListener('click', hideHelp);
         }
 
+        // The card a label opens: why to use the control, and "Show me".
+        function showHelpCard(item, el, bubble) {
+            openHelpItem = item;
+            const old = document.getElementById('help-card');
+            if (old) old.remove();
+            const layer = document.getElementById('help-layer');
+            if (!layer) return;
+            const card = document.createElement('div');
+            card.id = 'help-card';
+            card.className = 'help-card help-area-border-' + item.area;
+            card.addEventListener('click', e => e.stopPropagation());
+            const title = document.createElement('div');
+            title.className = 'help-card-title';
+            title.textContent = textOf(item.label);
+            const why = document.createElement('div');
+            why.className = 'help-card-why';
+            why.textContent = textOf(item.why);
+            card.appendChild(title);
+            card.appendChild(why);
+            const buttons = document.createElement('div');
+            buttons.className = 'help-card-buttons';
+            if (item.show) {
+                const show = document.createElement('button');
+                show.type = 'button';
+                show.className = 'help-card-show';
+                show.textContent = 'Show me';
+                show.addEventListener('click', function() {
+                    hideHelp();
+                    rememberHelpNote(textOf(item.label));
+                    const done = item.show === 'click' ? (el.click(), true) : item.show(el);
+                    if (!done) forgetHelpNote();
+                    // An action that does not change the page (opening a pane,
+                    // a form) leaves no note behind for a later page.
+                    const from = window.location.href;
+                    setTimeout(function() {
+                        const waiting = document.getElementById('waiting');
+                        if (window.location.href === from && (!waiting || waiting.hidden)) forgetHelpNote();
+                    }, 3000);
+                });
+                buttons.appendChild(show);
+            }
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'help-card-close';
+            close.textContent = 'Close';
+            close.addEventListener('click', () => { card.remove(); openHelpItem = null; });
+            buttons.appendChild(close);
+            card.appendChild(buttons);
+            layer.appendChild(card);
+            // Beside the label, kept on screen.
+            const b = bubble.getBoundingClientRect();
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const w = card.offsetWidth, h = card.offsetHeight;
+            let left = Math.max(8, Math.min(vw - w - 8, b.left));
+            let top = b.bottom + 6;
+            if (top + h > vh - 8) top = Math.max(8, b.top - h - 6);
+            card.style.left = left + 'px';
+            card.style.top = top + 'px';
+        }
+
+        // After "Show me" changes the page, a note names what happened and
+        // offers Undo (the browser's back). Kept in sessionStorage so it
+        // survives a full page load as well as a fragment navigation.
+        function rememberHelpNote(label) {
+            try { sessionStorage.setItem('taxinomia-help-note', JSON.stringify({label: label, from: window.location.href})); } catch (e) {}
+        }
+        function forgetHelpNote() {
+            try { sessionStorage.removeItem('taxinomia-help-note'); } catch (e) {}
+        }
+        function showHelpNoteIfAny() {
+            let note = null;
+            try { note = JSON.parse(sessionStorage.getItem('taxinomia-help-note') || 'null'); } catch (e) {}
+            if (!note) return;
+            if (note.from === window.location.href) return; // the page has not changed (yet)
+            forgetHelpNote();
+            const old = document.getElementById('help-note');
+            if (old) old.remove();
+            const box = document.createElement('div');
+            box.id = 'help-note';
+            box.className = 'help-note';
+            box.appendChild(document.createTextNode('That was "' + note.label + '". '));
+            const undo = document.createElement('button');
+            undo.type = 'button';
+            undo.textContent = 'Undo';
+            undo.addEventListener('click', () => { box.remove(); history.back(); });
+            const again = document.createElement('button');
+            again.type = 'button';
+            again.textContent = 'Labels';
+            again.addEventListener('click', () => { box.remove(); showHelp(); });
+            box.appendChild(undo);
+            box.appendChild(again);
+            document.body.appendChild(box);
+            setTimeout(() => box.remove(), 8000);
+        }
+
         function hideHelp() {
+            openHelpItem = null;
+            helpPlacements = new Map();
             const layer = document.getElementById('help-layer');
             if (layer) layer.remove();
             document.querySelectorAll('.help-target').forEach(el => el.classList.remove('help-target'));
@@ -1002,5 +1218,9 @@
         window.addEventListener('scroll', hideHelp, {passive: true});
         // A resize moves the controls: place the labels again rather than close.
         window.addEventListener('resize', function() {
-            if (document.getElementById('help-layer')) showHelp();
+            if (!document.getElementById('help-layer')) return;
+            const item = openHelpItem;
+            showHelp();
+            const p = item && helpPlacements.get(item);
+            if (p) showHelpCard(item, p.el, p.bubble);
         });
