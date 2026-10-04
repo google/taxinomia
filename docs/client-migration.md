@@ -414,3 +414,23 @@ http.ListenAndServe(addr, handlers.GzipHandler(mux))   // 6–19× fewer bytes f
   header with the phase durations (`grouping;dur=12.3;desc="Grouping"`,
   …, `total;dur=…`), which browser devtools show in the network panel's
   timing tab. Nothing to enable.
+
+## Computed columns: failing rows and table-defined columns (2026-10)
+
+Nothing to migrate; two behaviour changes your code may notice:
+
+- **Failing rows are no longer dropped from groups.** Rows on which a
+  computed column's expression fails now form one `[error]` group when
+  grouping by that column (they used to vanish), and a filter matches them
+  when it names `[error]` in full. `GroupIndices` still reports them as
+  unmapped. Rows of a joined column without a match are unchanged.
+- **Formatted aggregates may carry one more item.** `FormatAggregates` /
+  `FormatAggregatesWithSort` append a `failed N` entry when rows were left
+  out because their value could not be computed
+  (`NumericAggState.Failed`). Code that assumes one entry per enabled
+  aggregate should stop at `len(enabledAggs)` or skip that entry.
+
+New, optional: a data source can declare `computed_columns`
+(`DataSource.computed_columns`, see `docs/data_sources.md`). Your server
+picks them up without code changes; the column pane lists them with the
+stored columns.

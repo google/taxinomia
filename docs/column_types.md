@@ -284,3 +284,19 @@ Computed columns calculate values at query time using expressions. The expressio
 | Duration | `ComputedDurationColumn` |
 
 See [Expression Language](expression_language.md) for expression syntax and functions.
+
+There are two kinds, built the same way and evaluated on read:
+
+- **Added to a view** by a user (the "Computed for this view" section of
+  the column pane); they live in the URL.
+- **Defined with the table**, in its data source's `computed_columns`
+  (see [Data Sources](data_sources.md#computed-columns)); every view of
+  the table has them, and the column pane lists them with the stored
+  columns.
+
+A computed column's expression may fail on some rows. Those rows read as
+an error (`GetValue` returns it; the UI shows `[error]`), group together in
+one `[error]` group, are left out of numeric aggregates and counted
+(`NumericAggState.Failed`), and the column keeps its first failure
+(`FirstError()`) for display. See
+[Rows Where an Expression Fails](expression_language.md#rows-where-an-expression-fails).
