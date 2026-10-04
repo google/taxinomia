@@ -395,6 +395,11 @@ func (s *Server) HandleTableRequest(w io.Writer, requestURL *url.URL, product Pr
 // (docs/scaling-to-1b-rows.md §8). A cancelled request returns status 499
 // (client closed request) without writing to w.
 func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
+	// The single-entity page shares the table route (entity.go).
+	if requestURL.Query().Get("entity") != "" {
+		return s.handleEntityRequest(ctx, w, requestURL, product, setHeader)
+	}
+
 	timing := NewTimingCollectorWithClock(s.clock)
 
 	// Parse URL into Query
@@ -662,6 +667,8 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	vmStart := timing.Now()
 	title := strings.Title(q.Table)
 	urlResolver, allURLsResolver, primaryKeyResolver, descResolver, hierarchyContextBuilder, relatedTablesResolver := s.effectiveResolvers()
+	// Values of an entity type (some table's key) link to the entity's page.
+	urlResolver = s.entityLinking(q.Path, s.entityHomes(), urlResolver)
 	var primaryKeyEntityType string
 	if primaryKeyResolver != nil {
 		primaryKeyEntityType = primaryKeyResolver(q.Table)

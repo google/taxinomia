@@ -480,6 +480,32 @@ Entity types enable joining tables from different sources. For example:
 
 All three tables can be joined on `customer_id` because they share the same entity type, even though they come from different sources (protobuf, CSV, and database).
 
+### Entity pages
+
+An **entity** is an entity type that is some table's primary key
+(`primary_key_entity_type`); that table is its *home table*. Every entity
+has a page, served on the table route:
+
+```
+/<product>/table?entity=<entity type>&value=<value>
+```
+
+so an app needs no new route. Cells holding an entity's value link to its
+page (in place of the entity type's default external link). The page is
+mostly links:
+
+- the entity's row in its home table, every column; values that are
+  entities themselves link to their pages;
+- its place in each hierarchy it belongs to (ancestors link to their
+  pages, descendants to filtered lists);
+- every table that refers to it, as a link to that table filtered to it;
+- the external links declared for its type (`urls` in the entity type
+  definition).
+
+When several rows of the home table share the value, the page shows the
+first and links to all of them. Entity types that are no table's key
+(a status, a category) have no page; their cells keep their default link.
+
 ## API Summary
 
 ```go

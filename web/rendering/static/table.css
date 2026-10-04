@@ -2200,3 +2200,137 @@
         .help-card-how li {
             margin-bottom: 3px;
         }
+
+        /* Single-entity page: one entity, mostly links. */
+        .entity-body {
+            background-color: #f7f8fa;
+        }
+
+        .entity-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px 24px 40px;
+        }
+
+        .entity-nav {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .entity-nav a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        .entity-nav a:hover {
+            text-decoration: underline;
+        }
+
+        .entity-title {
+            margin: 0 0 4px;
+            font-size: 28px;
+        }
+
+        .entity-type {
+            font-weight: normal;
+            color: #8a929c;
+            margin-right: 8px;
+        }
+
+        .entity-description {
+            margin: 0 0 18px;
+            color: #666;
+        }
+
+        .entity-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            align-items: start;
+        }
+
+        .entity-card {
+            background-color: #fff;
+            border: 1px solid #dde1e6;
+            border-radius: 6px;
+            padding: 14px 16px;
+        }
+
+        .entity-card h2 {
+            margin: 0 0 10px;
+            font-size: 12px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #8a929c;
+        }
+
+        .entity-fields {
+            grid-row: span 3;
+        }
+
+        .entity-fields table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .entity-fields th,
+        .entity-fields td {
+            text-align: left;
+            padding: 5px 6px;
+            border: none;
+            border-bottom: 1px solid #eef0f3;
+            background: none;
+            font-size: 14px;
+            vertical-align: top;
+        }
+
+        .entity-fields th {
+            width: 40%;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .entity-key-row td {
+            font-weight: bold;
+        }
+
+        .entity-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            font-size: 14px;
+            line-height: 1.9;
+        }
+
+        .entity-card a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        .entity-card a:hover {
+            text-decoration: underline;
+        }
+
+        .entity-muted {
+            color: #8a929c;
+            font-size: 12px;
+        }
+
+        .entity-missing,
+        .entity-note {
+            margin-bottom: 16px;
+        }
+
+        .entity-footer {
+            margin-top: 28px;
+            font-size: 11px;
+            color: #a3aab3;
+        }
+
+        .entity-fields table,
+        .entity-fields tr {
+            border: none;
+            box-shadow: none;
+        }

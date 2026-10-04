@@ -434,3 +434,16 @@ New, optional: a data source can declare `computed_columns`
 (`DataSource.computed_columns`, see `docs/data_sources.md`). Your server
 picks them up without code changes; the column pane lists them with the
 stored columns.
+
+## Entity pages: cell links change (2026-10)
+
+Nothing to migrate in code; one visible change:
+
+- **Cells holding an entity's value now link to its entity page**, not to
+  the entity type's default external link. An entity is an entity type
+  that is some table's primary key (`primary_key_entity_type`). The page
+  is served on the table route (`<table path>?entity=<type>&value=<v>`),
+  so your existing route handles it; it lists the external links that
+  used to be the cell link. Entity types that are no table's key keep
+  their default external link. See "Entity pages" in
+  `docs/data_sources.md`.

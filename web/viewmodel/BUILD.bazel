@@ -4,6 +4,7 @@ go_library(
     name = "viewmodel",
     srcs = [
         "assets.go",
+        "entity_viewmodel.go",
         "landing_viewmodel.go",
         "perf_viewmodel.go",
         "format.go",

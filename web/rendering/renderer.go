@@ -33,7 +33,8 @@ var templateFS embed.FS
 type TableRenderer struct {
 	tableTemplate   *template.Template
 	landingTemplate *template.Template
-	assets          *staticAssets // the page's stylesheet and script (static.go)
+	entityTemplate  *template.Template
+	assets         *staticAssets // the page's stylesheet and script (static.go)
 	staticBase      string        // "" = inline them; else the URL prefix StaticHandler is mounted at
 }
 
@@ -61,6 +62,12 @@ func NewTableRenderer() (*TableRenderer, error) {
 		return nil, err
 	}
 
+	// Parse the single-entity page template
+	entityTemplate, err := template.New("entity.html").ParseFS(trustedFS, "templates/entity.html")
+	if err != nil {
+		return nil, err
+	}
+
 	assets, err := loadStaticAssets()
 	if err != nil {
 		return nil, err
@@ -69,6 +76,7 @@ func NewTableRenderer() (*TableRenderer, error) {
 	return &TableRenderer{
 		tableTemplate:   tableTemplate,
 		landingTemplate: landingTemplate,
+		entityTemplate:  entityTemplate,
 		assets:          assets,
 	}, nil
 }
@@ -84,4 +92,11 @@ func (r *TableRenderer) Render(w io.Writer, vm viewmodel.TableViewModel) error {
 // RenderLanding renders a LandingViewModel to the provided writer
 func (r *TableRenderer) RenderLanding(w io.Writer, vm viewmodel.LandingViewModel) error {
 	return r.landingTemplate.Execute(w, vm)
+}
+
+// RenderEntity renders the single-entity page. It shares the table page's
+// stylesheet, delivered the same way (inline or as a versioned file).
+func (r *TableRenderer) RenderEntity(w io.Writer, vm viewmodel.EntityViewModel) error {
+	vm.Assets = r.assetsFor()
+	return r.entityTemplate.Execute(w, vm)
 }

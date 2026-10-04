@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    {{if .Assets.External}}
+    <link rel="stylesheet" href="{{.Assets.CSS}}">
+    {{else}}
+    <style>{{.Assets.InlineCSS}}</style>
+    {{end}}
+</head>
+<body class="entity-body">
+    <div class="entity-page">
+        <div class="entity-nav">
+            <a href="#" onclick="history.back(); return false;" class="entity-back">&larr; Back</a>
+            {{if .HomeURL}}<a href="{{.HomeURL}}" class="entity-home">{{.HomeTitle}}</a>{{end}}
+        </div>
+
+        <h1 class="entity-title">
+            <span class="entity-type">{{.TypeLabel}}</span>
+            <span class="entity-value">{{.Value}}</span>
+        </h1>
+        {{if .Description}}<p class="entity-description">{{.Description}}</p>{{end}}
+
+        {{if not .Found}}
+        <div class="entity-card entity-missing">
+            No {{.TypeLabel}} {{.Value}} in {{.HomeTitle}}.
+            {{if .HomeURL}}<a href="{{.HomeURL}}">Open {{.HomeTitle}}</a>{{end}}
+        </div>
+        {{else}}
+        {{if gt .RowCount 1}}
+        <div class="entity-card entity-note">
+            {{.RowCount}} rows of {{.HomeTitle}} have this value; the first is shown.
+            <a href="{{.HomeURL}}">List them all</a>
+        </div>
+        {{end}}
+
+        <div class="entity-grid">
+            <section class="entity-card entity-fields">
+                <h2>{{.TypeLabel}}</h2>
+                <table>
+                    {{range .Fields}}
+                    <tr{{if .IsKey}} class="entity-key-row"{{end}}>
+                        <th>{{.DisplayName}}</th>
+                        <td>{{if .URL}}<a href="{{.URL}}"{{if .IsEntity}} class="entity-link-entity"{{end}}>{{.Value}}</a>{{else}}{{.Value}}{{end}}</td>
+                    </tr>
+                    {{end}}
+                </table>
+            </section>
+
+            {{range .Hierarchies}}
+            {{$currentValue := .Current.Value}}
+            <section class="entity-card">
+                <h2>{{.HierarchyName}}</h2>
+                <ul class="entity-list">
+                    {{range .Ancestors}}
+                    <li>In {{.DisplayName}} {{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else if .Value}}{{.Value}}{{else}}<span class="no-value">&mdash;</span>{{end}}</li>
+                    {{end}}
+                    {{if .Current.Value}}<li class="entity-current">{{.Current.DisplayName}}: <strong>{{.Current.Value}}</strong></li>{{end}}
+                    {{range .Descendants}}
+                    <li>{{if .Value}}Has {{.DisplayName}} {{if .ValueURL}}<a href="{{.ValueURL}}">{{.Value}}</a>{{else}}{{.Value}}{{end}}{{else if .ListURL}}<a href="{{.ListURL}}">{{.DisplayName}}</a> in {{$currentValue}}{{else}}{{.DisplayName}}{{end}}</li>
+                    {{end}}
+                </ul>
+            </section>
+            {{end}}
+
+            {{if .Related}}
+            <section class="entity-card">
+                <h2>Referred to by</h2>
+                <ul class="entity-list">
+                    {{range .Related}}
+                    <li><a href="{{.FilterURL}}">{{.DisplayName}}</a> <span class="entity-muted">by {{.ColumnName}}</span></li>
+                    {{end}}
+                </ul>
+            </section>
+            {{end}}
+
+            {{if .ExternalURLs}}
+            <section class="entity-card">
+                <h2>Links</h2>
+                <ul class="entity-list">
+                    {{range .ExternalURLs}}
+                    <li><a href="{{.URL}}" rel="noopener">{{.Name}}</a></li>
+                    {{end}}
+                </ul>
+            </section>
+            {{end}}
+        </div>
+        {{end}}
+
+        <div class="entity-footer">Taxinomia {{.Build.Display}}</div>
+    </div>
+</body>
+</html>
