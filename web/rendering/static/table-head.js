@@ -919,11 +919,34 @@
         const HELP_AREAS = {
             view: 'View and sharing',
             sort: 'Sorting',
-            group: 'Grouping and totals',
+            group: 'Grouping and aggregates',
             filter: 'Filtering',
             columns: 'Columns and joins',
             computed: 'Computed columns',
         };
+
+        // One label and card per aggregate type, on the first button of that
+        // type on the page: [type (data-agg), label, what it is per group].
+        const AGGREGATE_HELP = [
+            ['count', '# count', 'How many rows each group has with a value in this column.'],
+            ['unique', '◇ distinct', 'How many different values this column has within each group.'],
+            ['sum', 'Σ sum', 'The sum of this column within each group.'],
+            ['avg', 'μ average', 'The average of this column within each group (for dates, the average date).'],
+            ['stddev', 'σ spread', 'How widely the values spread around the average within each group (the standard deviation).'],
+            ['min', '↓ minimum', 'The smallest value in each group: the lowest number, the earliest date, or the first text alphabetically.'],
+            ['max', '↑ maximum', 'The largest value in each group: the highest number, the latest date, or the last text alphabetically.'],
+            ['true', '✓ true count', 'How many rows in each group are true (yes/no columns).'],
+            ['false', '✗ false count', 'How many rows in each group are false (yes/no columns).'],
+            ['ratio', '% true share', 'The share of rows in each group that are true (yes/no columns).'],
+            ['span', 'Δ time span', 'The time from the earliest to the latest date in each group.'],
+        ].map(([type, label, why]) => ({
+            sel: '.agg-toggle-btn[data-agg="' + type + '"]', label: label, area: 'group', show: 'click', why: why,
+            how: [
+                'Click the button to switch this aggregate on or off for every group. It shows in each group\'s row and adds up in the group above.',
+                'Once on, it can sort the groups: the ⟳ button of the grouped column.',
+                'Which aggregates a column offers depends on its type: numbers, text, dates, yes/no.',
+            ],
+        }));
 
         // show: 'click' operates the control itself; a function does
         // something else; absent means the card only explains.
@@ -931,7 +954,7 @@
             {sel: '.limit-btn', label: 'Fewer / more rows', area: 'view', show: 'click',
              why: 'The table lists a screenful of rows; these list fewer or more. The rest are still counted.'},
             {sel: '.type-toggle-btn', label: 'Column types', area: 'view', show: 'click',
-             why: 'Shows how each column is stored (text, number, date), which decides how it sorts and totals.'},
+             why: 'Shows how each column is stored (text, number, date), which decides how it sorts and which aggregates it offers.'},
             {sel: 'thead tr:first-child th[draggable] .th-content', label: 'Drag: sort priority', area: 'sort', inside: true, show: moveFirstColumnRight,
              why: 'Rows are always sorted by the columns, left to right. Drag a header left to make it sort first.'},
             {sel: 'thead .resize-handle', label: 'Drag to resize', area: 'columns',
@@ -941,32 +964,23 @@
             {sel: '.group-toggle-btn:not(.grouped)', label: () => isGroupedPage() ? 'Nest another level' : 'Group by', area: 'group', show: 'click',
              why: () => isGroupedPage()
                 ? 'Groups each group again by this column, one level deeper.'
-                : 'Collapses rows with the same value into one group, with its count and totals.',
+                : 'Collapses rows with the same value into one group, with its count and aggregates.',
              how: () => isGroupedPage() ? null : [
-                'Once grouped, the other columns get total buttons (Σ sum, μ average and more, by column type) for per-group totals.',
-                'The grouped column gets a ⟳ button that sorts its groups by one of those totals.',
+                'Once grouped, the other columns get aggregate buttons (Σ sum, μ average and more, by column type).',
+                'The grouped column gets a ⟳ button that sorts its groups by one of those aggregates.',
              ]},
             {sel: '.group-toggle-btn.grouped', label: 'Ungroup', area: 'group', show: 'click',
              why: 'Turns this column back into a plain column.'},
-            {sel: '.agg-sort-toggle-btn', label: 'Sort groups by total', area: 'sort', show: 'click',
+            {sel: '.agg-sort-toggle-btn', label: 'Sort groups by aggregate', area: 'sort', show: 'click',
              why: 'Orders the groups by a number instead of by their value: the biggest (or smallest) groups first.',
              how: [
-                'Each click steps to the next choice: rows per group, subgroups per group, then every total switched on in the other columns (Σ, μ, ...).',
-                'The number the groups are sorted by is shown in bold (a total also in blue).',
+                'Each click steps to the next choice: rows per group, subgroups per group, then every aggregate switched on in the other columns (Σ, μ, ...).',
+                'The number the groups are sorted by is shown in bold (an aggregate also in blue).',
                 'The arrow next to ⟳ flips the order: biggest first or smallest first.',
                 'Keep clicking until the groups are sorted by their value again.',
-                'Only the totals switched on can be sorted by: turn one on first in its column.',
+                'Only the aggregates switched on can be sorted by: switch one on first in its column.',
              ]},
-            {sel: '.agg-toggle-btn', label: 'Per-group totals', area: 'group', show: 'click',
-             why: 'Switches a total of this column on or off for every group. Totals show in each group\'s row and add up in the group above.',
-             how: [
-                'Which totals a column offers depends on its type (hover a button for its name):',
-                'Numbers: # rows, Σ sum, μ average, σ spread (standard deviation), ↓ smallest, ↑ largest.',
-                'Text: # rows, ◇ distinct values, ↓ first and ↑ last alphabetically.',
-                'Dates and times: # rows, ↓ earliest, ↑ latest, μ average, σ spread, Δ time span (latest minus earliest).',
-                'Yes/no: # rows, ✓ how many true, ✗ how many false, % share true.',
-                'A total switched on can then sort the groups: the ⟳ button of the grouped column.',
-             ]},
+            ...AGGREGATE_HELP,
             {sel: '.stats-cell', label: () => isGroupedPage() ? 'Groups / filtered / total' : 'Filtered / total rows', area: 'filter', inside: true,
              why: () => isGroupedPage()
                 ? 'How many groups there are, how many rows the filters keep, and how many rows the table has.'
@@ -1068,12 +1082,31 @@
             for (const t of targets) {
                 if (t.r.width * t.r.height < 4000) placed.push({left: t.r.left, right: t.r.right, top: t.r.top, bottom: t.r.bottom});
             }
+            // Legend first (the areas present on this page): labels avoid it.
+            const areasShown = new Set(targets.map(t => t.item.area));
+            const legend = document.createElement('div');
+            legend.className = 'help-legend';
+            legend.addEventListener('click', e => e.stopPropagation());
+            const intro = document.createElement('div');
+            intro.className = 'help-legend-intro';
+            intro.textContent = 'Click a label to see why you would use it.';
+            legend.appendChild(intro);
+            for (const area of Object.keys(HELP_AREAS)) {
+                if (!areasShown.has(area)) continue;
+                const row = document.createElement('div');
+                const swatch = document.createElement('span');
+                swatch.className = 'help-swatch help-area-' + area;
+                row.appendChild(swatch);
+                row.appendChild(document.createTextNode(HELP_AREAS[area]));
+                legend.appendChild(row);
+            }
+            layer.appendChild(legend);
+            const lr = legend.getBoundingClientRect();
+            placed.push({left: lr.left, right: lr.right, top: lr.top, bottom: lr.bottom});
             // Labels inside their (large) target go first; the others avoid them.
             targets.sort((a, b) => (b.item.inside ? 1 : 0) - (a.item.inside ? 1 : 0));
-            const areasShown = new Set();
             for (const {el, item, r} of targets) {
                 el.classList.add('help-target');
-                areasShown.add(item.area);
                 const bubble = document.createElement('button');
                 bubble.type = 'button';
                 bubble.className = 'help-bubble help-area-' + item.area;
@@ -1098,10 +1131,14 @@
                     ? {left: clampX(cx - w / 2), top: cy - h / 2, side: 'inside'}
                     : spots.find(s => fits(s) && free(s));
                 if (!spot) {
-                    spot = Object.assign({}, fits(spots[0]) ? spots[0] : spots[1]);
-                    const step = spot.side === 'points-down' ? -(h + 3) : h + 3;
-                    for (let tries = 0; tries < 6 && !free(spot); tries++) spot.top += step;
-                    spot.top = Math.max(4, Math.min(vh - h - 4, spot.top));
+                    // Every side is taken: search outward, above and below in
+                    // turn, for the nearest free spot on screen.
+                    for (let k = 1; k <= 8 && !spot; k++) {
+                        const up = Object.assign({}, spots[0], {top: spots[0].top - k * (h + 3)});
+                        const down = Object.assign({}, spots[1], {top: spots[1].top + k * (h + 3)});
+                        spot = [up, down].find(s => fits(s) && free(s));
+                    }
+                    if (!spot) spot = fits(spots[0]) ? spots[0] : spots[1];
                 }
                 bubble.style.left = spot.left + 'px';
                 bubble.style.top = spot.top + 'px';
@@ -1114,24 +1151,6 @@
                     showHelpCard(item, el, bubble);
                 });
             }
-            // Legend: the areas present on this page, in the area colours.
-            const legend = document.createElement('div');
-            legend.className = 'help-legend';
-            legend.addEventListener('click', e => e.stopPropagation());
-            const intro = document.createElement('div');
-            intro.className = 'help-legend-intro';
-            intro.textContent = 'Click a label to see why you would use it.';
-            legend.appendChild(intro);
-            for (const area of Object.keys(HELP_AREAS)) {
-                if (!areasShown.has(area)) continue;
-                const row = document.createElement('div');
-                const swatch = document.createElement('span');
-                swatch.className = 'help-swatch help-area-' + area;
-                row.appendChild(swatch);
-                row.appendChild(document.createTextNode(HELP_AREAS[area]));
-                legend.appendChild(row);
-            }
-            layer.appendChild(legend);
             layer.addEventListener('click', hideHelp);
         }
 

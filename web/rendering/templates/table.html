@@ -285,7 +285,7 @@
                     {{if and $.IsGrouped (not .IsGrouped)}}
                     <span class="controls-separator"></span>
                     {{range .AggregateToggles}}
-                    <a href="{{.ToggleURL}}" class="agg-toggle-btn{{if .IsEnabled}} enabled{{end}}" title="{{.Title}}">{{.Symbol}}</a>
+                    <a href="{{.ToggleURL}}" class="agg-toggle-btn{{if .IsEnabled}} enabled{{end}}" data-agg="{{.Type}}" title="{{.Title}}">{{.Symbol}}</a>
                     {{end}}
                     {{end}}
                     </div>
