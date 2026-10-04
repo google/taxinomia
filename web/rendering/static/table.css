@@ -774,6 +774,14 @@
             border-color: #b9d4ea;
         }
 
+        /* Filtered columns (not grouped) carry a pale amber, like the filter chip in the
+           column pane. Header colour is state only: grouped blue, filtered amber; a
+           column's type (joined, computed) is shown by marks, not colour. */
+        th[data-is-filtered]:not([data-is-grouped]) {
+            background-color: #fbf3d5;
+            border-color: #e9d9a3;
+        }
+
         .th-content {
             display: block;
             overflow: hidden;
@@ -935,6 +943,10 @@
 
         .grouping-cell.grouped-col {
             background-color: #e8f2fb;
+        }
+
+        .grouping-cell.filtered-col {
+            background-color: #fdf8e6;
         }
 
         .grouping-cell {

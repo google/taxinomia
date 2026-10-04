@@ -256,7 +256,7 @@
                 {{range $idx, $colName := $.Columns}}
                     {{range $.AllColumns}}
                         {{if eq .Name $colName}}
-                <td class="grouping-cell{{if .IsGrouped}} grouped-col{{end}}{{if eq $colName $.AnimatedColumn}} just-grouped{{end}}">
+                <td class="grouping-cell{{if .IsGrouped}} grouped-col{{else if .IsFiltered}} filtered-col{{end}}{{if eq $colName $.AnimatedColumn}} just-grouped{{end}}">
                     <div class="grouping-controls">
                     {{/* Sort direction - leftmost. Every column is always sorted: the table is ordered by its
                          columns left to right, each ascending unless flipped. Position is significance; drag
