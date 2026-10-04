@@ -103,16 +103,14 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <ul class="pane-list pane-main">
-                    {{range .PaneColumns}}{{template "paneColumn" .}}{{end}}
-                </ul>
-
-                <!-- Computed Columns Section -->
+                {{/* Columns computed for this view only (they live in the URL). Columns the data
+                     source defines are part of the table and belong in the list below. */}}
                 <div class="computed-columns-section">
                     <div class="pane-section-title computed-columns-header">
-                        <span>Computed {{if .ComputedColumns}}<span class="pane-count">{{len .ComputedColumns}}</span>{{end}}</span>
-                        <button class="add-computed-btn" id="add-computed-btn" title="Add a computed column"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
+                        <span>Computed for this view {{if .ComputedColumns}}<span class="pane-count">{{len .ComputedColumns}}</span>{{end}}</span>
+                        <button class="add-computed-btn" id="add-computed-btn" title="Add a column computed from an expression"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
                     </div>
+                    {{if .ComputedColumns}}
                     <ul class="pane-list">
                     {{range .ComputedColumns}}
                     <li class="pane-item">
@@ -120,6 +118,7 @@
                             <span class="pane-disclosure"></span>
                             <a href="{{.ToggleURL}}" class="pane-toggle{{if .IsVisible}} on{{end}}" title="{{if .IsVisible}}Remove {{.Name}} from the table{{else}}Add {{.Name}} to the table{{end}}">
                                 <span class="pane-box">{{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}}</span>
+                                <span class="pane-fx" aria-hidden="true">fx</span>
                                 <span class="pane-name">{{.Name}}</span>
                             </a>
                             <button class="remove-computed-btn" data-column-name="{{.Name}}" title="Delete computed column {{.Name}}">&times;</button>
@@ -127,7 +126,14 @@
                     </li>
                     {{end}}
                     </ul>
+                    {{else}}
+                    <button type="button" class="pane-add-hint">Add a column from an expression</button>
+                    {{end}}
                 </div>
+
+                <ul class="pane-list pane-main">
+                    {{range .PaneColumns}}{{template "paneColumn" .}}{{end}}
+                </ul>
 
                 <div class="pane-legend">
                     <span><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg> unique per row</span>
@@ -236,7 +242,7 @@
                 {{$isAnimated := eq $colName $.AnimatedColumn}}
                 <th draggable="true" data-col-index="{{$idx}}" data-col-name="{{$colName}}" data-col-width="{{index $.ColumnWidths $colName}}" {{if $isComputed}}data-is-computed="true"{{end}} {{if $isGroupedCol}}data-is-grouped="true"{{end}} {{if $isFilteredCol}}data-is-filtered="true"{{end}} class="{{if $isAnimated}}just-grouped{{end}}">
                     {{if $isComputed}}
-                    <input type="text" class="th-name-input" data-column="{{$colName}}" value="{{$colName}}" title="Edit column name and press Enter">
+                    <span class="th-fx" title="Computed for this view">fx</span><input type="text" class="th-name-input" data-column="{{$colName}}" value="{{$colName}}" title="Edit column name and press Enter">
                     {{else}}
                     {{$joinedFrom := index $.JoinedColumnFrom $colName}}<span class="th-content">{{if $joinedFrom}}<span class="th-joined" title="Joined from {{$joinedFrom}}"><svg class="icon" aria-hidden="true"><use href="#i-joined"></use></svg></span>{{end}}{{$header}}</span>
                     <span class="th-internal-name">{{$colName}}</span>

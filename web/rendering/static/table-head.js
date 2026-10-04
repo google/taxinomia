@@ -755,7 +755,7 @@
                 return;
             }
 
-            if (e.target.closest('#add-computed-btn')) {
+            if (e.target.closest('#add-computed-btn, .pane-add-hint')) {
                 createNewComputedColumn();
                 return;
             }

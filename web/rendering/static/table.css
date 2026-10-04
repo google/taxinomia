@@ -326,8 +326,56 @@
         }
 
         /* Computed columns: same rows, plus a delete button. */
+        /* Columns computed for this view: first in the pane, set off by a rule. */
         .computed-columns-section {
+            margin: 4px 0 6px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #dde1e6;
+        }
+
+        .computed-columns-section .pane-section-title {
             margin-top: 8px;
+        }
+
+        .pane-add-hint {
+            display: block;
+            width: calc(100% - 16px);
+            margin: 2px 8px 0;
+            padding: 5px 8px;
+            text-align: left;
+            font: inherit;
+            color: #8a929c;
+            background: none;
+            border: 1px dashed #c9ced5;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .pane-add-hint:hover {
+            color: #2980b9;
+            border-color: #2980b9;
+            background-color: #fff;
+        }
+
+        /* "fx" marks a computed column, in the pane and in the table header. */
+        .pane-fx,
+        .th-fx {
+            flex: 0 0 auto;
+            font-family: Georgia, "Times New Roman", serif;
+            font-style: italic;
+            font-weight: normal;
+            color: #8a929c;
+        }
+
+        .pane-fx {
+            font-size: 12px;
+        }
+
+        .th-fx {
+            display: inline-block;
+            width: 1.8em;
+            text-align: center;
+            font-size: 14px;
         }
 
         .add-computed-btn {
@@ -744,7 +792,7 @@
         }
 
         .th-name-input {
-            width: 100%;
+            width: calc(100% - 2em); /* room for the fx mark before it */
             padding: 4px 6px;
             border: 1px solid #ccc;
             border-radius: 3px;
