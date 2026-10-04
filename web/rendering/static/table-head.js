@@ -941,13 +941,31 @@
             {sel: '.group-toggle-btn:not(.grouped)', label: () => isGroupedPage() ? 'Nest another level' : 'Group by', area: 'group', show: 'click',
              why: () => isGroupedPage()
                 ? 'Groups each group again by this column, one level deeper.'
-                : 'Collapses rows with the same value into one group, with its count and totals.'},
+                : 'Collapses rows with the same value into one group, with its count and totals.',
+             how: () => isGroupedPage() ? null : [
+                'Once grouped, the other columns get total buttons (# ◇ Σ μ σ ↓ ↑) for per-group totals.',
+                'The grouped column gets a ⟳ button that sorts its groups by one of those totals.',
+             ]},
             {sel: '.group-toggle-btn.grouped', label: 'Ungroup', area: 'group', show: 'click',
              why: 'Turns this column back into a plain column.'},
             {sel: '.agg-sort-toggle-btn', label: 'Sort groups by total', area: 'sort', show: 'click',
-             why: 'Orders the groups by a total (a count, a sum, an average) instead of by their value.'},
+             why: 'Orders the groups by a number instead of by their value: the biggest (or smallest) groups first.',
+             how: [
+                'Each click steps to the next choice: rows per group, subgroups per group, then every total switched on in the other columns (Σ, μ, ...).',
+                'The number the groups are sorted by is shown in bold (a total also in blue).',
+                'The arrow next to ⟳ flips the order: biggest first or smallest first.',
+                'Keep clicking until the groups are sorted by their value again.',
+                'Only the totals switched on can be sorted by: turn one on first in its column.',
+             ]},
             {sel: '.agg-toggle-btn', label: 'Per-group totals', area: 'group', show: 'click',
-             why: 'Shows the count, sum, average, spread, minimum or maximum of this column for each group.'},
+             why: 'Switches a total of this column on or off for every group. Totals show in each group\'s row and add up in the group above.',
+             how: [
+                '# rows  ◇ distinct values',
+                'Σ sum  μ average  σ spread (standard deviation)',
+                '↓ smallest  ↑ largest',
+                '✓ ✗ % for yes/no columns: how many true, how many false, share true',
+                'A total switched on can then sort the groups: the ⟳ button of the grouped column.',
+             ]},
             {sel: '.stats-cell', label: () => isGroupedPage() ? 'Groups / filtered / total' : 'Filtered / total rows', area: 'filter', inside: true,
              why: () => isGroupedPage()
                 ? 'How many groups there are, how many rows the filters keep, and how many rows the table has.'
@@ -1135,6 +1153,17 @@
             why.textContent = textOf(item.why);
             card.appendChild(title);
             card.appendChild(why);
+            const how = textOf(item.how);
+            if (how && how.length) {
+                const list = document.createElement('ul');
+                list.className = 'help-card-how';
+                for (const line of how) {
+                    const li = document.createElement('li');
+                    li.textContent = line;
+                    list.appendChild(li);
+                }
+                card.appendChild(list);
+            }
             const buttons = document.createElement('div');
             buttons.className = 'help-card-buttons';
             if (item.show) {

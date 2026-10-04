@@ -2084,7 +2084,7 @@
 
         .help-card {
             position: fixed;
-            width: 280px;
+            width: 320px;
             padding: 10px 12px;
             border-radius: 6px;
             background-color: #fff;
@@ -2187,4 +2187,16 @@
 
         .info-pane-toggle.help-toggle:hover {
             background-color: #1f6391;
+        }
+
+        .help-card-how {
+            margin: 8px 0 0 16px;
+            padding: 0;
+            font-size: 12px;
+            line-height: 1.45;
+            color: #444;
+        }
+
+        .help-card-how li {
+            margin-bottom: 3px;
         }
