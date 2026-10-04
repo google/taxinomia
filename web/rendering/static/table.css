@@ -1915,3 +1915,20 @@
             width: 0.85em;
             height: 0.85em;
         }
+
+        /* Computed column defined with the table: its formula, read-only. */
+        .formula-readonly {
+            display: block;
+            font-family: Consolas, 'Cascadia Code', monospace;
+            font-size: 11px;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+        }
+
+        .th-fx-table {
+            width: auto;
+            margin-right: 4px;
+        }

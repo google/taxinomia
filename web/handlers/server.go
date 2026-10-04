@@ -785,10 +785,27 @@ func (s *Server) updateComputedColumns(tableView *tables.TableView, q *urlquery.
 		s.computedColErrors[cacheKey] = cachedErrors
 	}
 
-	// Build map of requested columns
-	requested := make(map[string]string)
+	// The columns to have, in order: the table's own computed columns (from
+	// its definition) first, then the ones this URL adds. A URL column may
+	// refer to the table's; it may not take the name of a column the table
+	// already has.
+	type computedSpec struct{ name, displayName, entityType, expression string }
+	var specs []computedSpec
+	tableNames := make(map[string]bool)
+	for _, d := range tableView.GetBaseTable().ComputedDefinitions() {
+		specs = append(specs, computedSpec{d.Name, d.DisplayName, d.EntityType, d.Expression})
+		tableNames[d.Name] = true
+	}
 	for _, comp := range q.ComputedColumns {
-		requested[comp.Name] = comp.Expression
+		if tableNames[comp.Name] || tableView.GetBaseTable().GetColumn(comp.Name) != nil {
+			errors[comp.Name] = fmt.Sprintf("the table already has a column named %s", comp.Name)
+			continue
+		}
+		specs = append(specs, computedSpec{comp.Name, "", "", comp.Expression})
+	}
+	requested := make(map[string]string, len(specs))
+	for _, sp := range specs {
+		requested[sp.name] = sp.expression
 	}
 
 	// Remove columns that are no longer requested
@@ -801,27 +818,27 @@ func (s *Server) updateComputedColumns(tableView *tables.TableView, q *urlquery.
 	}
 
 	// Add or update columns
-	for _, comp := range q.ComputedColumns {
-		existingExpr, exists := currentState[comp.Name]
+	for _, comp := range specs {
+		existingExpr, exists := currentState[comp.name]
 
 		// Skip if column exists with same expression - but still report cached errors
-		if exists && existingExpr == comp.Expression {
-			if cachedErr, hasErr := cachedErrors[comp.Name]; hasErr && cachedErr != "" {
-				errors[comp.Name] = cachedErr
+		if exists && existingExpr == comp.expression {
+			if cachedErr, hasErr := cachedErrors[comp.name]; hasErr && cachedErr != "" {
+				errors[comp.name] = cachedErr
 			}
 			continue
 		}
 
 		// Create the column and capture any errors
-		if err := s.createComputedColumn(tableView, comp.Name, comp.Expression); err != nil {
+		if err := s.createComputedColumn(tableView, comp.name, comp.displayName, comp.entityType, comp.expression); err != nil {
 			errMsg := err.Error()
-			errors[comp.Name] = errMsg
-			cachedErrors[comp.Name] = errMsg
+			errors[comp.name] = errMsg
+			cachedErrors[comp.name] = errMsg
 		} else {
 			// Clear any previous error for this column
-			delete(cachedErrors, comp.Name)
+			delete(cachedErrors, comp.name)
 		}
-		currentState[comp.Name] = comp.Expression
+		currentState[comp.name] = comp.expression
 	}
 
 	return errors
@@ -829,7 +846,7 @@ func (s *Server) updateComputedColumns(tableView *tables.TableView, q *urlquery.
 
 // createComputedColumn creates a single computed column, using cached compiled expressions.
 // Returns an error if the expression fails to compile or evaluate.
-func (s *Server) createComputedColumn(tableView *tables.TableView, name, expression string) error {
+func (s *Server) createComputedColumn(tableView *tables.TableView, name, displayName, entityType, expression string) error {
 	if expression == "" {
 		tableView.AddComputedColumn(name, nil)
 		return nil
@@ -935,7 +952,10 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, express
 	bound := compiled.Bind(getColumn)
 
 	// Create the computed column definition
-	colDef := columns.NewColumnDef(name, name, "")
+	if displayName == "" {
+		displayName = name
+	}
+	colDef := columns.NewColumnDef(name, displayName, entityType)
 
 	// Evaluate once on row 0 to detect the return type
 	sampleVal, err := bound.Eval(0)

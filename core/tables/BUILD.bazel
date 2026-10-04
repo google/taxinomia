@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "tables",
     srcs = [
+        "computed_definitions.go",
         "data_table.go",
         "encoding.go",
         "grouping_steps.go",
@@ -31,6 +32,7 @@ go_test(
         "benchmark_test.go",
         "chunked_integration_test.go",
         "client_path_timing_test.go",
+        "computed_definitions_test.go",
         "encoding_test.go",
         "filter_bench_test.go",
         "filter_context_test.go",

@@ -255,6 +255,11 @@ func (m *Manager) LoadData(sourceName string) (*tables.DataTable, error) {
 	// Step 5: choose per-role storage encodings for the sorted table
 	table.SelectEncodings()
 
+	// Step 6: declare the source's computed columns (evaluated on read)
+	if err := applyComputedColumns(source, table); err != nil {
+		return nil, fmt.Errorf("source %q: %w", sourceName, err)
+	}
+
 	// Cache the result
 	m.mu.Lock()
 	m.tables[sourceName] = table

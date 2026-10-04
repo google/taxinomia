@@ -19,6 +19,7 @@ go_library(
     name = "datasources",
     srcs = [
         "catalog.go",
+        "computed_columns.go",
         "csv_loader.go",
         "loader.go",
         "manager.go",
@@ -31,6 +32,7 @@ go_library(
     deps = [
         "//core/columns",
         "//core/engine",
+        "//core/expr",
         "//core/protoloader",
         "//core/tables",
         "@org_golang_google_protobuf//encoding/prototext",
@@ -46,6 +48,7 @@ go_test(
     name = "datasources_test",
     srcs = [
         "catalog_test.go",
+        "computed_columns_test.go",
         "manager_test.go",
     ],
     # Tests read the demo config tree (//demo/data) via runtime.Caller paths.

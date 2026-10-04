@@ -131,6 +131,10 @@ func TestGoldenDemoPages(t *testing.T) {
 		// with value URLs (region, zone), descendants with list URLs (rack,
 		// machine), and the second hierarchy's no-position branch.
 		{"google_clusters_row", "/default/table?table=google_clusters&columns=cluster%2Czone%2Cregion&row=us-east-a-c0&limit=5"},
+		// Computed columns defined with the table (data source computed_columns):
+		// listed in the pane with fx, header fx with the expression, read-only
+		// formula; net_total refers to line_total (declaration order).
+		{"customer_orders_computed", "/default/table?table=customer_orders&columns=order_id%2Cquantity%2Cunit_price%2Cdiscount_percent%2Cline_total%2Cnet_total&limit=25"},
 	}
 
 	for _, tc := range cases {

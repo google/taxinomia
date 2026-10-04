@@ -31,6 +31,9 @@ type DataTable struct {
 	sortKey []string
 	// encodeOnce guards EnsureEncodings.
 	encodeOnce sync.Once
+	// computed lists the table's declared computed columns (see
+	// SetComputedDefinitions), evaluated on read by each view.
+	computed []ComputedDefinition
 }
 
 func NewDataTable() *DataTable {

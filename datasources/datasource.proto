@@ -98,6 +98,31 @@ message DataSource {
   // primary key entity type is declared (or no column carries it), the table
   // is stored in load order, as before.
   repeated string sort_key = 7;
+
+  // Columns computed from an expression over this table's own columns.
+  // They are part of the table: every view lists them with the stored
+  // columns, and they can be shown, filtered, grouped and sorted like any
+  // column. They are evaluated on read, exactly like computed columns a user
+  // adds to a view (nothing is stored). Declaration order matters: an
+  // expression may refer to stored columns and to computed columns declared
+  // before it. See docs/expression_language.md for the syntax.
+  repeated ComputedColumn computed_columns = 8;
+}
+
+// ComputedColumn declares one computed column of a data source.
+message ComputedColumn {
+  // Column name. Must not clash with a stored column or another computed
+  // column; must not contain any of & = : , ; .
+  string name = 1;
+
+  // Expression evaluated per row, e.g. "quantity * unit_price".
+  string expression = 2;
+
+  // Display name shown in the UI. If empty, uses the column name.
+  string display_name = 3;
+
+  // Optional entity type of the values, for entity links (e.g. a derived key).
+  string entity_type = 4;
 }
 
 // URLTemplate defines a single URL template with a display name.

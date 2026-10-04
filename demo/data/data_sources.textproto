@@ -35,6 +35,10 @@ sources {
   config { key: "message_type"   value: "taxinomia.demo.CustomerOrders" }
   config { key: "format"         value: "textproto" }
   primary_key_entity_type: "demo.order_id"
+  # Computed columns defined with the table, evaluated on read; the second
+  # one refers to the first.
+  computed_columns { name: "line_total" display_name: "Line Total" expression: "quantity * unit_price" }
+  computed_columns { name: "net_total"  display_name: "Net Total"  expression: "line_total * (100 - discount_percent) / 100" }
 }
 
 sources {

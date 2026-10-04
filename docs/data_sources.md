@@ -72,8 +72,40 @@ message DataSource {
   // Extensible source type - users register loaders for custom types
   string source_type = 4;              // "proto", "csv", "postgres", "bigquery", etc.
   map<string, string> config = 5;      // Type-specific configuration
+
+  string primary_key_entity_type = 6;  // Entity type of the table's primary key
+  repeated string sort_key = 7;        // Physical storage order
+  repeated ComputedColumn computed_columns = 8; // Columns computed from the others
 }
 ```
+
+### Computed Columns
+
+A data source can declare columns computed from an expression over its own
+columns (syntax: [expression_language.md](expression_language.md)):
+
+```textproto
+sources {
+  name: "customer_orders"
+  ...
+  computed_columns { name: "line_total" display_name: "Line Total" expression: "quantity * unit_price" }
+  computed_columns { name: "net_total"  display_name: "Net Total"  expression: "line_total * (100 - discount_percent) / 100" }
+}
+```
+
+- They are part of the table: the column pane lists them with the stored
+  columns (marked *fx*), and they can be shown, filtered, grouped and sorted
+  like any column. Their header shows *fx*, the formula row shows the
+  expression read-only.
+- They are evaluated on read, exactly like computed columns a user adds to
+  a view; nothing is stored, so they cost no memory and no load time.
+- Declaration order matters: an expression may use the stored columns and
+  the computed columns declared before it (`net_total` uses `line_total`).
+- Optional `entity_type` gives the values entity links. Joins on computed
+  columns are not supported yet.
+- The load fails, naming the column, when an expression does not parse or a
+  name is empty, repeated, taken by a stored column, or contains
+  `& = : , ; .`. A user's computed column cannot take the name of one.
 
 ### Complete Configuration
 

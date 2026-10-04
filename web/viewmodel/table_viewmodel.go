@@ -55,6 +55,7 @@ type TableViewModel struct {
 	ColumnFormulas        map[string]string    // Formula for computed columns (columnName -> formula like "concat(a, b)")
 	IsComputedColumn      map[string]bool      // Tracks which columns are computed (for UI, even if formula is empty)
 	JoinedColumnFrom      map[string]string    // Joined columns in view: the table the column comes from (header shows a join arrow and the column's own name)
+	TableFormulas         map[string]string    // Computed columns defined with the table (data source), in view: their expression (header fx mark, read-only formula)
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
@@ -279,6 +280,7 @@ type ColumnInfo struct {
 	PaneName            string       // Name shown in the column pane (the column's own display name, also for joined columns)
 	PaneContext         string       // Column pane: the table a joined column comes from, shown muted before the name; empty for base columns
 	ShowJoins           bool         // Column pane: list this column's join targets (expanded, or a joined column beneath it is in the view)
+	Formula             string       // Computed columns defined with the table: the expression (fx mark in the column pane); empty otherwise
 }
 
 // JoinTarget represents a column that can be joined to
@@ -587,6 +589,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		ColumnFormulas:        make(map[string]string),
 		IsComputedColumn:      make(map[string]bool),
 		JoinedColumnFrom:      make(map[string]string),
+		TableFormulas:         make(map[string]string),
 		ComputedColumnErrors:  make(map[string]ValidationError),
 		FilterErrors:          make(map[string]ValidationError),
 		ColumnTypes:           make(map[string]string),
@@ -881,6 +884,15 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		})
 	}
 
+	// Add the computed columns defined with the table (its data source). They
+	// are part of the table: the column pane lists them with the stored columns.
+	for _, d := range tableView.GetBaseTable().ComputedDefinitions() {
+		vm.AllColumns = append(vm.AllColumns, tableComputedColumnInfo(d, tableView, q, visibleCols, leafColumns, enabledAggs))
+		if d.EntityType != "" {
+			vm.ColumnEntityTypes[d.Name] = d.EntityType
+		}
+	}
+
 	// Sort all columns alphabetically by DisplayName
 	sort.Slice(vm.AllColumns, func(i, j int) bool {
 		return vm.AllColumns[i].DisplayName < vm.AllColumns[j].DisplayName
@@ -925,7 +937,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			if col != nil {
 				vm.Headers = append(vm.Headers, col.ColumnDef().DisplayName())
 				vm.Columns = append(vm.Columns, colName)
-			} else if computedColNames[colName] {
+			} else if computedColNames[colName] || tableDefinesComputed(tableView, colName) {
 				// This is a computed column that couldn't be created (e.g., invalid expression)
 				// Still add it to headers with its name so the user can see it
 				vm.Headers = append(vm.Headers, colName)
@@ -1123,6 +1135,11 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		vm.ColumnFormulas[computed.Name] = computed.Expression
 		// Mark this column as computed (for UI, even if formula is empty)
 		vm.IsComputedColumn[computed.Name] = true
+	}
+	for _, d := range tableView.GetBaseTable().ComputedDefinitions() {
+		if visibleCols[d.Name] {
+			vm.TableFormulas[d.Name] = d.Expression
+		}
 	}
 
 	// Last step, after every raw consumer of vm.Rows (RowIDs, RowURLs,
@@ -1850,4 +1867,59 @@ func hasColumnWithPrefix(columns []string, prefix string) bool {
 // table page uses for its heading.
 func paneTableLabel(tableName string) string {
 	return strings.Title(tableName) //nolint:staticcheck // matches the page heading
+}
+
+// tableComputedColumnInfo is the column pane's entry for a computed column
+// defined with the table: listed like a stored column, with its expression.
+func tableComputedColumnInfo(d tables.ComputedDefinition, tableView *tables.TableView, q *urlquery.Query, visibleCols map[string]bool, leafColumns []string, enabledAggs map[string][]urlquery.AggregateType) ColumnInfo {
+	name := d.Name
+	displayName := d.DisplayName
+	if displayName == "" {
+		displayName = name
+	}
+	_, isFiltered := q.Filters[name]
+	colType := getColumnType(name, tableView)
+	info := ColumnInfo{
+		Name:              name,
+		DisplayName:       displayName,
+		PaneName:          displayName,
+		Formula:           d.Expression,
+		IsVisible:         visibleCols[name],
+		IsGrouped:         q.IsColumnGrouped(name),
+		GroupLevel:        q.GroupLevel(name),
+		IsFiltered:        isFiltered,
+		HasEntityType:     d.EntityType != "",
+		Path:              name,
+		ToggleURL:         BuildToggleExpansionURL(q, name),
+		ToggleColumnURL:   BuildToggleColumnURL(q, name),
+		ToggleGroupingURL: BuildToggleGroupingURL(q, name),
+		SortIndex:         q.GetSortIndex(name),
+		IsSortDescending:  q.IsSortedDescending(name),
+		ToggleSortURL:     q.WithSortToggled(name),
+		ColumnType:        colType,
+		AggregateToggles:  buildAggregateToggles(name, colType, q),
+	}
+	if q.IsColumnGrouped(name) && len(leafColumns) > 0 {
+		info.AggSortToggleURL = q.WithNextGroupAggSort(name, leafColumns, enabledAggs)
+		if aggSort := q.GetGroupAggSort(name); aggSort != nil {
+			info.HasAggSort = true
+			info.AggSortLeafCol = aggSort.LeafColumn
+			info.AggSortAggType = string(aggSort.AggType)
+			info.AggSortSymbol = urlquery.AggregateSymbol(aggSort.AggType)
+			info.IsAggSortDescending = aggSort.Descending
+			info.AggSortDirectionURL = q.WithGroupAggSortDirectionToggled(name)
+		}
+	}
+	return info
+}
+
+// tableDefinesComputed reports whether the view's table defines a computed
+// column of this name (in its data source).
+func tableDefinesComputed(tableView *tables.TableView, name string) bool {
+	for _, d := range tableView.GetBaseTable().ComputedDefinitions() {
+		if d.Name == name {
+			return true
+		}
+	}
+	return false
 }
