@@ -544,8 +544,20 @@
             });
         }
 
+        // The header cell a drag event concerns: the header itself, or the
+        // header above a cell of the controls row (the UNGROUP chip says
+        // "drag to reorder", so the controls row is a drag handle too).
         function dragTarget(e) {
-            return e.target.closest ? e.target.closest('thead tr:first-child th[data-col-name]') : null;
+            // A drag can be reported on a text node, which has no closest().
+            const el = e.target && e.target.nodeType === 3 ? e.target.parentElement : e.target;
+            if (!el || !el.closest) return null;
+            const th = el.closest('thead tr:first-child th[data-col-name]');
+            if (th) return th;
+            const cell = el.closest('thead tr.grouping-row td.grouping-cell');
+            if (!cell) return null;
+            const idx = Array.prototype.indexOf.call(cell.parentElement.children, cell);
+            const header = headerCells()[idx];
+            return header && header.dataset.colName ? header : null;
         }
 
         document.addEventListener('dragstart', function(e) {
