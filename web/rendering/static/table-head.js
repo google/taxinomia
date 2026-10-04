@@ -943,7 +943,7 @@
                 ? 'Groups each group again by this column, one level deeper.'
                 : 'Collapses rows with the same value into one group, with its count and totals.',
              how: () => isGroupedPage() ? null : [
-                'Once grouped, the other columns get total buttons (# ◇ Σ μ σ ↓ ↑) for per-group totals.',
+                'Once grouped, the other columns get total buttons (Σ sum, μ average and more, by column type) for per-group totals.',
                 'The grouped column gets a ⟳ button that sorts its groups by one of those totals.',
              ]},
             {sel: '.group-toggle-btn.grouped', label: 'Ungroup', area: 'group', show: 'click',
@@ -960,10 +960,11 @@
             {sel: '.agg-toggle-btn', label: 'Per-group totals', area: 'group', show: 'click',
              why: 'Switches a total of this column on or off for every group. Totals show in each group\'s row and add up in the group above.',
              how: [
-                '# rows  ◇ distinct values',
-                'Σ sum  μ average  σ spread (standard deviation)',
-                '↓ smallest  ↑ largest',
-                '✓ ✗ % for yes/no columns: how many true, how many false, share true',
+                'Which totals a column offers depends on its type (hover a button for its name):',
+                'Numbers: # rows, Σ sum, μ average, σ spread (standard deviation), ↓ smallest, ↑ largest.',
+                'Text: # rows, ◇ distinct values, ↓ first and ↑ last alphabetically.',
+                'Dates and times: # rows, ↓ earliest, ↑ latest, μ average, σ spread, Δ time span (latest minus earliest).',
+                'Yes/no: # rows, ✓ how many true, ✗ how many false, % share true.',
                 'A total switched on can then sort the groups: the ⟳ button of the grouped column.',
              ]},
             {sel: '.stats-cell', label: () => isGroupedPage() ? 'Groups / filtered / total' : 'Filtered / total rows', area: 'filter', inside: true,
