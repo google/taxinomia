@@ -46,6 +46,8 @@ type TableViewModel struct {
 	GroupedRows           []GroupedRow         // Hierarchical rows for grouped display
 	IsGrouped             bool                 // Whether the table is currently grouped
 	AllColumns            []ColumnInfo         // All available columns with metadata
+	PaneInView            []ColumnInfo         // Column pane: the columns in view, in table order (computed columns excluded; they have their own section)
+	PaneAvailable         []ColumnInfo         // Column pane: the base table's columns not in view, alphabetical
 	ComputedColumns       []ComputedColumnInfo // Computed columns defined by the user
 	CurrentQuery          string               // Current query string
 	CurrentURL            safehtml.URL         // Current URL for building toggle links
@@ -274,6 +276,8 @@ type ColumnInfo struct {
 	AggSortAggType      string       // Aggregate type being sorted by (if HasAggSort)
 	AggSortSymbol       string       // Symbol for the aggregate being sorted by
 	IsAggSortDescending bool         // Whether aggregate sort is descending
+	PaneName            string       // Name shown in the column pane (the column's own display name, also for joined columns)
+	PaneContext         string       // Column pane: the table a joined column comes from, shown muted before the name; empty for base columns
 }
 
 // JoinTarget represents a column that can be joined to
@@ -281,6 +285,8 @@ type JoinTarget struct {
 	TableName        string
 	ColumnName       string
 	DisplayName      string          // "TableName.ColumnName" for display
+	TableLabel       string          // Column pane: the target table's title (as in the table page heading)
+	ColumnLabel      string          // Column pane: display name of the target column the join matches on
 	AvailableColumns []ColumnSummary // Columns available in the joined table
 	IsBlocked        bool            // True if this target is blocked due to cycle prevention
 	IsExpanded       bool            // Whether this join target is expanded
@@ -400,6 +406,8 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 			TableName:   targetTableName,
 			ColumnName:  targetColumnName,
 			DisplayName: fmt.Sprintf("%s.%s", targetTableName, targetColumnName),
+			TableLabel:  paneTableLabel(targetTableName),
+			ColumnLabel: targetColumnName,
 			IsBlocked:   isBlocked,
 			IsExpanded:  expandedPaths[targetPath] && !isBlocked,
 			Path:        targetPath,
@@ -408,6 +416,11 @@ func buildJoinTargetsForColumn(dataModel *models.DataModel, tableName, columnNam
 
 		// Always check if the target table has columns (to show expansion toggle)
 		targetTable := dataModel.GetTable(targetTableName)
+		if targetTable != nil {
+			if c := targetTable.GetColumn(targetColumnName); c != nil {
+				target.ColumnLabel = c.ColumnDef().DisplayName()
+			}
+		}
 		if targetTable != nil && !isBlocked {
 			// Get available columns from the target table only if expanded
 			if target.IsExpanded {
@@ -669,6 +682,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 				Name:                colName,
 				DisplayName:         col.ColumnDef().DisplayName(),
+				PaneName:            col.ColumnDef().DisplayName(),
 				IsVisible:           visibleCols[colName],
 				IsGrouped:           q.IsColumnGrouped(colName),
 				GroupLevel:          q.GroupLevel(colName),
@@ -720,6 +734,13 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					lastTable := parts[numParts-3]
 					lastColumn := parts[numParts-1]
 					displayName := fmt.Sprintf("%s → %s", lastTable, lastColumn)
+					_, joinedIsFiltered := q.Filters[colName]
+					paneName := lastColumn
+					if t := dataModel.GetTable(lastTable); t != nil {
+						if c := t.GetColumn(lastColumn); c != nil {
+							paneName = c.ColumnDef().DisplayName()
+						}
+					}
 
 					// Determine column type and build aggregate toggles for joined column
 					// Use full colName path, not lastColumn, since tableView stores joined columns by full path
@@ -746,6 +767,9 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 						Name:                colName,
 						DisplayName:         displayName,
+						PaneName:            paneName,
+						PaneContext:         paneTableLabel(lastTable),
+						IsFiltered:          joinedIsFiltered,
 						IsVisible:           visibleCols[colName],
 						IsGrouped:           q.IsColumnGrouped(colName),
 						GroupLevel:          q.GroupLevel(colName),
@@ -803,6 +827,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		vm.AllColumns = append(vm.AllColumns, ColumnInfo{
 			Name:                comp.Name,
 			DisplayName:         comp.Name,
+			PaneName:            comp.Name,
 			IsVisible:           visibleCols[comp.Name],
 			IsGrouped:           q.IsColumnGrouped(comp.Name),
 			GroupLevel:          q.GroupLevel(comp.Name),
@@ -840,6 +865,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	for _, comp := range q.ComputedColumns {
 		computedColNames[comp.Name] = true
 	}
+
+	vm.PaneInView, vm.PaneAvailable = paneColumns(vm.AllColumns, view.Columns, computedColNames)
 
 	// Build headers and columns from view
 	for _, colName := range view.Columns {
@@ -1743,4 +1770,36 @@ func buildColumnStats(tableView *tables.TableView) []string {
 		}
 	}
 	return stats
+}
+
+// paneColumns splits the column pane's list in two: the columns in view, in
+// the table's own order (so the pane mirrors the table header, computed
+// columns included), and the base table's other columns, alphabetical
+// regardless of case. Hidden computed columns are listed only in the pane's
+// own computed section, where they are added, hidden and deleted.
+func paneColumns(all []ColumnInfo, viewColumns []string, computed map[string]bool) (inView, available []ColumnInfo) {
+	byName := make(map[string]ColumnInfo, len(all))
+	for _, c := range all {
+		byName[c.Name] = c
+	}
+	for _, name := range viewColumns {
+		if c, ok := byName[name]; ok {
+			inView = append(inView, c)
+		}
+	}
+	for _, c := range all {
+		if !c.IsVisible && !computed[c.Name] && c.PaneContext == "" {
+			available = append(available, c)
+		}
+	}
+	sort.SliceStable(available, func(i, j int) bool {
+		return strings.ToLower(available[i].PaneName) < strings.ToLower(available[j].PaneName)
+	})
+	return inView, available
+}
+
+// paneTableLabel is how the column pane names a table: the same title the
+// table page uses for its heading.
+func paneTableLabel(tableName string) string {
+	return strings.Title(tableName) //nolint:staticcheck // matches the page heading
 }

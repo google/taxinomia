@@ -4,44 +4,61 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
+    {{/* Column pane rows. Every row has the same shape: a disclosure slot (an arrow when the row
+         has something to open, else empty), then one link spanning the rest of the row. */}}
+    {{define "paneColumn"}}
+        <li class="pane-item">
+            <div class="pane-row">
+                {{if .JoinTargets}}<a href="{{.ToggleURL}}" class="pane-disclosure{{if .IsExpanded}} open{{end}}" title="{{if .IsExpanded}}Hide{{else}}Show{{end}} the tables {{.PaneName}} joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>{{else}}<span class="pane-disclosure"></span>{{end}}
+                <a href="{{.ToggleColumnURL}}" class="pane-toggle{{if .IsVisible}} on{{end}}" title="{{if .IsVisible}}Remove {{.PaneName}} from the table{{else}}Add {{.PaneName}} to the table{{end}}{{if .IsKey}} (unique per row){{else if .HasEntityType}} (links to other tables){{end}}">
+                    <span class="pane-box">{{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}}</span>
+                    <span class="pane-name">{{if .PaneContext}}<span class="pane-context">{{.PaneContext}}</span>{{end}}{{.PaneName}}</span>
+                    {{if .IsKey}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
+                    {{if or .IsGrouped .IsFiltered .IsSortDescending}}<span class="pane-chips">{{if .IsGrouped}}<span class="pane-chip pane-chip-group" title="Grouping level {{.GroupLevel}}">G{{.GroupLevel}}</span>{{end}}{{if .IsFiltered}}<span class="pane-chip pane-chip-filter" title="Filtered"><svg class="icon" aria-hidden="true"><use href="#i-filter"></use></svg></span>{{end}}{{if .IsSortDescending}}<span class="pane-chip" title="Sorted descending"><svg class="icon" aria-hidden="true"><use href="#i-down"></use></svg></span>{{end}}</span>{{end}}
+                </a>
+            </div>
+            {{if and .JoinTargets .IsExpanded}}
+            <ul class="pane-children">
+                {{range .JoinTargets}}{{template "renderJoinTarget" .}}{{end}}
+            </ul>
+            {{end}}
+        </li>
+    {{end}}
     {{define "renderJoinTarget"}}
-        <div class="join-target-item{{if .IsBlocked}} join-target-blocked{{end}}">
-            <div class="join-target-header">
-                <span class="join-target-text" title="{{if .IsBlocked}}Already visited - cycle prevented{{else}}Join target: {{.TableName}} table{{end}}">
-                    {{.DisplayName}}{{if .IsBlocked}}<span class="blocked-icon" title="Cycle prevented"><svg class="icon" aria-hidden="true"><use href="#i-blocked"></use></svg></span>{{end}}
-                </span>
-                {{if not .IsBlocked}}
-                <a href="{{.ToggleURL}}" class="columns-toggle" title="Show/hide available columns">
-                    <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
+        <li class="pane-item pane-join{{if .IsBlocked}} blocked{{end}}">
+            <div class="pane-row">
+                {{if .IsBlocked}}
+                <span class="pane-disclosure"></span>
+                <span class="pane-join-label" title="{{.TableLabel}} is already on this path; joining it again would loop">{{.TableLabel}} <span class="pane-join-via">via {{.ColumnLabel}}</span><svg class="icon pane-blocked" aria-hidden="true"><use href="#i-blocked"></use></svg></span>
+                {{else}}
+                <a href="{{.ToggleURL}}" class="pane-toggle pane-join-toggle" title="{{if .IsExpanded}}Hide{{else}}Show{{end}} the columns of {{.TableLabel}}, joined on {{.ColumnLabel}}">
+                    <span class="pane-disclosure{{if .IsExpanded}} open{{end}}"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></span>
+                    <span class="pane-join-label">{{.TableLabel}} <span class="pane-join-via">via {{.ColumnLabel}}</span></span>
                 </a>
                 {{end}}
             </div>
             {{if and .AvailableColumns .IsExpanded}}
-            <div class="columns-list">
+            <ul class="pane-children">
                 {{range .AvailableColumns}}
-                <div class="column-summary">
-                    <div class="column-summary-header">
-                        <a href="{{.AddColumnURL}}" class="column-link{{if .IsSelected}} selected{{end}}" title="{{if .IsSelected}}Click to remove this column from view{{else}}Click to add this column to view{{end}}">
-                            {{if .IsSelected}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}} {{.DisplayName}}{{if .IsKey}} <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}} <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
+                <li class="pane-item">
+                    <div class="pane-row">
+                        {{if .HasJoinTargets}}<a href="{{.ToggleURL}}" class="pane-disclosure{{if .IsExpanded}} open{{end}}" title="{{if .IsExpanded}}Hide{{else}}Show{{end}} the tables {{.DisplayName}} joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>{{else}}<span class="pane-disclosure"></span>{{end}}
+                        <a href="{{.AddColumnURL}}" class="pane-toggle{{if .IsSelected}} on{{end}}" title="{{if .IsSelected}}Remove {{.DisplayName}} from the table{{else}}Add {{.DisplayName}} to the table{{end}}{{if .IsKey}} (unique per row){{else if .HasEntityType}} (links to other tables){{end}}">
+                            <span class="pane-box">{{if .IsSelected}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}}</span>
+                            <span class="pane-name">{{.DisplayName}}</span>
+                            {{if .IsKey}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}}<svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
                         </a>
-                        {{if .HasJoinTargets}}
-                        <a href="{{.ToggleURL}}" class="join-expand-btn" title="Show/hide join targets">
-                            <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
-                        </a>
-                        {{end}}
                     </div>
                     {{if and .HasJoinTargets .IsExpanded}}
-                    <div class="nested-join-targets">
-                        {{range .JoinTargets}}
-                            {{template "renderJoinTarget" .}}
-                        {{end}}
-                    </div>
+                    <ul class="pane-children">
+                        {{range .JoinTargets}}{{template "renderJoinTarget" .}}{{end}}
+                    </ul>
                     {{end}}
-                </div>
+                </li>
                 {{end}}
-            </div>
+            </ul>
             {{end}}
-        </div>
+        </li>
     {{end}}
     {{if .Assets.External}}
     <link rel="stylesheet" href="{{.Assets.CSS}}">
@@ -65,6 +82,8 @@
         <symbol id="i-cycle" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2v3.5H9.5z"/></symbol>
         <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+        <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-filter" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"/></symbol>
         <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     </svg>
     {{/* Shown while the browser waits for the server after any navigation (table-head.js: showWaiting/hideWaiting). */}}
@@ -81,46 +100,43 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <ul>
-                    {{range .AllColumns}}
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="{{.ToggleColumnURL}}" class="{{if .IsVisible}}visible{{else}}hidden{{end}}" title="{{if .IsKey}}Unique entity column{{else if .HasEntityType}}Entity column (non-unique){{else}}Regular column{{end}}">
-                                {{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{else}}<svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg>{{end}} {{.DisplayName}}{{if .IsKey}} <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>{{else if .HasEntityType}} <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>{{end}}
-                            </a>
-                            {{if .JoinTargets}}
-                            <a href="{{.ToggleURL}}" class="join-toggle" title="Show/hide join targets">
-                                <span>{{if .IsExpanded}}−{{else}}+{{end}}</span>
-                            </a>
-                            {{end}}
-                        </div>
-                        {{if and .JoinTargets .IsExpanded}}
-                        <div class="join-list">
-                            {{range .JoinTargets}}
-                                {{template "renderJoinTarget" .}}
-                            {{end}}
-                        </div>
-                        {{end}}
-                    </li>
-                    {{end}}
+                <div class="pane-section-title">In view <span class="pane-count">{{len .PaneInView}}</span></div>
+                <ul class="pane-list">
+                    {{range .PaneInView}}{{template "paneColumn" .}}{{end}}
                 </ul>
+                {{if .PaneAvailable}}
+                <div class="pane-section-title">Available <span class="pane-count">{{len .PaneAvailable}}</span></div>
+                <ul class="pane-list">
+                    {{range .PaneAvailable}}{{template "paneColumn" .}}{{end}}
+                </ul>
+                {{end}}
 
                 <!-- Computed Columns Section -->
                 <div class="computed-columns-section">
-                    <div class="computed-columns-header">
-                        <h3>Computed Columns</h3>
-                        <button class="add-computed-btn" id="add-computed-btn" title="Add new computed column">+</button>
+                    <div class="pane-section-title computed-columns-header">
+                        <span>Computed {{if .ComputedColumns}}<span class="pane-count">{{len .ComputedColumns}}</span>{{end}}</span>
+                        <button class="add-computed-btn" id="add-computed-btn" title="Add a computed column"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
                     </div>
+                    <ul class="pane-list">
                     {{range .ComputedColumns}}
-                    <div class="computed-column-item">
-                        <a href="{{.ToggleURL}}" class="{{if .IsVisible}}visible{{end}}">
-                            {{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{else}}<svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg>{{end}} {{.Name}}
-                        </a>
-                        <button class="remove-computed-btn" data-column-name="{{.Name}}" title="Remove computed column">×</button>
-                    </div>
+                    <li class="pane-item">
+                        <div class="pane-row">
+                            <span class="pane-disclosure"></span>
+                            <a href="{{.ToggleURL}}" class="pane-toggle{{if .IsVisible}} on{{end}}" title="{{if .IsVisible}}Remove {{.Name}} from the table{{else}}Add {{.Name}} to the table{{end}}">
+                                <span class="pane-box">{{if .IsVisible}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}}</span>
+                                <span class="pane-name">{{.Name}}</span>
+                            </a>
+                            <button class="remove-computed-btn" data-column-name="{{.Name}}" title="Delete computed column {{.Name}}">&times;</button>
+                        </div>
+                    </li>
                     {{end}}
+                    </ul>
                 </div>
 
+                <div class="pane-legend">
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg> unique per row</span>
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg> links to other tables</span>
+                </div>
             </div>
         </aside>
         <main class="main-content" id="main-content">

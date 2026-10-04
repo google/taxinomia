@@ -6,6 +6,8 @@
     <title>Google_clusters</title>
     
     
+    
+    
     <link rel="stylesheet" href="/static/VERSION/table.css">
     <script src="/static/VERSION/table.js" defer></script>
     
@@ -24,6 +26,8 @@
         <symbol id="i-cycle" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2v3.5H9.5z"/></symbol>
         <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+        <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-filter" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"/></symbol>
         <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     </svg>
     
@@ -40,111 +44,136 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <ul>
+                <div class="pane-section-title">In view <span class="pane-count">3</span></div>
+                <ul class="pane-list">
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=zone%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="visible" title="Unique entity column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Cluster <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>
-                            </a>
-                            
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=cluster&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="join-toggle" title="Show/hide join targets">
-                                <span>+</span>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+        <li class="pane-item">
+            <div class="pane-row">
+                <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=cluster&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-disclosure" title="Show the tables Cluster joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
+                <a href="/default/table?columns=zone%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle on" title="Remove Cluster from the table (unique per row)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Cluster</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-key"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cgeneration&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Generation
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=zone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-disclosure" title="Show the tables Zone joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
+                <a href="/default/table?columns=cluster%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle on" title="Remove Zone from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Zone</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion%2Ctotal_machines&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Machines
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=region&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-disclosure" title="Show the tables Region joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
+                <a href="/default/table?columns=cluster%2Czone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle on" title="Remove Region from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Region</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cpurpose&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Purpose
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion%2Crack_count&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Racks
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=cluster%2Czone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Region <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=region&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="join-toggle" title="Show/hide join targets">
-                                <span>+</span>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cstatus&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Status
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=cluster%2Cregion&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Zone <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                            <a href="/default/table?columns=cluster%2Czone%2Cregion&amp;expanded=zone&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="join-toggle" title="Show/hide join targets">
-                                <span>+</span>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
+                </a>
+            </div>
+            
+        </li>
+    
                 </ul>
+                
+                <div class="pane-section-title">Available <span class="pane-count">5</span></div>
+                <ul class="pane-list">
+                    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cgeneration&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle" title="Add Generation to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Generation</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=cluster%2Czone%2Cregion%2Ctotal_machines&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle" title="Add Machines to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Machines</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cpurpose&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle" title="Add Purpose to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Purpose</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=cluster%2Czone%2Cregion%2Crack_count&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle" title="Add Racks to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Racks</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=cluster%2Czone%2Cregion%2Cstatus&amp;limit=5&amp;row=us-east-a-c0&amp;table=google_clusters" class="pane-toggle" title="Add Status to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Status</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+                </ul>
+                
 
                 
                 <div class="computed-columns-section">
-                    <div class="computed-columns-header">
-                        <h3>Computed Columns</h3>
-                        <button class="add-computed-btn" id="add-computed-btn" title="Add new computed column">+</button>
+                    <div class="pane-section-title computed-columns-header">
+                        <span>Computed </span>
+                        <button class="add-computed-btn" id="add-computed-btn" title="Add a computed column"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
                     </div>
+                    <ul class="pane-list">
                     
+                    </ul>
                 </div>
 
+                <div class="pane-legend">
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg> unique per row</span>
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg> links to other tables</span>
+                </div>
             </div>
         </aside>
         <main class="main-content" id="main-content">

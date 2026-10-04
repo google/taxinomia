@@ -231,3 +231,33 @@ func dumpRows(rows []GroupedRow) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// The column pane lists the columns in view in table order (computed ones
+// included), then the base table's other columns alphabetically
+// (case-insensitive); hidden computed columns and joined columns not in view
+// are left out of the second list.
+func TestPaneColumns(t *testing.T) {
+	all := []ColumnInfo{
+		{Name: "amount", PaneName: "Amount", IsVisible: true},
+		{Name: "zone", PaneName: "zone", IsVisible: false},
+		{Name: "region", PaneName: "Region", IsVisible: true},
+		{Name: "cluster", PaneName: "Cluster", IsVisible: false},
+		{Name: "r.racks.r.pos", PaneName: "Position", PaneContext: "Racks", IsVisible: true},
+		{Name: "c1", PaneName: "c1", IsVisible: true},
+		{Name: "c2", PaneName: "c2", IsVisible: false},
+	}
+	inView, available := paneColumns(all, []string{"region", "r.racks.r.pos", "amount", "c1"}, map[string]bool{"c1": true, "c2": true})
+	names := func(cs []ColumnInfo) string {
+		var s []string
+		for _, c := range cs {
+			s = append(s, c.Name)
+		}
+		return strings.Join(s, ",")
+	}
+	if got, want := names(inView), "region,r.racks.r.pos,amount,c1"; got != want {
+		t.Errorf("in view = %s, want %s", got, want)
+	}
+	if got, want := names(available), "cluster,zone"; got != want {
+		t.Errorf("available = %s, want %s", got, want)
+	}
+}

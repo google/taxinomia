@@ -65,11 +65,13 @@
             min-height: 100vh;
         }
 
-        /* Sidebar styles */
+        /* Column pane (the sidebar). Same ground, font and blue as the table;
+           one font size at every nesting level, depth shown by indent guides. */
         .sidebar {
             width: 250px;
-            background-color: #2c3e50;
-            color: white;
+            background-color: #f7f8fa;
+            color: #333;
+            border-right: 1px solid #dde1e6;
             padding: 0;
             position: fixed;
             height: 100%;
@@ -79,8 +81,7 @@
             transition: transform 0.3s ease-in-out;
             z-index: 1000;
             overflow-y: auto;
-            font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .sidebar.collapsed {
@@ -91,246 +92,301 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px 20px;
-            background-color: #1a252f;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 12px 12px 16px;
+            border-bottom: 1px solid #dde1e6;
+            background-color: #f7f8fa;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
 
         .sidebar-header h2 {
             margin: 0;
-            font-size: 1.2em;
+            font-size: 15px;
+            font-weight: bold;
+            color: #222;
         }
 
         .sidebar-toggle {
             background: none;
             border: none;
-            color: white;
-            font-size: 24px;
+            color: #888;
+            font-size: 20px;
+            line-height: 1;
             cursor: pointer;
-            padding: 5px;
-            transition: opacity 0.3s;
+            padding: 2px 6px;
+            border-radius: 4px;
         }
 
         .sidebar-toggle:hover {
-            opacity: 0.7;
+            color: #222;
+            background-color: #e6eaef;
         }
 
         .sidebar-content {
-            padding: 20px;
+            padding: 6px 8px 16px;
         }
 
-        .sidebar-content ul {
+        .pane-section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0 4px;
+            padding: 0 8px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #8a929c;
+        }
+
+        .pane-count {
+            font-weight: normal;
+            margin-left: 4px;
+            color: #a3aab3;
+        }
+
+        .pane-list,
+        .pane-children {
             list-style: none;
             margin: 0;
+            padding: 0;
         }
 
-        .sidebar-content li {
-            margin-bottom: 2px;
+        .pane-children {
+            margin-left: 13px;
+            padding-left: 6px;
+            border-left: 1px solid #dde1e6;
         }
 
-        .sidebar-content a {
-            display: block;
-            color: #bdc3c7;
-            text-decoration: none;
-            padding: 4px 12px;
-            border-radius: 4px;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        .sidebar-content a:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-
-        .sidebar-content a.visible {
-            color: white;
-        }
-
-        /* Column item styling */
-        .column-item {
-            position: relative;
-            margin-bottom: 5px;
-        }
-
-        .column-main {
+        .pane-row {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            min-height: 26px;
         }
 
-        .group-toggle {
-            color: #bdc3c7;
-            font-size: 14px;
-            text-decoration: none;
-            padding: 3px 5px;
-            margin-left: 5px;
-            transition: all 0.3s;
-            display: inline-block;
+        /* Disclosure slot: always present so names line up; an arrow when there is something to open. */
+        .pane-disclosure {
+            flex: 0 0 16px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #8a929c;
             border-radius: 3px;
-        }
-
-        .group-toggle:hover {
-            color: white;
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .group-toggle.grouped {
-            color: #3498db;
-            font-weight: bold;
-        }
-
-        .group-toggle.grouped:hover {
-            color: #5dade2;
-        }
-
-        .join-toggle {
-            color: #bdc3c7;
-            font-size: 16px;
-            text-decoration: none;
-            padding: 5px;
-            margin-left: 10px;
-            transition: color 0.3s;
-            display: inline-block;
-        }
-
-        .join-toggle:hover {
-            color: white;
-        }
-
-        .join-list {
-            margin-left: 20px;
-            margin-top: 1px;
-            font-size: 0.9em;
-            border-left: 2px solid rgba(255, 255, 255, 0.1);
-            padding-left: 15px;
-        }
-
-        .join-list .join-item {
-            color: #95a5a6;
-            padding: 1px 0;
-            display: block;
             text-decoration: none;
         }
 
-        .join-list .join-item:hover {
-            color: white;
+        .pane-disclosure .icon {
+            width: 11px;
+            height: 11px;
+            transition: transform 0.15s;
         }
 
-        /* Nested join target styling */
-        .join-target-item {
-            position: relative;
+        .pane-disclosure.open .icon {
+            transform: rotate(90deg);
         }
 
-        .join-target-header {
+        a.pane-disclosure:hover {
+            color: #222;
+            background-color: #e6eaef;
+        }
+
+        /* The row's main action: the whole rest of the row is one link. */
+        .pane-toggle {
+            flex: 1;
+            min-width: 0;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-        }
-
-        .join-target-text {
-            color: #95a5a6;
-            padding: 1px 0;
-            flex-grow: 1;
-            display: inline-block;
-        }
-
-        .join-target-link {
-            color: #95a5a6;
+            gap: 7px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            color: #555;
             text-decoration: none;
-            padding: 1px 0;
-            flex-grow: 1;
         }
 
-        .join-target-link:hover {
-            color: white;
+        .pane-toggle:hover {
+            background-color: #e6eaef;
+            color: #222;
         }
 
-        .join-target-blocked {
-            opacity: 0.6;
+        .pane-toggle.on {
+            color: #222;
         }
 
-        .blocked-icon {
-            color: #e74c3c;
-            margin-left: 5px;
-        }
-
-        .columns-toggle {
-            color: #7f8c8d;
-            font-size: 14px;
-            text-decoration: none;
-            padding: 2px 5px;
-            margin-left: 5px;
-            transition: color 0.3s;
-            display: inline-block;
-        }
-
-        .columns-toggle:hover {
-            color: #bdc3c7;
-        }
-
-
-        .columns-list {
-            margin-left: 15px;
-            margin-top: 1px;
-            font-size: 0.85em;
-            border-left: 1px dotted rgba(255, 255, 255, 0.2);
-            padding-left: 10px;
-        }
-
-        .column-summary {
-            color: #7f8c8d;
-            padding: 1px 0;
-            display: block;
-        }
-
-        .column-link {
-            color: #7f8c8d;
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-
-        .column-link:hover {
-            color: #bdc3c7;
-            text-decoration: underline;
-        }
-
-        .column-link.selected {
-            color: #27ae60;
-            font-weight: bold;
-        }
-
-        .column-link.selected:hover {
-            color: #2ecc71;
-        }
-
-        .column-summary-header {
+        .pane-box {
+            flex: 0 0 14px;
+            height: 14px;
+            border: 1.5px solid #a3aab3;
+            border-radius: 3px;
+            background-color: #fff;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: center;
+            color: #fff;
         }
 
-        .join-expand-btn {
-            color: #7f8c8d;
-            font-size: 12px;
-            text-decoration: none;
-            padding: 2px 4px;
+        .pane-toggle.on .pane-box {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+
+        .pane-box .icon {
+            width: 11px;
+            height: 11px;
+        }
+
+        .pane-name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pane-context {
+            color: #8a929c;
+            margin-right: 4px;
+        }
+
+        .pane-context::after {
+            content: " /";
+        }
+
+        .pane-kind {
+            flex: 0 0 auto;
+            color: #a3aab3;
+            width: 12px;
+            height: 12px;
+        }
+
+        .pane-chips {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 3px;
+        }
+
+        .pane-chip {
+            display: inline-flex;
+            align-items: center;
+            height: 16px;
+            padding: 0 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            color: #555;
+            background-color: #e6eaef;
+        }
+
+        .pane-chip .icon {
+            width: 9px;
+            height: 9px;
+        }
+
+        .pane-chip-group {
+            color: #1f6391;
+            background-color: #d6e8f6;
+        }
+
+        .pane-chip-filter {
+            color: #8a6d00;
+            background-color: #fbf0c9;
+        }
+
+        /* A table reached through a join: a heading row inside the column's subtree. */
+        .pane-join-label {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: bold;
+            color: #444;
+        }
+
+        .pane-join-via {
+            font-weight: normal;
+            color: #8a929c;
+        }
+
+        .pane-join-toggle {
+            gap: 0;
+            padding-left: 0;
+        }
+
+        .pane-join.blocked .pane-join-label {
+            color: #a3aab3;
+            padding: 3px 6px 3px 0;
+        }
+
+        .pane-blocked {
             margin-left: 5px;
-            transition: color 0.3s;
-            display: inline-block;
+            color: #c0392b;
+            width: 11px;
+            height: 11px;
         }
 
-        .join-expand-btn:hover {
-            color: #bdc3c7;
+        /* Computed columns: same rows, plus a delete button. */
+        .computed-columns-section {
+            margin-top: 8px;
         }
 
-        .nested-join-targets {
-            margin-left: 15px;
-            margin-top: 1px;
-            font-size: 0.85em;
-            border-left: 1px dotted rgba(255, 255, 255, 0.2);
-            padding-left: 10px;
+        .add-computed-btn {
+            background: none;
+            border: 1px solid #c9ced5;
+            color: #2980b9;
+            border-radius: 4px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
+        .add-computed-btn:hover {
+            background-color: #e6eaef;
+            border-color: #2980b9;
+        }
+
+        .add-computed-btn .icon {
+            width: 11px;
+            height: 11px;
+        }
+
+        .remove-computed-btn {
+            flex: 0 0 auto;
+            color: #a3aab3;
+            background: none;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 15px;
+            line-height: 1;
+            padding: 2px 6px;
+        }
+
+        .remove-computed-btn:hover {
+            color: #c0392b;
+            background-color: #e6eaef;
+        }
+
+        .pane-legend {
+            margin-top: 18px;
+            padding: 10px 8px 0;
+            border-top: 1px solid #dde1e6;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            color: #8a929c;
+        }
+
+        .pane-legend .icon {
+            width: 11px;
+            height: 11px;
+            margin-right: 3px;
+        }
 
         /* Info Pane styles with tabs */
         /* Status bar fixed to the viewport bottom: the header line (tabs,
@@ -628,18 +684,18 @@
             top: 20px;
             left: 20px;
             z-index: 999;
-            background-color: #2c3e50;
-            color: white;
-            border: none;
+            background-color: #f7f8fa;
+            color: #333;
+            border: 1px solid #dde1e6;
             padding: 10px 15px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             transition: background-color 0.3s;
         }
 
         .sidebar-open-btn:hover {
-            background-color: #1a252f;
+            background-color: #e6eaef;
         }
 
         .sidebar-open-btn.visible {
@@ -1196,36 +1252,6 @@
             box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.2);
         }
 
-        /* Sidebar add computed column form */
-        .computed-columns-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .computed-columns-header h3 {
-            margin: 0;
-        }
-
-        .add-computed-btn {
-            background-color: #9b59b6;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            width: 24px;
-            height: 24px;
-            font-size: 16px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .add-computed-btn:hover {
-            background-color: #8e44ad;
-        }
-
         /* Filter row styles */
         .filter-row {
             background-color: #f9f9f9;
@@ -1411,46 +1437,6 @@
             display: inline-flex;
             gap: 6px;
             margin-left: 12px;
-        }
-
-        .computed-columns-section {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .computed-columns-section h3 {
-            font-size: 14px;
-            color: #95a5a6;
-            margin-bottom: 10px;
-        }
-
-        .computed-column-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
-        }
-
-        .computed-column-item a {
-            color: #9b59b6;
-        }
-
-        .computed-column-item a.visible {
-            color: #e74c3c;
-        }
-
-        .remove-computed-btn {
-            color: #e74c3c;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            padding: 2px 6px;
-        }
-
-        .remove-computed-btn:hover {
-            color: #c0392b;
         }
 
         /* Aggregate display in grouped cells */

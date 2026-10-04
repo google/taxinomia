@@ -6,6 +6,8 @@
     <title>Orders</title>
     
     
+    
+    
     <link rel="stylesheet" href="/static/VERSION/table.css">
     <script src="/static/VERSION/table.js" defer></script>
     
@@ -24,6 +26,8 @@
         <symbol id="i-cycle" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2v3.5H9.5z"/></symbol>
         <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+        <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-filter" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"/></symbol>
         <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     </svg>
     
@@ -40,63 +44,79 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <ul>
+                <div class="pane-section-title">In view <span class="pane-count">4</span></div>
+                <ul class="pane-list">
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=status%2Cregion%2Ccategory&amp;limit=10&amp;table=orders" class="visible" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Amount
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=region%2Ccategory%2Camount&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Status from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Status</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=status%2Cregion%2Camount&amp;limit=10&amp;table=orders" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Category <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;expanded=region&amp;limit=10&amp;table=orders" class="pane-disclosure" title="Show the tables Region joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
+                <a href="/default/table?columns=status%2Ccategory%2Camount&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Region from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Region</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=status%2Ccategory%2Camount&amp;limit=10&amp;table=orders" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Region <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                            <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;expanded=region&amp;limit=10&amp;table=orders" class="join-toggle" title="Show/hide join targets">
-                                <span>+</span>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=status%2Cregion%2Camount&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Category from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Category</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=region%2Ccategory%2Camount&amp;limit=10&amp;table=orders" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Status <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=status%2Cregion%2Ccategory&amp;limit=10&amp;table=orders" class="pane-toggle on" title="Remove Amount from the table">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Amount</span>
                     
+                    
+                </a>
+            </div>
+            
+        </li>
+    
                 </ul>
+                
 
                 
                 <div class="computed-columns-section">
-                    <div class="computed-columns-header">
-                        <h3>Computed Columns</h3>
-                        <button class="add-computed-btn" id="add-computed-btn" title="Add new computed column">+</button>
+                    <div class="pane-section-title computed-columns-header">
+                        <span>Computed </span>
+                        <button class="add-computed-btn" id="add-computed-btn" title="Add a computed column"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
                     </div>
+                    <ul class="pane-list">
                     
+                    </ul>
                 </div>
 
+                <div class="pane-legend">
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg> unique per row</span>
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg> links to other tables</span>
+                </div>
             </div>
         </aside>
         <main class="main-content" id="main-content">

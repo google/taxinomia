@@ -6,6 +6,8 @@
     <title>Customer_orders</title>
     
     
+    
+    
     <link rel="stylesheet" href="/static/VERSION/table.css">
     <script src="/static/VERSION/table.js" defer></script>
     
@@ -24,6 +26,8 @@
         <symbol id="i-cycle" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2v3.5H9.5z"/></symbol>
         <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
         <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+        <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-filter" viewBox="0 0 16 16"><path d="M2 3h12l-4.5 5.5V13l-3 1.5v-6z"/></symbol>
         <symbol id="i-check-square" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 8.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     </svg>
     
@@ -40,149 +44,201 @@
                 </button>
             </div>
             <div class="sidebar-content">
-                <ul>
+                <div class="pane-section-title">In view <span class="pane-count">4</span></div>
+                <ul class="pane-list">
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Cproduct_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Customer ID <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=customer_id%2Cproduct_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle on" title="Remove Order ID from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Order ID</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Ccustomer_name&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Customer Name
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Cproduct_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle on" title="Remove Customer ID from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Customer ID</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_percent&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Discount %
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle on" title="Remove Product ID from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Product ID</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_code&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Discount Code <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle on" title="Remove Status from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Status</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
                     
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Creason&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Discount Reason
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Ccustomer_email&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Email
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Corder_date&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Order Date
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=customer_id%2Cproduct_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Order ID <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Product ID <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cproduct_name&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Product Name
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cquantity&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Quantity
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="visible" title="Entity column (non-unique)">
-                                <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Status <svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg>
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
-                    <li class="column-item">
-                        <div class="column-main">
-                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cunit_price&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="hidden" title="Regular column">
-                                <svg class="icon" aria-hidden="true"><use href="#i-circle"></use></svg> Unit Price
-                            </a>
-                            
-                        </div>
-                        
-                    </li>
-                    
+                </a>
+            </div>
+            
+        </li>
+    
                 </ul>
+                
+                <div class="pane-section-title">Available <span class="pane-count">9</span></div>
+                <ul class="pane-list">
+                    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Ccustomer_name&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Customer Name to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Customer Name</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_percent&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount % to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Discount %</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_code&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount Code to the table (links to other tables)">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Discount Code</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Creason&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount Reason to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Discount Reason</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Ccustomer_email&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Email to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Email</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Corder_date&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Order Date to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Order Date</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cproduct_name&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Product Name to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Product Name</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cquantity&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Quantity to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Quantity</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cunit_price&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Unit Price to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Unit Price</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+                </ul>
+                
 
                 
                 <div class="computed-columns-section">
-                    <div class="computed-columns-header">
-                        <h3>Computed Columns</h3>
-                        <button class="add-computed-btn" id="add-computed-btn" title="Add new computed column">+</button>
+                    <div class="pane-section-title computed-columns-header">
+                        <span>Computed </span>
+                        <button class="add-computed-btn" id="add-computed-btn" title="Add a computed column"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
                     </div>
+                    <ul class="pane-list">
                     
+                    </ul>
                 </div>
 
+                <div class="pane-legend">
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg> unique per row</span>
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-link"></use></svg> links to other tables</span>
+                </div>
             </div>
         </aside>
         <main class="main-content" id="main-content">
