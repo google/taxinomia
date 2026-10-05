@@ -343,3 +343,41 @@ func BenchmarkPrecompiledEval(b *testing.B) {
 		_, _ = bound.Eval(0)
 	}
 }
+
+// date() and datetime() write a fixed point in time; it compares with
+// other datetimes and works with the date functions.
+func TestDateLiteral(t *testing.T) {
+	for _, tt := range []struct {
+		expr string
+		want bool
+	}{
+		{`date("2024-03-01") > date("2024-01-01")`, true},
+		{`date("2024-01-01") == datetime("2024-01-01 00:00:00")`, true},
+		{`date_add(date("2024-01-01"), duration(1, "days")) == date("2024-01-02")`, true},
+		{`date_diff(date("2024-01-11"), date("2024-01-01"), "days") == 10`, true},
+	} {
+		compiled, err := Compile(tt.expr)
+		if err != nil {
+			t.Fatalf("%s: compile: %v", tt.expr, err)
+		}
+		val, err := compiled.Bind(makeColumnGetter(0)).Eval(0)
+		if err != nil {
+			t.Fatalf("%s: eval: %v", tt.expr, err)
+		}
+		if val.AsBool() != tt.want {
+			t.Errorf("%s = %v, want %v", tt.expr, val.AsBool(), tt.want)
+		}
+	}
+	if _, err := mustEval(t, `date(5 > 3)`); err == nil {
+		t.Errorf("date(bool): want an error")
+	}
+}
+
+func mustEval(t *testing.T, src string) (Value, error) {
+	t.Helper()
+	compiled, err := Compile(src)
+	if err != nil {
+		return NilValue(), err
+	}
+	return compiled.Bind(makeColumnGetter(0)).Eval(0)
+}

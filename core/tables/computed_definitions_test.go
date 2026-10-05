@@ -19,6 +19,7 @@ limitations under the License.
 package tables
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -58,6 +59,36 @@ func TestComputedDefinitions(t *testing.T) {
 		err := dt.SetComputedDefinitions(tc.defs)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("SetComputedDefinitions(%+v) error = %v, want %q", tc.defs, err, tc.want)
+		}
+	}
+}
+
+type identityJoiner struct{}
+
+func (identityJoiner) Lookup(i uint32) (uint32, error) { return i, nil }
+
+// A joined column attached to a table reports the length of the table it
+// comes from; the table's length must come from its stored columns, on
+// every call (map order used to decide).
+func TestDataTableLengthIgnoresJoinedColumns(t *testing.T) {
+	dt := NewDataTable()
+	stored := columns.NewChunkedInt64Column(columns.NewColumnDef("amount", "Amount", ""))
+	for i := 0; i < 5; i++ {
+		stored.Append(int64(i))
+	}
+	stored.FinalizeColumn()
+	other := columns.NewChunkedStringColumn(columns.NewColumnDef("zone", "Zone", ""))
+	for _, v := range []string{"a", "b", "c"} {
+		other.Append(v)
+	}
+	other.FinalizeColumn()
+	dt.AddColumn(stored)
+	for i := 0; i < 8; i++ { // several joined columns make the old bug near-certain
+		dt.AddColumn(other.CreateJoinedColumn(columns.NewColumnDef(fmt.Sprintf("j%d", i), "J", ""), identityJoiner{}))
+	}
+	for i := 0; i < 50; i++ {
+		if n := dt.Length(); n != 5 {
+			t.Fatalf("Length() = %d on call %d, want 5", n, i)
 		}
 	}
 }

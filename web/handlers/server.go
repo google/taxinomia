@@ -242,6 +242,8 @@ type TableHandlerResult struct {
 type ValidationResult struct {
 	ComputedColumnErrors map[string]string // columnName -> error message
 	FilterErrors         map[string]string // columnName -> error message
+	// GroupConditionErrors: grouped column -> why its group condition (having:) was not applied
+	GroupConditionErrors map[string]string
 }
 
 // NewValidationResult creates a new ValidationResult
@@ -249,6 +251,7 @@ func NewValidationResult() *ValidationResult {
 	return &ValidationResult{
 		ComputedColumnErrors: make(map[string]string),
 		FilterErrors:         make(map[string]string),
+		GroupConditionErrors: make(map[string]string),
 	}
 }
 
@@ -577,6 +580,25 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	// Validate filter columns exist before applying
 	validation.FilterErrors = s.validateFilters(tableView, q.Filters)
 
+	// Group conditions: compiled against this grouping, applied by the
+	// filter step after the row filters (core/tables group_conditions.go).
+	var conds []*tables.GroupCondition
+	for col, src := range q.GroupConditions {
+		level := -1
+		for i, g := range q.GroupedColumns {
+			if g == col {
+				level = i
+			}
+		}
+		c, err := tableView.CompileGroupCondition(q.GroupedColumns, level, src)
+		if err != nil {
+			validation.GroupConditionErrors[col] = err.Error()
+			continue
+		}
+		conds = append(conds, c)
+	}
+	tableView.SetGroupConditions(conds)
+
 	// Apply filters to the table view (even with errors, apply valid filters)
 	filterStart := timing.Now()
 	if err := tableView.ApplyFiltersContext(ctx, q.Filters); err != nil {
@@ -596,6 +618,15 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 			filterLinks = append(filterLinks, viewmodel.SettingLink{Text: "filter " + col + " = " + value, Title: "clear the filter on " + col, URL: nq.ToSafeURL(), HasURL: true})
 		}
 		sort.Slice(filterLinks, func(i, j int) bool { return filterLinks[i].Text < filterLinks[j].Text })
+	}
+	// Group conditions run in the same step (after the row filters).
+	for col, cond := range q.GroupConditions {
+		if _, failed := validation.GroupConditionErrors[col]; failed {
+			continue
+		}
+		nq := q.Clone()
+		delete(nq.GroupConditions, col)
+		filterLinks = append(filterLinks, viewmodel.SettingLink{Text: "groups of " + col + " where " + cond, Title: "remove the condition on " + col, URL: nq.ToSafeURL(), HasURL: true})
 	}
 	timing.RecordEntry(entry("Apply Filters", timing.Since(filterStart), filterRows, filterLinks...))
 
@@ -708,6 +739,8 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	viewModel.Build = buildinfo.Get()
 	viewModel.FeedbackURL = s.feedbackURL
 	viewModel.JourneysJSON = s.journeysJSON(exec.Product)
+	viewModel.GroupConditions = exec.Query.GroupConditions
+	viewModel.GroupConditionErrors = exec.Validation.GroupConditionErrors
 
 	// Set animation state (transient, for newly grouped columns)
 	viewModel.AnimatedColumn = q.AnimatedColumn

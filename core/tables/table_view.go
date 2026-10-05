@@ -107,6 +107,9 @@ type TableView struct {
 	// filtersRecomputed reports whether the last ApplyFilters call scanned
 	// the table (false: filters unchanged, selection reused).
 	filtersRecomputed bool
+	// groupConds are applied after the row filters (SetGroupConditions,
+	// group_conditions.go); their signature is part of lastFilters.
+	groupConds []*GroupCondition
 	lastFilters map[string]string  // Filters that produced current selection (for change detection)
 
 	// Grouping cache tracking
@@ -294,13 +297,25 @@ func (t *TableView) ApplyFilters(filters map[string]string) {
 // scanned per row; those scans observe the context only between columns.
 func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]string) error {
 	t.filtersRecomputed = false
+	// The group conditions count as part of the filter state: their
+	// signature sits under a reserved key, so a changed condition misses
+	// both this cache and the grouping cache (which compares lastFilters).
+	condSig := t.groupConditionsSignature()
+	effective := filters
+	if condSig != "" {
+		effective = make(map[string]string, len(filters)+1)
+		for k, v := range filters {
+			effective[k] = v
+		}
+		effective[groupConditionsKey] = condSig
+	}
 	// Check if filters are unchanged - skip recomputation
-	if t.filtersEqual(filters) {
+	if t.filtersEqual(effective) {
 		return nil
 	}
 
 	// If no filters, clear the selection
-	if len(filters) == 0 {
+	if len(effective) == 0 {
 		t.filterSel = nil
 		t.lastFilters = nil
 		return nil
@@ -416,9 +431,17 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 		}
 	}
 
+	// Group conditions: drop the rows of the groups that fail them.
+	if condSig != "" {
+		if err := t.applyGroupConditions(ctx); err != nil {
+			t.abandonFilters()
+			return err
+		}
+	}
+
 	// Save the filters that produced this selection
-	t.lastFilters = make(map[string]string, len(filters))
-	for k, v := range filters {
+	t.lastFilters = make(map[string]string, len(effective))
+	for k, v := range effective {
 		t.lastFilters[k] = v
 	}
 	return nil

@@ -442,6 +442,12 @@ func (tc *TypeChecker) checkFuncCall(name string, argTypes []ExprType) (ExprType
 		}
 		return TypeDuration, nil // Returns duration when no unit
 
+	case "date", "datetime":
+		if len(argTypes) != 1 {
+			return TypeUnknown, fmt.Errorf("%s() takes 1 argument, got %d", name, len(argTypes))
+		}
+		return TypeDatetime, nil
+
 	case "date_add", "date_sub":
 		if len(argTypes) != 2 {
 			return TypeUnknown, fmt.Errorf("%s() takes 2 arguments, got %d", name, len(argTypes))

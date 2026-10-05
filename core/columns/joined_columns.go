@@ -688,3 +688,15 @@ func (c *JoinedUint64Column) GroupIndices(indices []uint32, columnView *ColumnVi
 	}
 	return groupedIndices, unmapped
 }
+
+// IsJoined reports whether col is a joined column (a column of another
+// table reached through a join). Its Length is that table's, not the
+// length of the table it is attached to.
+func IsJoined(col IDataColumn) bool {
+	switch col.(type) {
+	case *JoinedStringColumn, *JoinedUint32Column, *JoinedDatetimeColumn, *JoinedDurationColumn,
+		*JoinedBoolColumn, *JoinedFloat64Column, *JoinedInt64Column, *JoinedUint64Column:
+		return true
+	}
+	return false
+}

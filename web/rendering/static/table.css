@@ -2802,3 +2802,36 @@
         .help-journey:hover {
             background-color: #eef7f1;
         }
+
+        /* Group condition ("keep groups where ...") under a grouped column's controls. */
+        .having-row {
+            margin-top: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .having-row .having-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 3px 6px;
+            border: 1px dashed #9cc3e0;
+            border-radius: 3px;
+            font: 11px Consolas, 'Cascadia Code', monospace;
+            background-color: #fff;
+            color: #1f5f99;
+        }
+
+        .having-row .having-input.active {
+            border-style: solid;
+            border-color: #2980b9;
+            background-color: #eaf3fa;
+        }
+
+        .having-row .having-input.has-error {
+            border-color: #d32f2f;
+        }
+
+        .having-row .syntax-btn {
+            align-self: flex-end;
+        }

@@ -51,6 +51,10 @@ type Query struct {
 	Descending          map[string]bool            // Columns whose direction is flipped to descending (the "sort" parameter); every other column sorts ascending
 	AggregateSettings   map[string][]AggregateType // Enabled aggregates per column (columnName -> list of enabled aggregates)
 	GroupAggregateSorts map[string]*GroupAggSort   // Aggregate sort for grouped columns (groupedColumn -> sort spec)
+	// GroupConditions keep only the groups of a grouped column whose
+	// aggregates satisfy a condition (groupedColumn -> condition, e.g.
+	// "sum(amount) > 1000"); URL parameter having:<column>=<condition>.
+	GroupConditions map[string]string
 
 	// UI state
 	ShowInfoPane    bool   // Whether the info pane is open (default: collapsed; "info=1" opens, "info=0" closes)
@@ -71,6 +75,7 @@ func NewQuery(u *url.URL) *Query {
 		ColumnWidths:        make(map[string]int),
 		AggregateSettings:   make(map[string][]AggregateType),
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
+		GroupConditions:     make(map[string]string),
 		Descending:          make(map[string]bool),
 		Limit:               25,    // Default limit
 		ShowInfoPane:        false, // The pane starts collapsed to the status bar (info=1 opens it)
@@ -183,6 +188,13 @@ func NewQuery(u *url.URL) *Query {
 			if aggSort := parseGroupAggSort(groupedCol, values[0]); aggSort != nil {
 				state.GroupAggregateSorts[groupedCol] = aggSort
 			}
+		}
+	}
+
+	// Group conditions (format: having:groupedCol=condition)
+	for key, values := range q {
+		if strings.HasPrefix(key, "having:") && len(values) > 0 && strings.TrimSpace(values[0]) != "" {
+			state.GroupConditions[strings.TrimPrefix(key, "having:")] = strings.TrimSpace(values[0])
 		}
 	}
 
@@ -398,6 +410,7 @@ func (s *Query) Clone() *Query {
 		Descending:          make(map[string]bool, len(s.Descending)),
 		AggregateSettings:   make(map[string][]AggregateType),
 		GroupAggregateSorts: make(map[string]*GroupAggSort),
+		GroupConditions:     make(map[string]string),
 		ShowInfoPane:        s.ShowInfoPane,
 		InfoPaneTab:         s.InfoPaneTab,
 		ShowColumnTypes:     s.ShowColumnTypes,
@@ -450,6 +463,10 @@ func (s *Query) Clone() *Query {
 		clone.AggregateSettings[colName] = aggsCopy
 	}
 
+	for groupedCol, cond := range s.GroupConditions {
+		clone.GroupConditions[groupedCol] = cond
+	}
+
 	// Deep copy group aggregate sorts
 	for groupedCol, aggSort := range s.GroupAggregateSorts {
 		clone.GroupAggregateSorts[groupedCol] = &GroupAggSort{
@@ -480,6 +497,7 @@ func (s *Query) ClearTableSpecificState() {
 	s.AggregateSettings = make(map[string][]AggregateType)
 	s.GroupAggregateSorts = make(map[string]*GroupAggSort)
 	s.SelectedRowID = ""
+	s.GroupConditions = make(map[string]string)
 }
 
 // reorderColumns reorders the Columns slice to maintain:
@@ -738,6 +756,11 @@ func (s *Query) ToURL() string {
 		q.Set("groupsort:"+groupedCol, sign+aggSort.LeafColumn+":"+string(aggSort.AggType))
 	}
 
+	// Group conditions
+	for groupedCol, cond := range s.GroupConditions {
+		q.Set("having:"+groupedCol, cond)
+	}
+
 	// Add info pane state parameters
 	if s.ShowInfoPane {
 		q.Set("info", "1")
@@ -827,7 +850,8 @@ func (s *Query) WithGroupedColumnToggled(column string) safehtml.URL {
 	if found {
 		// Column was grouped, remove it
 		newState.GroupedColumns = newGrouped
-		newState.AnimatedColumn = "" // No animation when ungrouping
+		newState.AnimatedColumn = ""             // No animation when ungrouping
+		delete(newState.GroupConditions, column) // a condition belongs to a grouping level
 	} else {
 		// Column was not grouped, add it to the end
 		newState.GroupedColumns = append(s.GroupedColumns, column)

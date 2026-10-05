@@ -144,6 +144,7 @@ These functions convert a datetime to an integer representing the count since Un
 |----------|-------------|---------|
 | `date_diff(end, start)` | Difference as duration | `date_diff(end_time, start_time)` |
 | `date_diff(end, start, unit)` | Difference as number | `date_diff(end_time, start_time, "hours")` |
+| `date(text)` | A fixed date (or date and time) | `order_date > date("2024-01-01")`, `datetime("2024-01-01 12:30:00")` |
 | `date_add(dt, dur)` | Add duration to datetime | `date_add(order_date, duration(7, "days"))` |
 | `date_sub(dt, dur)` | Subtract duration from datetime | `date_sub(due_date, duration(1, "week"))` |
 

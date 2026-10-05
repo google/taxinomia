@@ -83,6 +83,10 @@ type TableViewModel struct {
 	FeedbackURL string
 	// JourneysJSON lists the guided journeys offered in this product (JSON; "" for none), played by the page.
 	JourneysJSON string
+	// GroupConditions: grouped column -> its group condition (having:), shown in its "where" field.
+	GroupConditions map[string]string
+	// GroupConditionErrors: grouped column -> why its condition was not applied.
+	GroupConditionErrors map[string]string
 
 	// Stylesheet and script delivery (filled by the renderer; see Assets)
 	Assets Assets

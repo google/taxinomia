@@ -43,7 +43,16 @@ func NewDataTable() *DataTable {
 }
 
 func (dt *DataTable) Length() int {
-	// return the length of the first column
+	// The length of a stored column. A joined column attached to the table
+	// (hierarchy ancestor columns are) reports the length of the table it
+	// comes from, so it must not decide: picking whichever column the map
+	// yields first made the length, and with it the filter selection's
+	// size and the "total rows" count, vary between calls.
+	for _, col := range dt.columns {
+		if !columns.IsJoined(col) {
+			return col.Length()
+		}
+	}
 	for _, col := range dt.columns {
 		return col.Length()
 	}

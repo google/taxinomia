@@ -901,7 +901,7 @@
             } else if (window.location.hash.startsWith("#syntax=")) {
                 // ... and "#syntax=<filtering|expressions>:<column>" opens the syntax panel.
                 const [kind, column] = decodeURIComponent(window.location.hash.substring(8)).split(":");
-                const sel = (kind === "expressions" ? ".formula-input" : ".filter-input") + '[data-column="' + CSS.escape(column || "") + '"]';
+                const sel = (kind === "expressions" ? ".formula-input" : kind === "grouping" ? ".having-input" : ".filter-input") + '[data-column="' + CSS.escape(column || "") + '"]';
                 const field = document.querySelector(sel);
                 if (field) setTimeout(() => { field.focus(); openSyntaxPanel(field); }, 0);
             } else if (window.location.hash.startsWith("#journey=")) {
@@ -1031,6 +1031,8 @@
                 : 'How many rows the filters keep, and how many rows the table has.'},
             {sel: '.filter-input', label: 'text, "exact", a|b', area: 'filter', show: typeExampleFilter,
              why: 'Type a word to find it anywhere in the value, "quoted" for an exact match, or a|b for any of several values. Enter applies it.'},
+            {sel: '.having-input', label: 'Keep groups where', area: 'group', show: '', doc: 'grouping',
+             why: 'Keeps only the groups whose aggregates satisfy a condition, e.g. count() > 10 or sum(amount) > 1000. The rows of the other groups leave the view.'},
             {sel: '.multiselect-toggle', label: 'Pick several values', area: 'filter', show: 'click',
              why: 'Tick several groups to keep only those, as one filter.'},
             {sel: 'tbody td.group-cell', label: 'Value [subgroups/rows]', area: 'group', inside: true,
@@ -1456,6 +1458,7 @@
         function syntaxKind(input) {
             if (input.matches('.filter-input')) return 'filtering';
             if (input.matches('.formula-input')) return 'expressions';
+            if (input.matches('.having-input')) return 'grouping';
             return '';
         }
 
@@ -1534,7 +1537,7 @@
             const head = document.createElement('div');
             head.className = 'syntax-panel-head';
             const title = document.createElement('strong');
-            title.textContent = kind === 'filtering' ? 'Filter syntax' : 'Expression syntax';
+            title.textContent = kind === 'filtering' ? 'Filter syntax' : kind === 'grouping' ? 'Group conditions' : 'Expression syntax';
             head.appendChild(title);
             const full = document.createElement('a');
             full.href = '?help=syntax#' + kind;
@@ -1550,10 +1553,11 @@
             head.appendChild(close);
             panel.appendChild(head);
 
-            if (kind === 'filtering') {
+            if (kind === 'filtering' || kind === 'grouping') {
                 const readout = document.createElement('div');
                 readout.className = 'syntax-readout';
-                const update = () => { readout.textContent = describeFilter(input.value); };
+                const describe = kind === 'grouping' ? describeGroupCondition : describeFilter;
+                const update = () => { readout.textContent = describe(input.value); };
                 update();
                 input.addEventListener('input', update);
                 panel.appendChild(readout);
@@ -1610,7 +1614,7 @@
             try { saved = JSON.parse(sessionStorage.getItem(SYNTAX_KEY) || 'null'); } catch (e) {}
             if (!saved) return;
             if (saved.table !== currentUrl().searchParams.get('table')) { closeSyntaxPanel(true); return; }
-            const sel = (saved.kind === 'filtering' ? '.filter-input' : '.formula-input') + '[data-column="' + CSS.escape(saved.column || '') + '"]';
+            const sel = (saved.kind === 'filtering' ? '.filter-input' : saved.kind === 'grouping' ? '.having-input' : '.formula-input') + '[data-column="' + CSS.escape(saved.column || '') + '"]';
             const input = document.querySelector(sel);
             if (input) {
                 showSyntaxButton(input);
@@ -1841,3 +1845,45 @@
         window.addEventListener('resize', function() {
             if (document.getElementById('journey-box')) showJourneyStep();
         });
+
+        // --- Group conditions: "keep groups where ..." on a grouped column ---
+        // Enter applies (URL having:<column>=<condition>), Esc clears,
+        // leaving the field applies it when it changed. The syntax panel
+        // (Syntax button, F1) shows the grouping help for it.
+        function applyGroupCondition(column, value) {
+            const url = currentUrl();
+            const key = 'having:' + column;
+            if (value && value.trim() !== '') url.searchParams.set(key, value.trim());
+            else url.searchParams.delete(key);
+            navigate(url);
+        }
+
+        document.addEventListener('keydown', function(e) {
+            const t = e.target;
+            if (!t.matches || !t.matches('.having-input')) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyGroupCondition(t.dataset.column, t.value);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                t.value = '';
+                applyGroupCondition(t.dataset.column, '');
+            }
+        });
+        document.addEventListener('focusin', function(e) {
+            const t = e.target;
+            if (t.matches && t.matches('.having-input')) t.dataset.originalValue = t.value;
+        });
+        document.addEventListener('focusout', function(e) {
+            const t = e.target;
+            if (t.matches && t.matches('.having-input') && t.value !== t.dataset.originalValue) {
+                applyGroupCondition(t.dataset.column, t.value);
+            }
+        });
+
+        // What a group condition will do, for the syntax panel's readout.
+        function describeGroupCondition(v) {
+            v = v.trim();
+            if (!v) return 'Type a condition on the groups, e.g. count() > 10 or sum(amount) > 1000.';
+            return 'Keeps the groups where ' + v + '; the rows of the other groups leave the view.';
+        }

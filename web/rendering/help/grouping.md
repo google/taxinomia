@@ -15,6 +15,42 @@
 - **F** next to a group value keeps only that group's rows and ungroups
   the column (see Filtering).
 
+
+## Keeping only some groups
+
+Under a grouped column's buttons, the **keep groups where...** field keeps
+only the groups whose aggregates satisfy a condition. The rows of the other
+groups leave the view, so the counts and the aggregates above describe the
+kept groups only; a group whose subgroups are all dropped goes too. Enter
+applies it, Esc clears it.
+
+A condition compares aggregates of the group's rows, with `and`, `or`,
+`not` and arithmetic:
+
+| You write | The group's |
+|-----------|-------------|
+| `count()` | number of rows |
+| `subgroups()` | number of subgroups, when it is grouped further |
+| `sum(col)`, `avg(col)`, `stddev(col)` | sum, average, spread of a number column |
+| `min(col)`, `max(col)` | smallest, largest (numbers, text, dates) |
+| `unique(col)` | number of distinct values of a text column |
+| `true(col)`, `false(col)`, `ratio(col)` | yes/no column: how many true, how many false, share true (0 to 1) |
+| `any(col)`, `all(col)` | yes/no column: is any value true, are all true |
+| `span(col)` | time from the earliest to the latest date |
+
+Examples:
+
+- `count() >= 50`
+- `sum(amount) > 10000 and avg(amount) < 200`
+- `max(cpu_cores) - min(cpu_cores) > 32`
+- `any(is_dead)` or `not all(is_active)`
+- `max(order_date) > date("2024-01-01")`
+- `span(order_date) > duration("30d")`
+
+The column in an aggregate can be any column of the table, shown or not.
+A value filter on the same column (its filter box) applies first, to the
+rows; the condition then applies to the groups.
+
 ## Aggregates
 
 On a grouped table, the other columns get aggregate buttons. Click one to

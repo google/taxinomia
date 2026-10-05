@@ -6,6 +6,7 @@ go_library(
         "computed_definitions.go",
         "data_table.go",
         "encoding.go",
+        "group_conditions.go",
         "grouping_steps.go",
         "preagg_aggregates.go",
         "sorted_storage.go",
@@ -18,6 +19,7 @@ go_library(
     deps = [
         "//core/aggregates",
         "//core/columns",
+        "//core/expr",
         "//core/grouping",
         "//core/hrclock",
         "//core/queryspec",
@@ -41,6 +43,7 @@ go_test(
         "group_rows_test.go",
         "filter_selection_test.go",
         "golden_test.go",
+        "group_conditions_test.go",
         "grouping_release_test.go",
         "grouping_steps_test.go",
         "lazy_grouping_test.go",

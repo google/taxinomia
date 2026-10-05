@@ -869,6 +869,21 @@ func (e *Evaluator) evalFunc(name string, args []Value) (Value, error) {
 		// Return as duration type (will display formatted)
 		return NewDuration(int64(diff)), nil
 
+	case "date", "datetime":
+		// date("2024-01-01"), datetime("2024-01-01 12:30:00") - a fixed
+		// point in time, for comparisons such as order_date > date("2024-01-01")
+		if len(args) != 1 {
+			return NilValue(), fmt.Errorf("%s() takes 1 argument", name)
+		}
+		if !args[0].IsString() && !args[0].IsDatetime() && !args[0].IsNumeric() {
+			return NilValue(), fmt.Errorf("%s() needs a text like \"2024-01-01\"", name)
+		}
+		t, err := parseDatetimeValue(args[0])
+		if err != nil {
+			return NilValue(), fmt.Errorf("%s(): %w", name, err)
+		}
+		return NewDatetime(t.UnixNano()), nil
+
 	case "date_add":
 		// date_add(datetime, duration) - returns datetime
 		if len(args) != 2 {

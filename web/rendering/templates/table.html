@@ -293,6 +293,7 @@
                     {{end}}
                     {{end}}
                     </div>
+                    {{- if .IsGrouped}}{{$cond := index $.GroupConditions .Name}}{{$condErr := index $.GroupConditionErrors .Name}}<div class="having-row">{{if $condErr}}<div class="cell-error-inline" title="{{$condErr}}"><span class="cell-error-message">{{$condErr}}</span></div>{{end}}<input type="text" class="having-input{{if $cond}} active{{end}}{{if $condErr}} has-error{{end}}" data-column="{{.Name}}" value="{{$cond}}" placeholder="keep groups where..." title="Keep only the groups whose aggregates satisfy a condition, e.g. count() &gt; 10 or sum(amount) &gt; 1000. Enter applies, Esc clears."></div>{{end}}
                 </td>
                         {{end}}
                     {{end}}

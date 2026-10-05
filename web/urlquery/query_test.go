@@ -520,3 +520,26 @@ func TestGroupExpansionToggle(t *testing.T) {
 		}
 	})
 }
+
+// Group conditions round-trip through the URL, are copied by Clone, and a
+// column's condition goes when the column is ungrouped.
+func TestGroupConditionsInURL(t *testing.T) {
+	u, _ := url.Parse("/table?table=t&grouped=region,status&having:region=" + url.QueryEscape("sum(amount) > 10"))
+	q := NewQuery(u)
+	if got := q.GroupConditions["region"]; got != "sum(amount) > 10" {
+		t.Fatalf("parsed %q", got)
+	}
+	back, _ := url.Parse(q.ToURL())
+	if NewQuery(back).GroupConditions["region"] != "sum(amount) > 10" {
+		t.Errorf("not kept by ToURL: %s", q.ToURL())
+	}
+	c := q.Clone()
+	c.GroupConditions["region"] = "count() > 1"
+	if q.GroupConditions["region"] != "sum(amount) > 10" {
+		t.Errorf("Clone shares the map")
+	}
+	toggled, _ := url.Parse(q.WithGroupedColumnToggled("region").String())
+	if _, ok := NewQuery(toggled).GroupConditions["region"]; ok {
+		t.Errorf("ungrouping region kept its condition")
+	}
+}
