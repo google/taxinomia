@@ -19,6 +19,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -44,6 +45,15 @@ func main() {
 	mux := http.NewServeMux()
 	srv.UseStaticAssets("/static")
 	mux.Handle("/static/", srv.StaticHandler())
+
+	// Feedback: the "Feedback" button posts bug reports and feature
+	// requests here. The back end is the application's; this demo only
+	// logs them.
+	srv.SetFeedbackURL("/feedback")
+	mux.Handle("/feedback", handlers.FeedbackHandler(func(ctx context.Context, r handlers.FeedbackReport) error {
+		log.Printf("feedback (%s) build=%q page=%q: %s", r.Kind, r.Build, r.Page, r.Text)
+		return nil
+	}))
 
 	// Handle all requests and route based on product path
 	// URL format: /{product}/ or /{product}/table

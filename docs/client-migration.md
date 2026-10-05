@@ -447,3 +447,24 @@ Nothing to migrate in code; one visible change:
   used to be the cell link. Entity types that are no table's key keep
   their default external link. See "Entity pages" in
   `docs/data_sources.md`.
+
+## Feedback button: bug reports and feature requests (2026-10)
+
+Optional; nothing changes until you opt in. A "Feedback" button next to
+"? Help" (column pane header and status bar) opens a form: Bug or
+Feature request, a text, and whether to include the page address. Send
+posts a JSON `handlers.FeedbackReport` (`kind`, `text`, `page`, `build`)
+to an address you choose. The back end is yours:
+
+```go
+srv.SetFeedbackURL("/feedback") // shows the button
+mux.Handle("/feedback", handlers.FeedbackHandler(func(ctx context.Context, r handlers.FeedbackReport) error {
+    return fileTicket(ctx, r) // your issue tracker, email, chat, ...
+}))
+```
+
+`FeedbackHandler` accepts POST only, at most 64 KiB, `kind` "bug" or
+"feature", a non-empty text of at most `MaxFeedbackText` characters; it
+answers 204, or 400/405/500 with `{"error": "..."}` (shown to the user).
+Any endpoint that accepts the same JSON works too. A table URL ending in
+`#feedback` opens the form on load.

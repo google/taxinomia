@@ -2368,3 +2368,128 @@
             font-size: 12px;
             color: #8a929c;
         }
+
+        /* Feedback: the button next to "? Help" and its form. */
+        .feedback-open {
+            margin-right: 6px;
+            padding: 4px 10px;
+            border: 1px solid #2980b9;
+            border-radius: 12px;
+            background-color: #fff;
+            color: #2980b9;
+            font: bold 12px Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .feedback-open:hover {
+            background-color: #eaf3fa;
+        }
+
+        .info-pane-toggle.feedback-open {
+            border-radius: 4px;
+        }
+
+        .feedback-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 3100;
+            background-color: rgba(30, 40, 52, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feedback-box {
+            width: min(520px, calc(100vw - 32px));
+            padding: 16px 18px;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+            font: 13px Arial, sans-serif;
+            color: #333;
+        }
+
+        .feedback-title {
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .feedback-kinds {
+            display: flex;
+            gap: 18px;
+            margin-bottom: 8px;
+        }
+
+        .feedback-text {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+            border: 1px solid #c9ced5;
+            border-radius: 4px;
+            font: 13px Arial, sans-serif;
+            resize: vertical;
+        }
+
+        .feedback-page {
+            display: block;
+            margin-top: 6px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .feedback-status {
+            min-height: 18px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .feedback-status.ok { color: #2e7d4f; }
+        .feedback-status.error { color: #b03a2e; }
+
+        .feedback-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .feedback-buttons button {
+            font: 13px Arial, sans-serif;
+            padding: 5px 14px;
+            border-radius: 4px;
+            border: 1px solid #c9ced5;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        .feedback-buttons .feedback-send {
+            background-color: #2980b9;
+            border-color: #2980b9;
+            color: #fff;
+        }
+
+        .feedback-buttons .feedback-send:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        /* The pane header holds Columns, "? Help", Feedback and the close
+           cross in 250px: keep the buttons on one line and compact. */
+        .sidebar-header .help-open,
+        .sidebar-header .feedback-open {
+            white-space: nowrap;
+            padding: 3px 8px;
+            font-size: 11px;
+            margin-right: 4px;
+        }
+
+        .sidebar-header {
+            padding-left: 12px;
+            padding-right: 8px;
+        }
+
+        .info-pane-toggle {
+            white-space: nowrap;
+        }

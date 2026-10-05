@@ -894,6 +894,10 @@
             // "#help" opens the control labels on load (a link docs can give).
             if (window.location.hash === "#help") {
                 setTimeout(showHelp, 0);
+            } else if (window.location.hash === "#feedback") {
+                // ... and "#feedback" opens the feedback form (when enabled).
+                const fb = document.querySelector(".feedback-open[data-feedback-url]");
+                if (fb) setTimeout(() => openFeedback(fb.dataset.feedbackUrl), 0);
             } else if (window.location.hash.startsWith("#help-card=")) {
                 // ... and "#help-card=<label>" also opens that label's card.
                 const wanted = decodeURIComponent(window.location.hash.substring(11));
@@ -1306,4 +1310,94 @@
             showHelp();
             const p = item && helpPlacements.get(item);
             if (p) showHelpCard(item, p.el, p.bubble);
+        });
+
+        // --- Feedback: report a bug or ask for a feature ---------------------
+        // The "Feedback" button (shown when the application set a feedback
+        // address, Server.SetFeedbackURL) opens a small form; Send posts a
+        // JSON report {kind, text, page, build} to that address. What
+        // happens to it is the application's back end.
+        function openFeedback(url) {
+            closeFeedback();
+            const overlay = document.createElement('div');
+            overlay.id = 'feedback-overlay';
+            overlay.className = 'feedback-overlay';
+            const box = document.createElement('div');
+            box.className = 'feedback-box';
+            box.setAttribute('role', 'dialog');
+            box.setAttribute('aria-label', 'Feedback');
+            box.innerHTML =
+                '<div class="feedback-title">Report a bug or ask for a feature</div>' +
+                '<div class="feedback-kinds">' +
+                '<label><input type="radio" name="feedback-kind" value="bug" checked> Bug</label>' +
+                '<label><input type="radio" name="feedback-kind" value="feature"> Feature request</label>' +
+                '</div>' +
+                '<textarea class="feedback-text" rows="7" maxlength="10000" placeholder="What happened, or what would you like?"></textarea>' +
+                '<label class="feedback-page"><input type="checkbox" checked> Include the address of this page</label>' +
+                '<div class="feedback-status" aria-live="polite"></div>' +
+                '<div class="feedback-buttons">' +
+                '<button type="button" class="feedback-cancel">Cancel</button>' +
+                '<button type="button" class="feedback-send">Send</button>' +
+                '</div>';
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            const text = box.querySelector('.feedback-text');
+            const status = box.querySelector('.feedback-status');
+            const send = box.querySelector('.feedback-send');
+            text.focus();
+            overlay.addEventListener('click', e => { if (e.target === overlay) closeFeedback(); });
+            box.querySelector('.feedback-cancel').addEventListener('click', closeFeedback);
+            send.addEventListener('click', function() {
+                const body = {
+                    kind: box.querySelector('input[name="feedback-kind"]:checked').value,
+                    text: text.value.trim(),
+                    page: box.querySelector('.feedback-page input').checked ? window.location.href : '',
+                    build: (document.querySelector('.build-version') || {textContent: ''}).textContent.trim(),
+                };
+                if (!body.text) {
+                    status.textContent = 'Please write something first.';
+                    status.className = 'feedback-status error';
+                    text.focus();
+                    return;
+                }
+                send.disabled = true;
+                status.textContent = 'Sending...';
+                status.className = 'feedback-status';
+                fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body),
+                }).then(function(resp) {
+                    if (resp.ok) {
+                        status.textContent = 'Thank you, your report was sent.';
+                        status.className = 'feedback-status ok';
+                        setTimeout(closeFeedback, 1500);
+                        return;
+                    }
+                    return resp.json().catch(() => ({})).then(function(j) {
+                        throw new Error(j.error || ('error ' + resp.status));
+                    });
+                }).catch(function(err) {
+                    send.disabled = false;
+                    status.textContent = 'Could not send: ' + err.message;
+                    status.className = 'feedback-status error';
+                });
+            });
+        }
+
+        function closeFeedback() {
+            const overlay = document.getElementById('feedback-overlay');
+            if (overlay) overlay.remove();
+        }
+
+        document.addEventListener('click', function(e) {
+            const button = e.target.closest && e.target.closest('.feedback-open');
+            if (button && button.dataset.feedbackUrl) {
+                e.preventDefault();
+                openFeedback(button.dataset.feedbackUrl);
+            }
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('feedback-overlay')) closeFeedback();
         });

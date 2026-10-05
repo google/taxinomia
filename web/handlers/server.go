@@ -73,6 +73,7 @@ type Server struct {
 	tableViewCache map[string]*tables.TableView
 	userStore      users.UserStore
 	clock          hrclock.Clock // times the request phases of the perf breakdown (SetClock)
+	feedbackURL    string        // where the feedback form posts reports; "" hides the button (SetFeedbackURL)
 
 	// navigator provides the catalog-driven navigation defaults (SetCatalog).
 	// The Set*Resolver callbacks below override it individually where set.
@@ -693,6 +694,7 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	viewModel.ShowInfoPane = q.ShowInfoPane
 	viewModel.InfoPaneTab = q.InfoPaneTab
 	viewModel.Build = buildinfo.Get()
+	viewModel.FeedbackURL = s.feedbackURL
 
 	// Set animation state (transient, for newly grouped columns)
 	viewModel.AnimatedColumn = q.AnimatedColumn

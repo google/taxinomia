@@ -79,6 +79,8 @@ type TableViewModel struct {
 
 	// Build that produced the serving binary (status bar + perf tab)
 	Build buildinfo.Info
+	// FeedbackURL is where the feedback form posts reports (Server.SetFeedbackURL); "" hides the Feedback button.
+	FeedbackURL string
 
 	// Stylesheet and script delivery (filled by the renderer; see Assets)
 	Assets Assets

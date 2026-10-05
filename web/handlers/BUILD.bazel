@@ -1,9 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "handlers",
     srcs = [
         "entity.go",
+        "feedback.go",
         "http.go",
         "server.go",
     ],
@@ -31,4 +32,10 @@ go_library(
         "//web/urlquery",
         "//web/viewmodel",
     ],
+)
+
+go_test(
+    name = "handlers_test",
+    srcs = ["feedback_test.go"],
+    embed = [":handlers"],
 )
