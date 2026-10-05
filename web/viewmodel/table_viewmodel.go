@@ -705,7 +705,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 			var aggSortToggleURL, aggSortDirectionURL safehtml.URL
 			var hasAggSort, isAggSortDescending bool
 			var aggSortLeafCol, aggSortAggType, aggSortSymbol string
-			if q.IsColumnGrouped(colName) && len(leafColumns) > 0 {
+			if q.IsColumnGrouped(colName) {
 				aggSortToggleURL = q.WithNextGroupAggSort(colName, leafColumns, enabledAggs)
 				if aggSort := q.GetGroupAggSort(colName); aggSort != nil {
 					hasAggSort = true
@@ -790,7 +790,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 					var aggSortToggleURL, aggSortDirectionURL safehtml.URL
 					var hasAggSort, isAggSortDescending bool
 					var aggSortLeafCol, aggSortAggType, aggSortSymbol string
-					if q.IsColumnGrouped(colName) && len(leafColumns) > 0 {
+					if q.IsColumnGrouped(colName) {
 						aggSortToggleURL = q.WithNextGroupAggSort(colName, leafColumns, enabledAggs)
 						if aggSort := q.GetGroupAggSort(colName); aggSort != nil {
 							hasAggSort = true
@@ -851,7 +851,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		var aggSortToggleURL, aggSortDirectionURL safehtml.URL
 		var hasAggSort, isAggSortDescending bool
 		var aggSortLeafCol, aggSortAggType, aggSortSymbol string
-		if q.IsColumnGrouped(comp.Name) && len(leafColumns) > 0 {
+		if q.IsColumnGrouped(comp.Name) {
 			aggSortToggleURL = q.WithNextGroupAggSort(comp.Name, leafColumns, enabledAggs)
 			if aggSort := q.GetGroupAggSort(comp.Name); aggSort != nil {
 				hasAggSort = true
@@ -1919,7 +1919,7 @@ func tableComputedColumnInfo(d tables.ComputedDefinition, tableView *tables.Tabl
 		ColumnType:        colType,
 		AggregateToggles:  buildAggregateToggles(name, colType, q),
 	}
-	if q.IsColumnGrouped(name) && len(leafColumns) > 0 {
+	if q.IsColumnGrouped(name) {
 		info.AggSortToggleURL = q.WithNextGroupAggSort(name, leafColumns, enabledAggs)
 		if aggSort := q.GetGroupAggSort(name); aggSort != nil {
 			info.HasAggSort = true

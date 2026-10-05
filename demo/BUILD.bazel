@@ -73,6 +73,7 @@ filegroup(
 go_test(
     name = "demo_test",
     srcs = [
+        "agg_sort_link_test.go",
         "protoloader_test.go",
         "server_test.go",
     ],
