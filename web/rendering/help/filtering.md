@@ -29,8 +29,10 @@ syntax and the table's columns, which insert their name when clicked.
 
 ## Filtering from a grouped table
 
-- **F** next to a group value keeps only that group's rows and ungroups
-  the column, to look inside the group.
+- **F** next to a group value keeps only that group's rows: the value and
+  those of the groups around it become filters. While levels are grouped
+  below it, its levels stay grouped and show once; on the last grouped
+  level they are ungrouped, to show the rows.
 - The tick-box button next to a grouped column's filter box picks
   several groups at once: click it, tick the groups to keep, then click
   it again. The ticked values become one filter (several exact values).

@@ -575,3 +575,28 @@ func TestWithGroupingReplaced(t *testing.T) {
 		t.Errorf("ungroup left grouped=%v conditions=%v", n.GroupedColumns, n.GroupConditions)
 	}
 }
+
+// TestWithFilterPath: the drill of the filter-by control. Above the last
+// grouped level the path is filtered and stays grouped (one group per
+// level, shown once); on the last level it is ungrouped, to show the rows.
+func TestWithFilterPath(t *testing.T) {
+	u, _ := url.Parse("/table?table=t&columns=a,b,c,amount&grouped=a,b,c&gexp=x&limit=25")
+	q := NewQuery(u)
+
+	parsed, _ := url.Parse(q.WithFilterPath([]FilterStep{{Column: "a", Value: "x"}, {Column: "b", Value: "y"}}).String())
+	nq := NewQuery(parsed)
+	if nq.Filters["a"] != `"x"` || nq.Filters["b"] != `"y"` {
+		t.Errorf("filters = %v, want exact-quoted a and b", nq.Filters)
+	}
+	if g := strings.Join(nq.GroupedColumns, ","); g != "a,b,c" {
+		t.Errorf("grouped = %s, want a,b,c (kept: c is below the path)", g)
+	}
+	if nq.HasExpandedGroups {
+		t.Errorf("explicit expansion kept; the drilled group could stay closed")
+	}
+
+	last := []FilterStep{{Column: "a", Value: "x"}, {Column: "b", Value: "y"}, {Column: "c", Value: "z"}}
+	if p, w := q.WithFilterPath(last).String(), q.WithFilterPathAndUngrouped(last).String(); p != w {
+		t.Errorf("drill on the last level = %q, want the ungrouping drill %q", p, w)
+	}
+}

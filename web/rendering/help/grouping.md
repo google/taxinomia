@@ -12,8 +12,8 @@
 - **UNGROUP** turns a grouped column back into a plain column.
 - The **+** strip on the right of a group cell lists that group's own
   rows beneath it; **−** closes it again.
-- **F** next to a group value keeps only that group's rows and ungroups
-  the column (see Filtering).
+- **F** next to a group value keeps only that group's rows; its levels
+  stay grouped while there are levels below it (see Filtering).
 
 ## Grouping by a hierarchy
 

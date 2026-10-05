@@ -1040,7 +1040,7 @@
             {sel: 'tbody td.group-cell', label: 'Value [subgroups/rows]', area: 'group', inside: true,
              why: 'Each group shows its value and, in brackets, how many subgroups and rows it holds.'},
             {sel: 'tbody .filter-link', label: 'Drill into group', area: 'filter', show: 'click',
-             why: 'Keeps only this group\'s rows and ungroups the column, to look inside the group.'},
+             why: 'Keeps only this group\'s rows. While levels are grouped below it, its levels stay grouped and show once; on the last level they are ungrouped to show the rows.'},
             {sel: 'tbody .group-expand', label: 'List group rows', area: 'group', show: 'click',
              why: 'Lists this group\'s own rows right under it, without leaving the grouped view.'},
             {sel: 'tbody .entity-link', label: 'Open related', area: 'columns', show: 'click',

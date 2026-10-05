@@ -931,6 +931,29 @@ type FilterStep struct {
 	Value  string
 }
 
+// WithFilterPath returns the drill URL of the filter-by control on a
+// grouped cell: every step of the cell's path is filtered (exact match).
+// When grouped levels remain below the path, the path's columns stay
+// grouped — each is now a single group, shown once as a cell spanning the
+// levels below, instead of a plain column repeating one value on every
+// row. When the path reaches the deepest grouped level, its columns are
+// ungrouped as WithFilterPathAndUngrouped does, so the rows show.
+func (s *Query) WithFilterPath(path []FilterStep) safehtml.URL {
+	if len(path) >= len(s.GroupedColumns) {
+		return s.WithFilterPathAndUngrouped(path)
+	}
+	newState := s.Clone()
+	for _, step := range path {
+		newState.Filters[step.Column] = `"` + step.Value + `"`
+	}
+	// Back to the default expansion: an explicit one could leave the
+	// drilled group closed.
+	newState.ExpandedGroups = nil
+	newState.HasExpandedGroups = false
+	newState.reorderColumns()
+	return newState.ToSafeURL()
+}
+
 // WithFilterPathAndUngrouped returns a URL that filters every step of a
 // nested group's path (each value quoted as an exact match) and removes all
 // of those columns from grouping — the drill semantics of the filter-by
