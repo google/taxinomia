@@ -1441,6 +1441,7 @@
         // the field. The panel stays open across the page changes a filter
         // makes, until closed with its ×.
         const syntaxCache = {};
+        let syntaxPanelInput = null; // the field the open panel belongs to
         const SYNTAX_KEY = 'taxinomia-syntax-panel';
 
         function syntaxKind(input) {
@@ -1500,6 +1501,7 @@
 
         function closeSyntaxPanel(forget) {
             document.querySelectorAll('tr.syntax-panel-row').forEach(r => r.remove());
+            syntaxPanelInput = null;
             if (forget) {
                 try { sessionStorage.removeItem(SYNTAX_KEY); } catch (e) {}
             }
@@ -1509,6 +1511,7 @@
             const kind = syntaxKind(input);
             if (!kind) return;
             closeSyntaxPanel(false);
+            syntaxPanelInput = input;
             try { sessionStorage.setItem(SYNTAX_KEY, JSON.stringify({kind: kind, column: input.dataset.column, table: currentUrl().searchParams.get('table')})); } catch (e) {}
             const row = input.closest('tr');
             const cols = row.children.length;
@@ -1608,17 +1611,49 @@
             }
         }
 
+        // The panel belongs to the field being typed in. Moving to another
+        // filter box or formula moves it there; leaving otherwise (a click
+        // outside the panel and the field, Tab to another control, Esc)
+        // closes it. Its button shows only while its field has the focus.
+        function syntaxPanelOpen() {
+            return !!document.querySelector('tr.syntax-panel-row');
+        }
+
+        function insideSyntaxPanel(el) {
+            return !!(el && el.closest && el.closest('tr.syntax-panel-row'));
+        }
+
         document.addEventListener('focusin', function(e) {
             const t = e.target;
-            if (t && t.matches && syntaxKind(t)) showSyntaxButton(t);
+            if (t && t.matches && syntaxKind(t)) {
+                showSyntaxButton(t);
+                if (syntaxPanelOpen() && syntaxPanelInput !== t) openSyntaxPanel(t);
+                return;
+            }
+            if (syntaxPanelOpen() && !insideSyntaxPanel(t)) closeSyntaxPanel(true);
         });
         document.addEventListener('focusout', function(e) {
             const t = e.target;
             if (!t || !t.matches || !syntaxKind(t)) return;
-            // Keep the button while this field's panel is open.
-            const panelOpen = !!document.querySelector('tr.syntax-panel-row');
-            if (!panelOpen) setTimeout(() => { if (document.activeElement !== t) hideSyntaxButton(t); }, 150);
+            setTimeout(() => { if (document.activeElement !== t) hideSyntaxButton(t); }, 150);
         });
+        document.addEventListener('mousedown', function(e) {
+            if (!syntaxPanelOpen()) return;
+            const t = e.target;
+            if (insideSyntaxPanel(t)) return;
+            if (t && t.closest && t.closest('.syntax-btn')) return;
+            if (t && t.matches && syntaxKind(t)) return; // another field: focusin moves the panel
+            closeSyntaxPanel(true);
+        });
+        // Esc closes the panel first (capture phase, before a filter box's
+        // own Esc, which clears the filter); a second Esc does that.
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && syntaxPanelOpen()) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                closeSyntaxPanel(true);
+            }
+        }, true);
         document.addEventListener('keydown', function(e) {
             const t = e.target;
             if (e.key === 'F1' && t && t.matches && syntaxKind(t)) {

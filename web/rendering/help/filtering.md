@@ -5,7 +5,8 @@ Enter to apply; Esc, or the × next to it, clears it. Filters on several
 columns combine: a row is kept only when it matches all of them.
 
 While you type, the **Syntax** button beside the box (or F1) opens this
-help under the row, with a line saying what your filter will do. A
+help under the row, with a line saying what your filter will do; Esc or
+a click elsewhere closes it. A
 computed column's formula has the same button: it shows the expression
 syntax and the table's columns, which insert their name when clicked.
 
