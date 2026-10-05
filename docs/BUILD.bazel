@@ -1,0 +1,3 @@
+# The expression language reference is also embedded in the app's help
+# page (web/rendering/help/expressions.md); the rendering test compares them.
+exports_files(["expression_language.md"])

@@ -2493,3 +2493,65 @@
         .info-pane-toggle {
             white-space: nowrap;
         }
+
+        /* Links to the embedded help page (?help=syntax). */
+        .help-card-doc {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #2980b9;
+        }
+
+        .pane-syntax-link {
+            margin-left: auto;
+            margin-right: 6px;
+            width: 20px;
+            height: 20px;
+            line-height: 18px;
+            text-align: center;
+            border: 1px solid #c9ced5;
+            border-radius: 50%;
+            color: #2980b9;
+            font-size: 11px;
+            font-weight: bold;
+            text-decoration: none;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        .pane-syntax-link:hover {
+            border-color: #2980b9;
+            background-color: #fff;
+        }
+
+        /* The embedded help page. */
+        .help-toc {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin: 6px 0 16px;
+        }
+
+        .help-toc a {
+            color: #2980b9;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .help-section {
+            margin-bottom: 16px;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        .help-section h1 { font-size: 20px; margin: 0 0 8px; }
+        .help-section h2 { font-size: 16px; margin: 18px 0 6px; color: #333; text-transform: none; letter-spacing: 0; }
+        .help-section h3 { font-size: 14px; margin: 14px 0 4px; }
+        .help-section p { margin: 6px 0; }
+        .help-section ul { margin: 6px 0 6px 20px; padding: 0; }
+        .help-section code { font-family: Consolas, 'Cascadia Code', monospace; font-size: 12.5px; background-color: #f1f3f5; padding: 0 3px; border-radius: 3px; }
+        .help-section pre { background-color: #f6f8fa; border: 1px solid #e3e6ea; border-radius: 4px; padding: 8px 10px; overflow-x: auto; }
+        .help-section pre code { background: none; padding: 0; }
+        .help-section table { border-collapse: collapse; margin: 8px 0; width: auto; }
+        .help-section th, .help-section td { border: 1px solid #e3e6ea; padding: 4px 8px; text-align: left; vertical-align: top; background: none; font-size: 13px; }
+        .help-section th { background-color: #f6f8fa; font-weight: bold; }

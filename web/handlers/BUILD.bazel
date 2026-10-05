@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "entity.go",
         "feedback.go",
+        "help.go",
         "http.go",
         "server.go",
     ],

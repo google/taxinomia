@@ -34,7 +34,8 @@ type TableRenderer struct {
 	tableTemplate   *template.Template
 	landingTemplate *template.Template
 	entityTemplate  *template.Template
-	assets         *staticAssets // the page's stylesheet and script (static.go)
+	helpTemplate    *template.Template
+	assets        *staticAssets // the page's stylesheet and script (static.go)
 	staticBase      string        // "" = inline them; else the URL prefix StaticHandler is mounted at
 }
 
@@ -68,6 +69,12 @@ func NewTableRenderer() (*TableRenderer, error) {
 		return nil, err
 	}
 
+	// Parse the embedded help page template
+	helpTemplate, err := template.New("help.html").ParseFS(trustedFS, "templates/help.html")
+	if err != nil {
+		return nil, err
+	}
+
 	assets, err := loadStaticAssets()
 	if err != nil {
 		return nil, err
@@ -77,6 +84,7 @@ func NewTableRenderer() (*TableRenderer, error) {
 		tableTemplate:   tableTemplate,
 		landingTemplate: landingTemplate,
 		entityTemplate:  entityTemplate,
+		helpTemplate:    helpTemplate,
 		assets:          assets,
 	}, nil
 }

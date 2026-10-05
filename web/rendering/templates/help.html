@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    {{if .Assets.External}}
+    <link rel="stylesheet" href="{{.Assets.CSS}}">
+    {{else}}
+    <style>{{.Assets.InlineCSS}}</style>
+    {{end}}
+</head>
+<body class="entity-body">
+    <div class="entity-page help-page">
+        <div class="entity-nav">
+            <a href="#" onclick="history.back(); return false;" class="entity-back">&larr; Back</a>
+        </div>
+        <h1 class="entity-title">{{.Title}}</h1>
+        <nav class="help-toc">
+            {{range .Sections}}<a href="#{{.ID}}">{{.Title}}</a>{{end}}
+        </nav>
+        {{range .Sections}}
+        <section class="entity-card help-section" id="{{.ID}}">
+            {{.Body}}
+        </section>
+        {{end}}
+        <div class="entity-footer">Taxinomia <span class="build-version" title="{{.Build.Long}}">{{.Build.Display}}</span></div>
+    </div>
+</body>
+</html>

@@ -2,7 +2,12 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_test(
     name = "rendering_test",
-    srcs = ["renderer_test.go"],
+    srcs = [
+        "markdown_test.go",
+        "renderer_test.go",
+    ],
+    # TestHelpExpressionsMatchesDocs compares the embedded copy with the doc.
+    data = ["//docs:expression_language.md"],
     embed = [":rendering"],
     deps = ["//web/viewmodel"],
 )
@@ -10,11 +15,17 @@ go_test(
 go_library(
     name = "rendering",
     srcs = [
+        "help.go",
+        "markdown.go",
         "renderer.go",
         "static.go",
     ],
     embedsrcs = [
+        "help/expressions.md",
+        "help/filtering.md",
+        "help/grouping.md",
         "templates/entity.html",
+        "templates/help.html",
         "templates/landing.html",
         "templates/table.html",
         "static/table.css",

@@ -400,6 +400,10 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	if requestURL.Query().Get("entity") != "" {
 		return s.handleEntityRequest(ctx, w, requestURL, product, setHeader)
 	}
+	// ... and so does the embedded help page (help.go).
+	if requestURL.Query().Get("help") != "" {
+		return s.handleHelpRequest(w, setHeader)
+	}
 
 	timing := NewTimingCollectorWithClock(s.clock)
 

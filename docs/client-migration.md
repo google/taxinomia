@@ -468,3 +468,13 @@ mux.Handle("/feedback", handlers.FeedbackHandler(func(ctx context.Context, r han
 answers 204, or 400/405/500 with `{"error": "..."}` (shown to the user).
 Any endpoint that accepts the same JSON works too. A table URL ending in
 `#feedback` opens the form on load.
+
+## Embedded help page (2026-10)
+
+Nothing to do. Table pages link to a built-in help page ("Syntax" next to
+"Types", the "?" by the computed columns, and the help cards): the filter
+syntax, grouping and aggregates, and the expression language. It is served
+on the table route, `<table path>?help=syntax` (anchors `#filtering`,
+`#grouping`, `#expressions`), so your existing route handles it. The
+expression part is `docs/expression_language.md`, embedded; a test keeps
+the copy in `web/rendering/help/` identical to it.

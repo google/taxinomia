@@ -110,6 +110,7 @@
                 <div class="computed-columns-section">
                     <div class="pane-section-title computed-columns-header">
                         <span>Computed for this view {{if .ComputedColumns}}<span class="pane-count">{{len .ComputedColumns}}</span>{{end}}</span>
+                        <a href="?help=syntax#expressions" class="pane-syntax-link" title="Expression syntax for computed columns">?</a>
                         <button class="add-computed-btn" id="add-computed-btn" title="Add a column computed from an expression"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
                     </div>
                     {{if .ComputedColumns}}
@@ -219,6 +220,7 @@
                         <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(10)" title="Show 10 times more rows">10x</a>
                     </span>
                     <a href="javascript:void(0)" class="type-toggle-btn{{if .ShowColumnTypes}} active{{end}}" onclick="toggleColumnTypes()" title="{{if .ShowColumnTypes}}Hide{{else}}Show{{end}} column types">Types</a>
+                    <a href="?help=syntax" class="type-toggle-btn" title="Filter, grouping and expression syntax">Syntax</a>
                 </p>
                 {{else}}
                 <p>Showing all {{thousands .TotalRows}} rows
@@ -229,6 +231,7 @@
                         <a href="javascript:void(0)" class="limit-btn" onclick="changeLimit(10)" title="Show 10 times more rows">10x</a>
                     </span>
                     <a href="javascript:void(0)" class="type-toggle-btn{{if .ShowColumnTypes}} active{{end}}" onclick="toggleColumnTypes()" title="{{if .ShowColumnTypes}}Hide{{else}}Show{{end}} column types">Types</a>
+                    <a href="?help=syntax" class="type-toggle-btn" title="Filter, grouping and expression syntax">Syntax</a>
                 </p>
                 {{end}}
             </div>

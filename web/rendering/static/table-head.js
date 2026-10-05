@@ -982,6 +982,8 @@
              why: 'The table lists a screenful of rows; these list fewer or more. The rest are still counted.'},
             {sel: '.type-toggle-btn', label: 'Column types', area: 'view', show: 'click',
              why: 'Shows how each column is stored (text, number, date), which decides how it sorts and which aggregates it offers.'},
+            {sel: '.pagination-info a[href="?help=syntax"]', label: 'Syntax help', area: 'view', show: 'click', doc: '',
+             why: 'Opens the help page: the filter syntax, grouping and aggregates, and the expressions of computed columns.'},
             {sel: 'thead tr:first-child th[draggable] .th-content', label: 'Drag: sort priority', area: 'sort', inside: true, show: moveFirstColumnRight,
              why: 'Rows are always sorted by the columns, left to right. Drag a header left to make it sort first.'},
             {sel: 'thead .resize-handle', label: 'Drag to resize', area: 'columns',
@@ -1041,6 +1043,18 @@
         ];
 
         const textOf = v => typeof v === 'function' ? v() : v;
+
+        // Cards about filtering, grouping and sorting, and computed columns link
+        // to the matching part of the embedded help page (?help=syntax).
+        function helpDocFor(sel) {
+            if (/filter|multiselect|stats-cell/.test(sel)) return 'filtering';
+            if (/group|agg-|sort|th-content/.test(sel)) return 'grouping';
+            if (/formula|computed/.test(sel)) return 'expressions';
+            return '';
+        }
+        HELP_LABELS.forEach(function(item) {
+            if (item.doc === undefined) item.doc = helpDocFor(item.sel);
+        });
 
         // "Show me" for the sort-priority drag: the first column moves one
         // place right (what dragging it would do).
@@ -1210,6 +1224,13 @@
                     list.appendChild(li);
                 }
                 card.appendChild(list);
+            }
+            if (item.doc) {
+                const doc = document.createElement('a');
+                doc.className = 'help-card-doc';
+                doc.href = '?help=syntax#' + item.doc;
+                doc.textContent = 'Syntax and examples';
+                card.appendChild(doc);
             }
             const buttons = document.createElement('div');
             buttons.className = 'help-card-buttons';
