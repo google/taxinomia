@@ -600,3 +600,28 @@ func TestWithFilterPath(t *testing.T) {
 		t.Errorf("drill on the last level = %q, want the ungrouping drill %q", p, w)
 	}
 }
+
+// TestShowGroupedColumns: grouped columns missing from the column list
+// (defaults applied, or a hand-written URL) are added and lead in grouping
+// order after filtered-only columns; a list built by this package stays
+// as it is.
+func TestShowGroupedColumns(t *testing.T) {
+	u, _ := url.Parse("/table?table=t&grouped=region,zone,cluster")
+	q := NewQuery(u)
+	defaults := []string{"rack", "cluster", "position"}
+	q.Columns = defaults
+	q.ShowGroupedColumns()
+	if c := strings.Join(q.Columns, ","); c != "region,zone,cluster,rack,position" {
+		t.Errorf("columns = %s, want region,zone,cluster,rack,position", c)
+	}
+	if strings.Join(defaults, ",") != "rack,cluster,position" {
+		t.Errorf("the default list was modified in place: %v", defaults)
+	}
+
+	u, _ = url.Parse("/table?table=t&columns=region,zone,cluster,rack&filter:region=%22a%22&filter:zone=%22b%22&grouped=cluster")
+	q = NewQuery(u)
+	q.ShowGroupedColumns()
+	if c := strings.Join(q.Columns, ","); c != "region,zone,cluster,rack" {
+		t.Errorf("columns = %s, want the URL's order region,zone,cluster,rack", c)
+	}
+}

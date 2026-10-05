@@ -65,7 +65,7 @@
         <li class="pane-item">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=status%2Cregion%2Ccategory&amp;grouped=region&amp;limit=25&amp;table=orders" class="pane-toggle on" title="Remove Amount from the table">
+                <a href="/default/table?columns=region%2Cstatus%2Ccategory&amp;grouped=region&amp;limit=25&amp;table=orders" class="pane-toggle on" title="Remove Amount from the table">
                     <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
                     <span class="pane-name">Amount</span>
                     
@@ -78,7 +78,7 @@
         <li class="pane-item">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=status%2Cregion%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="pane-toggle on" title="Remove Category from the table (links to other tables)">
+                <a href="/default/table?columns=region%2Cstatus%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="pane-toggle on" title="Remove Category from the table (links to other tables)">
                     <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
                     <span class="pane-name">Category</span>
                     <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
@@ -90,7 +90,7 @@
     
         <li class="pane-item">
             <div class="pane-row">
-                <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;expanded=region&amp;grouped=region&amp;limit=25&amp;table=orders" class="pane-disclosure" title="Show the tables Region joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
+                <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;expanded=region&amp;grouped=region&amp;limit=25&amp;table=orders" class="pane-disclosure" title="Show the tables Region joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>
                 <a href="/default/table?columns=status%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="pane-toggle on" title="Remove Region from the table (links to other tables)">
                     <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
                     <span class="pane-name">Region</span>
@@ -158,20 +158,7 @@
                 
                 
                 
-                <th draggable="true" data-col-index="0" data-col-name="status" data-col-width="0"    class="">
-                    
-                    <span class="th-content">Status</span>
-                    <span class="th-internal-name">status</span>
-                    
-                    <a href="/default/table?columns=region%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="th-remove-btn" title="Remove column from view">×</a>
-                    <div class="resize-handle"></div>
-                </th>
-                
-                
-                
-                
-                
-                <th draggable="true" data-col-index="1" data-col-name="region" data-col-width="0"  data-is-grouped="true"  class="">
+                <th draggable="true" data-col-index="0" data-col-name="region" data-col-width="0"  data-is-grouped="true"  class="">
                     
                     <span class="th-content">Region</span>
                     <span class="th-internal-name">region</span>
@@ -184,12 +171,25 @@
                 
                 
                 
+                <th draggable="true" data-col-index="1" data-col-name="status" data-col-width="0"    class="">
+                    
+                    <span class="th-content">Status</span>
+                    <span class="th-internal-name">status</span>
+                    
+                    <a href="/default/table?columns=region%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="th-remove-btn" title="Remove column from view">×</a>
+                    <div class="resize-handle"></div>
+                </th>
+                
+                
+                
+                
+                
                 <th draggable="true" data-col-index="2" data-col-name="category" data-col-width="0"    class="">
                     
                     <span class="th-content">Category</span>
                     <span class="th-internal-name">category</span>
                     
-                    <a href="/default/table?columns=status%2Cregion%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="th-remove-btn" title="Remove column from view">×</a>
+                    <a href="/default/table?columns=region%2Cstatus%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="th-remove-btn" title="Remove column from view">×</a>
                     <div class="resize-handle"></div>
                 </th>
                 
@@ -202,7 +202,7 @@
                     <span class="th-content">Amount</span>
                     <span class="th-internal-name">amount</span>
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory&amp;grouped=region&amp;limit=25&amp;table=orders" class="th-remove-btn" title="Remove column from view">×</a>
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory&amp;grouped=region&amp;limit=25&amp;table=orders" class="th-remove-btn" title="Remove column from view">×</a>
                     <div class="resize-handle"></div>
                 </th>
                 
@@ -215,61 +215,20 @@
                         
                     
                         
-                    
-                        
-                <td class="grouping-cell">
-                    <div class="grouping-controls">
-                    
-                    
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-status&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
-                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
-                    </a>
-                    
-                    
-                    
-                    
-                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region%2Cstatus&amp;limit=25&amp;table=orders&amp;_anim=status" class="group-toggle-btn " title="Group by this column">
-                        
-                        <span class="group-label-full">GROUP</span><span class="group-label-short">G</span>
-                    </a>
-                    
-                    
-                    <span class="controls-separator"></span>
-                    
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn enabled" data-agg="count" title="Count">#</a>
-                    
-                    <a href="/default/table?agg%3Astatus=unique&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="unique" title="Unique Values">◇</a>
-                    
-                    <a href="/default/table?agg%3Astatus=min&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="min" title="Minimum">↓</a>
-                    
-                    <a href="/default/table?agg%3Astatus=max&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="max" title="Maximum">↑</a>
-                    
-                    
-                    </div>
-                </td>
-                        
-                    
-                
-                    
-                        
-                    
-                        
-                    
-                        
                 <td class="grouping-cell grouped-col">
                     <div class="grouping-controls">
                     
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-region&amp;table=orders" class="sort-toggle-btn" title="Groups sorted ascending by this column - click to flip; order between columns is left to right">
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-region&amp;table=orders" class="sort-toggle-btn" title="Groups sorted ascending by this column - click to flip; order between columns is left to right">
                         <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
                     
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;groupsort%3Aregion=%2B%3Arows&amp;limit=25&amp;table=orders" class="agg-sort-toggle-btn" title="Sort by grouped value - click to sort by aggregate"><svg class="icon" aria-hidden="true"><use href="#i-cycle"></use></svg></a>
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;groupsort%3Aregion=%2B%3Arows&amp;limit=25&amp;table=orders" class="agg-sort-toggle-btn" title="Sort by grouped value - click to sort by aggregate"><svg class="icon" aria-hidden="true"><use href="#i-cycle"></use></svg></a>
                     
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=25&amp;table=orders" class="group-toggle-btn grouped" title="Grouping level 1 — click to ungroup, drag to reorder">
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;limit=25&amp;table=orders" class="group-toggle-btn grouped" title="Grouping level 1 — click to ungroup, drag to reorder">
                         
                         <span class="group-label-full">UNGROUP</span><span class="group-label-short">U</span>
                     </a>
@@ -286,11 +245,52 @@
                         
                     
                         
+                    
+                        
+                    
+                        
                 <td class="grouping-cell">
                     <div class="grouping-controls">
                     
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-category&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-status&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
+                        <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
+                    </a>
+                    
+                    
+                    
+                    
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region%2Cstatus&amp;limit=25&amp;table=orders&amp;_anim=status" class="group-toggle-btn " title="Group by this column">
+                        
+                        <span class="group-label-full">GROUP</span><span class="group-label-short">G</span>
+                    </a>
+                    
+                    
+                    <span class="controls-separator"></span>
+                    
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn enabled" data-agg="count" title="Count">#</a>
+                    
+                    <a href="/default/table?agg%3Astatus=unique&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="unique" title="Unique Values">◇</a>
+                    
+                    <a href="/default/table?agg%3Astatus=min&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="min" title="Minimum">↓</a>
+                    
+                    <a href="/default/table?agg%3Astatus=max&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="max" title="Maximum">↑</a>
+                    
+                    
+                    </div>
+                </td>
+                        
+                    
+                
+                    
+                        
+                    
+                        
+                <td class="grouping-cell">
+                    <div class="grouping-controls">
+                    
+                    
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-category&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
                         <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
@@ -305,13 +305,13 @@
                     
                     <span class="controls-separator"></span>
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn enabled" data-agg="count" title="Count">#</a>
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn enabled" data-agg="count" title="Count">#</a>
                     
-                    <a href="/default/table?agg%3Acategory=unique&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="unique" title="Unique Values">◇</a>
+                    <a href="/default/table?agg%3Acategory=unique&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="unique" title="Unique Values">◇</a>
                     
-                    <a href="/default/table?agg%3Acategory=min&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="min" title="Minimum">↓</a>
+                    <a href="/default/table?agg%3Acategory=min&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="min" title="Minimum">↓</a>
                     
-                    <a href="/default/table?agg%3Acategory=max&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="max" title="Maximum">↑</a>
+                    <a href="/default/table?agg%3Acategory=max&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="max" title="Maximum">↑</a>
                     
                     
                     </div>
@@ -329,7 +329,7 @@
                     <div class="grouping-controls">
                     
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-amount&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;sort=-amount&amp;table=orders" class="sort-toggle-btn" title="Rows sorted ascending by this column - click to flip; order between columns is left to right">
                         <svg class="icon" aria-hidden="true"><use href="#i-up"></use></svg>
                     </a>
                     
@@ -344,17 +344,17 @@
                     
                     <span class="controls-separator"></span>
                     
-                    <a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn enabled" data-agg="count" title="Count">#</a>
+                    <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn enabled" data-agg="count" title="Count">#</a>
                     
-                    <a href="/default/table?agg%3Aamount=sum&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="sum" title="Sum">Σ</a>
+                    <a href="/default/table?agg%3Aamount=sum&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="sum" title="Sum">Σ</a>
                     
-                    <a href="/default/table?agg%3Aamount=avg&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="avg" title="Average">μ</a>
+                    <a href="/default/table?agg%3Aamount=avg&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="avg" title="Average">μ</a>
                     
-                    <a href="/default/table?agg%3Aamount=stddev&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="stddev" title="Standard Deviation">σ</a>
+                    <a href="/default/table?agg%3Aamount=stddev&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="stddev" title="Standard Deviation">σ</a>
                     
-                    <a href="/default/table?agg%3Aamount=min&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="min" title="Minimum">↓</a>
+                    <a href="/default/table?agg%3Aamount=min&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="min" title="Minimum">↓</a>
                     
-                    <a href="/default/table?agg%3Aamount=max&amp;columns=status%2Cregion%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="max" title="Maximum">↑</a>
+                    <a href="/default/table?agg%3Aamount=max&amp;columns=region%2Cstatus%2Ccategory%2Camount&amp;grouped=region&amp;limit=25&amp;table=orders" class="agg-toggle-btn" data-agg="max" title="Maximum">↑</a>
                     
                     
                     </div>
@@ -421,9 +421,9 @@
                         
                     
                         
-                    
+                <td class="stats-cell" title="groups / filtered rows / total rows">5 / 31</td>
                         
-                <td class="stats-cell" title="filtered rows / total rows">31</td>
+                    
                         
                     
                 
@@ -433,9 +433,9 @@
                         
                     
                         
-                <td class="stats-cell" title="groups / filtered rows / total rows">5 / 31</td>
-                        
                     
+                        
+                <td class="stats-cell" title="filtered rows / total rows">31</td>
                         
                     
                 
@@ -472,13 +472,13 @@
                     <div class="filter-container">
                         <input type="text"
                                class="filter-input"
-                               data-column="status"
+                               data-column="region"
                                placeholder="Filter..."
                                value=""
                                title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
 Use &quot;quotes&quot; for exact match">
-                        <button type="button" class="filter-clear" data-column="status" title="Clear filter">×</button>
-                        
+                        <button type="button" class="filter-clear" data-column="region" title="Clear filter">×</button>
+                        <button type="button" class="multiselect-toggle" data-column="region" title="Multi-select filter mode"><svg class="icon" aria-hidden="true"><use href="#i-check-square"></use></svg></button>
                     </div>
                 </td>
                 
@@ -488,13 +488,13 @@ Use &quot;quotes&quot; for exact match">
                     <div class="filter-container">
                         <input type="text"
                                class="filter-input"
-                               data-column="region"
+                               data-column="status"
                                placeholder="Filter..."
                                value=""
                                title="Enter: apply filter | Esc: clear filter | Tab/Click away: apply if changed
 Use &quot;quotes&quot; for exact match">
-                        <button type="button" class="filter-clear" data-column="region" title="Clear filter">×</button>
-                        <button type="button" class="multiselect-toggle" data-column="region" title="Multi-select filter mode"><svg class="icon" aria-hidden="true"><use href="#i-check-square"></use></svg></button>
+                        <button type="button" class="filter-clear" data-column="status" title="Clear filter">×</button>
+                        
                     </div>
                 </td>
                 
@@ -540,7 +540,7 @@ Use &quot;quotes&quot; for exact match">
                     
                         
                             <td title="[rows]" data-column="region" class="group-cell">
-                                <a href="/default/table?entity=region&amp;value=East" class="entity-link">East</a> [6] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22East%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;gexp=East&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="East">
+                                <a href="/default/table?entity=region&amp;value=East" class="entity-link">East</a> [6] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22East%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;gexp=East&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="East">
                                 
                             </td>
                         
@@ -578,7 +578,7 @@ Use &quot;quotes&quot; for exact match">
                     
                         
                             <td title="[rows]" data-column="region" class="group-cell">
-                                <a href="/default/table?entity=region&amp;value=International" class="entity-link">International</a> [1] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22International%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;gexp=International&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="International">
+                                <a href="/default/table?entity=region&amp;value=International" class="entity-link">International</a> [1] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22International%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;gexp=International&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="International">
                                 
                             </td>
                         
@@ -616,7 +616,7 @@ Use &quot;quotes&quot; for exact match">
                     
                         
                             <td title="[rows]" data-column="region" class="group-cell">
-                                <a href="/default/table?entity=region&amp;value=North" class="entity-link">North</a> [9] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22North%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;gexp=North&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="North">
+                                <a href="/default/table?entity=region&amp;value=North" class="entity-link">North</a> [9] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22North%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;gexp=North&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="North">
                                 
                             </td>
                         
@@ -654,7 +654,7 @@ Use &quot;quotes&quot; for exact match">
                     
                         
                             <td title="[rows]" data-column="region" class="group-cell">
-                                <a href="/default/table?entity=region&amp;value=South" class="entity-link">South</a> [8] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22South%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;gexp=South&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="South">
+                                <a href="/default/table?entity=region&amp;value=South" class="entity-link">South</a> [8] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22South%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;gexp=South&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="South">
                                 
                             </td>
                         
@@ -692,7 +692,7 @@ Use &quot;quotes&quot; for exact match">
                     
                         
                             <td title="[rows]" data-column="region" class="group-cell">
-                                <a href="/default/table?entity=region&amp;value=West" class="entity-link">West</a> [7] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22West%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;gexp=West&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="West">
+                                <a href="/default/table?entity=region&amp;value=West" class="entity-link">West</a> [7] <a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;filter%3Aregion=%22West%22&amp;limit=25&amp;table=orders" class="filter-link" title="Filter to this value">F</a><a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;gexp=West&amp;grouped=region&amp;limit=25&amp;table=orders" class="group-expand" title="Expand"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></a><input type="checkbox" class="multiselect-checkbox" data-column="region" data-value="West">
                                 
                             </td>
                         
@@ -817,14 +817,14 @@ Use &quot;quotes&quot; for exact match">
                             
                             <li class="perf-timing-item sub">
                                 <span class="perf-operation">partition by region: 5 groups</span>
-                                <span class="perf-settings"><a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=25&amp;table=orders" class="perf-setting" title="ungroup region">grouped by region ×</a></span>
+                                <span class="perf-settings"><a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;limit=25&amp;table=orders" class="perf-setting" title="ungroup region">grouped by region ×</a></span>
                                 <span class="perf-volume">VOLUME</span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>
                             
                             <li class="perf-timing-item sub">
                                 <span class="perf-operation">sort level 0 by value, keep top 25</span>
-                                <span class="perf-settings"><a href="/default/table?columns=status%2Cregion%2Ccategory%2Camount&amp;limit=25&amp;table=orders" class="perf-setting" title="ungroup region">grouped by region ×</a></span>
+                                <span class="perf-settings"><a href="/default/table?columns=region%2Cstatus%2Ccategory%2Camount&amp;limit=25&amp;table=orders" class="perf-setting" title="ungroup region">grouped by region ×</a></span>
                                 <span class="perf-volume"></span>
                                 <span class="perf-duration">0.00ms</span>
                             </li>

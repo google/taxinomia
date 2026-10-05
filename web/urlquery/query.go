@@ -500,6 +500,34 @@ func (s *Query) ClearTableSpecificState() {
 	s.GroupConditions = make(map[string]string)
 }
 
+// ShowGroupedColumns makes the column list agree with the grouping: every
+// grouped column is listed, and the grouped columns lead in grouping
+// order after any filtered-only columns, as reorderColumns arranges them,
+// which is where grouped rows draw their cells. A URL that groups
+// by a column it does not list (no columns parameter, so the defaults
+// apply; or one edited by hand) otherwise rendered headers that did not
+// line up with the cells beneath them. Columns is replaced by a new slice,
+// never appended to in place.
+func (s *Query) ShowGroupedColumns() {
+	if len(s.GroupedColumns) == 0 {
+		return
+	}
+	listed := make(map[string]bool, len(s.Columns))
+	for _, c := range s.Columns {
+		listed[c] = true
+	}
+	var cols []string
+	for _, g := range s.GroupedColumns {
+		if !listed[g] {
+			cols = append(cols, g)
+		}
+	}
+	// A list built by this package is already in that order, so this only
+	// changes default or hand-written lists.
+	s.Columns = append(cols, s.Columns...)
+	s.reorderColumns()
+}
+
 // reorderColumns reorders the Columns slice to maintain:
 // 1. Filtered columns (leftmost) - only columns that are filtered but NOT grouped
 // 2. Grouped columns (middle) - in GroupedColumns order (the grouping hierarchy)

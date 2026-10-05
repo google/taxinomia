@@ -525,6 +525,8 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	if len(q.Columns) == 0 {
 		q.Columns = defaultColumns
 	}
+	// Grouped columns are always shown, leading in grouping order.
+	q.ShowGroupedColumns()
 
 	// Convert expanded paths to map for compatibility
 	expandedPaths := make(map[string]bool)
