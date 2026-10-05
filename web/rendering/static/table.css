@@ -1431,6 +1431,70 @@
             border-radius: 4px;
         }
 
+        /* Hierarchy strip above the table: one path per hierarchy; the parts of
+           the current grouping in the grouped-header blue. */
+        .hierarchy-strip {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 14px;
+            margin-top: 0.5rem;
+            padding: 0.4rem 1rem;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .hierarchy-strip-label {
+            color: #6c757d;
+        }
+
+        .hierarchy-path {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 2px;
+            padding: 2px 4px;
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            background-color: #fff;
+        }
+
+        .hierarchy-path.active {
+            border-color: #b9d4ea;
+        }
+
+        .hierarchy-path a {
+            padding: 1px 7px;
+            border-radius: 10px;
+            color: #2c5c86;
+            text-decoration: none;
+        }
+
+        .hierarchy-path a:hover {
+            background-color: #e8f1fa;
+        }
+
+        .hierarchy-path-name {
+            font-weight: bold;
+            margin-right: 2px;
+        }
+
+        .hierarchy-level.grouped {
+            background-color: #d9eaf8;
+        }
+
+        .hierarchy-path a.active {
+            background-color: #c6dff4;
+            color: #1d3f5e;
+            font-weight: bold;
+        }
+
+        .hierarchy-sep {
+            color: #adb5bd;
+        }
+
         .pagination-info p {
             margin: 0;
             color: #495057;

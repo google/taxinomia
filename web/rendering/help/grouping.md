@@ -15,6 +15,20 @@
 - **F** next to a group value keeps only that group's rows and ungroups
   the column (see Filtering).
 
+## Grouping by a hierarchy
+
+A hierarchy is a chain of levels, each containing the next, for example
+region › zone › cluster › rack. When the table has columns for at least two
+levels of one, the strip above the table offers it:
+
+- Click the hierarchy's name to group by every level, root first. Their
+  columns are shown, joined in from other tables where needed.
+- Click a level to group only down to that level.
+- The current grouping is highlighted; click it again to ungroup.
+
+The table's own level is not offered: on a table of racks, grouping by
+rack would give one row per group.
+
 
 ## Keeping only some groups
 

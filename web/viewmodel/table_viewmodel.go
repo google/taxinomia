@@ -87,6 +87,10 @@ type TableViewModel struct {
 	GroupConditions map[string]string
 	// GroupConditionErrors: grouped column -> why its condition was not applied.
 	GroupConditionErrors map[string]string
+	// HierarchyPaths: the hierarchies this table can be grouped by, shown
+	// above the table; each name and level is a link that groups by the
+	// path down to it.
+	HierarchyPaths []HierarchyPathView
 
 	// Stylesheet and script delivery (filled by the renderer; see Assets)
 	Assets Assets
@@ -1942,4 +1946,22 @@ func tableDefinesComputed(tableView *tables.TableView, name string) bool {
 		}
 	}
 	return false
+}
+
+// HierarchyPathView is one hierarchy in the strip above the table.
+type HierarchyPathView struct {
+	Name        string
+	Description string
+	URL         safehtml.URL // groups by every level; ungroups when Active
+	Active      bool         // the table is grouped by exactly the whole path
+	Levels      []HierarchyPathLevelView
+}
+
+// HierarchyPathLevelView is one level of a HierarchyPathView.
+type HierarchyPathLevelView struct {
+	Label   string
+	Column  string
+	URL     safehtml.URL // groups by the path down to this level; ungroups when Active
+	Active  bool         // the table is grouped by exactly the path down to here
+	Grouped bool         // this level is grouped at its place in the path
 }

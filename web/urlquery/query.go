@@ -870,6 +870,49 @@ func (s *Query) WithGroupedColumnToggled(column string) safehtml.URL {
 	return newState.ToSafeURLWithAnimation()
 }
 
+// WithGroupingReplaced returns a URL grouped by exactly levels, in that
+// order (a hierarchy's levels, root first; none ungroups everything). Each
+// level's column becomes visible, added to visible — the columns the view
+// shows now, which a URL without a columns parameter leaves implicit. A
+// group condition or group sort on a column that stays grouped is kept;
+// those of columns no longer grouped are dropped, and the expansion resets
+// (its paths are positional).
+func (s *Query) WithGroupingReplaced(levels []string, visible []string) safehtml.URL {
+	newState := s.Clone()
+	newState.GroupedColumns = append([]string(nil), levels...)
+	keep := make(map[string]bool, len(levels))
+	for _, l := range levels {
+		keep[l] = true
+	}
+	for col := range newState.GroupConditions {
+		if !keep[col] {
+			delete(newState.GroupConditions, col)
+		}
+	}
+	for col := range newState.GroupAggregateSorts {
+		if !keep[col] {
+			delete(newState.GroupAggregateSorts, col)
+		}
+	}
+	cols := append([]string(nil), visible...)
+	shown := make(map[string]bool, len(cols))
+	for _, c := range cols {
+		shown[c] = true
+	}
+	for _, l := range levels {
+		if !shown[l] {
+			cols = append(cols, l)
+			shown[l] = true
+		}
+	}
+	newState.Columns = cols
+	newState.AnimatedColumn = ""
+	newState.ExpandedGroups = nil
+	newState.HasExpandedGroups = false
+	newState.reorderColumns()
+	return newState.ToSafeURL()
+}
+
 // IsColumnGrouped checks if a column is in the grouped columns list
 func (s *Query) IsColumnGrouped(column string) bool {
 	for _, col := range s.GroupedColumns {

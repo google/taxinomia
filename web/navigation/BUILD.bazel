@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "navigation",
-    srcs = ["navigation.go"],
+    srcs = [
+        "hierarchy_paths.go",
+        "navigation.go",
+    ],
     importpath = "github.com/google/taxinomia/web/navigation",
     visibility = [
         "//core/query:__pkg__",
@@ -21,7 +24,10 @@ go_library(
 
 go_test(
     name = "navigation_test",
-    srcs = ["navigation_test.go"],
+    srcs = [
+        "hierarchy_paths_test.go",
+        "navigation_test.go",
+    ],
     embed = [":navigation"],
     deps = [
         "//core/engine",

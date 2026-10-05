@@ -741,6 +741,9 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	viewModel.JourneysJSON = s.journeysJSON(exec.Product)
 	viewModel.GroupConditions = exec.Query.GroupConditions
 	viewModel.GroupConditionErrors = exec.Validation.GroupConditionErrors
+	if s.navigator != nil {
+		viewModel.HierarchyPaths = hierarchyPathViews(s.navigator, exec.TableView, q, exec.View.Columns)
+	}
 
 	// Set animation state (transient, for newly grouped columns)
 	viewModel.AnimatedColumn = q.AnimatedColumn

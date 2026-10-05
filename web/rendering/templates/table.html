@@ -237,7 +237,19 @@
             </div>
             {{end}}
 
-            <table id="data-table" data-total-rows="{{.TotalRows}}" data-displayed-rows="{{.DisplayedRows}}" data-columns="{{range $i, $c := .PaneColumns}}{{if $i}},{{end}}{{$c.Name}}{{end}}">
+            {{if .HierarchyPaths}}{{/* Hierarchy strip: the hierarchies this table can be
+                 grouped by. The name groups by every level, a level by the path
+                 down to it; the current grouping's link ungroups. */}}
+            <div class="hierarchy-strip">
+                <span class="hierarchy-strip-label">Group by hierarchy</span>
+                {{range .HierarchyPaths}}
+                <span class="hierarchy-path{{if .Active}} active{{end}}">
+                    <a href="{{.URL}}" class="hierarchy-path-name{{if .Active}} active{{end}}" title="{{if .Description}}{{.Description}}. {{end}}{{if .Active}}Click to ungroup{{else}}Group by every level{{end}}">{{.Name}}</a>
+                    {{range $i, $l := .Levels}}{{if $i}}<span class="hierarchy-sep" aria-hidden="true">›</span>{{end}}<a href="{{$l.URL}}" class="hierarchy-level{{if $l.Active}} active{{end}}{{if $l.Grouped}} grouped{{end}}" title="{{if $l.Active}}Click to ungroup{{else}}Group by the levels down to {{$l.Label}}{{end}}">{{$l.Label}}</a>{{end}}
+                </span>
+                {{end}}
+            </div>
+            {{end}}<table id="data-table" data-total-rows="{{.TotalRows}}" data-displayed-rows="{{.DisplayedRows}}" data-columns="{{range $i, $c := .PaneColumns}}{{if $i}},{{end}}{{$c.Name}}{{end}}">
         <thead>
             <tr>
                 {{range $idx, $header := .Headers}}

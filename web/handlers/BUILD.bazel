@@ -6,6 +6,7 @@ go_library(
         "entity.go",
         "feedback.go",
         "help.go",
+        "hierarchy_paths.go",
         "journeys.go",
         "http.go",
         "server.go",
@@ -33,6 +34,7 @@ go_library(
         "//web/rendering",
         "//web/urlquery",
         "//web/viewmodel",
+        "@com_github_google_safehtml//:safehtml",
     ],
 )
 

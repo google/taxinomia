@@ -543,3 +543,35 @@ func TestGroupConditionsInURL(t *testing.T) {
 		t.Errorf("ungrouping region kept its condition")
 	}
 }
+
+func TestWithGroupingReplaced(t *testing.T) {
+	u, _ := url.Parse("/table?table=t&columns=status,amount&grouped=status,zone&having:status=" + url.QueryEscape("count() > 1") +
+		"&having:zone=" + url.QueryEscape("count() > 2") + "&groupsort:status=%2B:rows&gexp=a%2Fb")
+	q := NewQuery(u)
+	got, _ := url.Parse(q.WithGroupingReplaced([]string{"region", "zone"}, []string{"status", "amount"}).String())
+	r := NewQuery(got)
+	if g := strings.Join(r.GroupedColumns, ","); g != "region,zone" {
+		t.Errorf("grouped = %s, want region,zone", g)
+	}
+	// Grouped columns lead, in level order; the other shown columns stay.
+	if c := strings.Join(r.Columns, ","); c != "region,zone,status,amount" {
+		t.Errorf("columns = %s, want region,zone,status,amount", c)
+	}
+	if _, ok := r.GroupConditions["status"]; ok {
+		t.Errorf("condition of a column no longer grouped was kept")
+	}
+	if r.GroupConditions["zone"] != "count() > 2" {
+		t.Errorf("condition of a column still grouped was dropped: %v", r.GroupConditions)
+	}
+	if r.GetGroupAggSort("status") != nil {
+		t.Errorf("group sort of a column no longer grouped was kept")
+	}
+	if r.HasExpandedGroups {
+		t.Errorf("expansion paths kept across a new grouping")
+	}
+
+	none, _ := url.Parse(q.WithGroupingReplaced(nil, []string{"status", "amount"}).String())
+	if n := NewQuery(none); len(n.GroupedColumns) != 0 || len(n.GroupConditions) != 0 {
+		t.Errorf("ungroup left grouped=%v conditions=%v", n.GroupedColumns, n.GroupConditions)
+	}
+}

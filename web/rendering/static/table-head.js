@@ -1031,6 +1031,8 @@
                 : 'How many rows the filters keep, and how many rows the table has.'},
             {sel: '.filter-input', label: 'text, "exact", a|b', area: 'filter', show: typeExampleFilter,
              why: 'Type a word to find it anywhere in the value, "quoted" for an exact match, or a|b for any of several values. Enter applies it.'},
+            {sel: '.hierarchy-path-name', label: 'Group by hierarchy', area: 'group', show: 'click', doc: 'grouping',
+             why: 'Groups by every level of a hierarchy at once, root first, and shows their columns. Click a level to group only down to it; click the current grouping again to ungroup.'},
             {sel: '.having-input', label: 'Keep groups where', area: 'group', show: '', doc: 'grouping',
              why: 'Keeps only the groups whose aggregates satisfy a condition, e.g. count() > 10 or sum(amount) > 1000. The rows of the other groups leave the view.'},
             {sel: '.multiselect-toggle', label: 'Pick several values', area: 'filter', show: 'click',
