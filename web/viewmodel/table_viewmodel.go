@@ -1116,10 +1116,10 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	// Check if table is grouped and build grouped rows if needed
 	if tableView.IsGrouped() {
 		vm.IsGrouped = true
-		// Sort groups by aggregate values if specified
-		if len(q.GroupAggregateSorts) > 0 {
-			tableView.SortGroupsByAggregate(q.GroupAggregateSorts)
-		}
+		// Sort groups by aggregate values if specified. Called even with no
+		// sorts: the grouping may be reused from an earlier request whose
+		// sorts reordered it, and this restores the value order.
+		tableView.SortGroupsByAggregate(q.GroupAggregateSorts)
 		// Build grouped rows with limit - stops early and marks incomplete groups
 		groupResult := buildGroupedRows(tableView, view.Columns, q, q.Limit, vm.ColumnEntityTypes, urlResolver)
 		vm.GroupedRows = groupResult.Rows

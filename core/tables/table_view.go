@@ -103,14 +103,14 @@ type TableView struct {
 	firstBlock     *grouping.Block
 
 	// Filtering
-	filterSel   *columns.Selection // Cached filter selection bitmap (nil = no filter, all rows shown)
+	filterSel *columns.Selection // Cached filter selection bitmap (nil = no filter, all rows shown)
 	// filtersRecomputed reports whether the last ApplyFilters call scanned
 	// the table (false: filters unchanged, selection reused).
 	filtersRecomputed bool
 	// groupConds are applied after the row filters (SetGroupConditions,
 	// group_conditions.go); their signature is part of lastFilters.
-	groupConds []*GroupCondition
-	lastFilters map[string]string  // Filters that produced current selection (for change detection)
+	groupConds  []*GroupCondition
+	lastFilters map[string]string // Filters that produced current selection (for change detection)
 
 	// Grouping cache tracking
 	lastGroupingOrder   []string                // Grouping order when grouping was computed
@@ -122,6 +122,13 @@ type TableView struct {
 	lastAggNeeds        map[string]bool         // aggNeeds when grouping was computed
 	level0AggSort       *queryspec.GroupAggSort // In-build aggregate ranking of level-0 groups (nil = value order)
 	lastLevel0AggSort   *queryspec.GroupAggSort // level0AggSort when grouping was computed
+	// valueOrder holds, for each block SortGroupsByAggregate re-sorted, its
+	// groups in the order the build left them (value order, or the level-0
+	// in-build ranking). The tree is reused across calls while groupingEqual
+	// holds, so each call restores this order before sorting: without it a
+	// level whose aggregate sort was removed or changed kept the previous
+	// call's order. Reset whenever the tree is rebuilt.
+	valueOrder map[*grouping.Block][]*grouping.Group
 
 	// Grouping build timing (see grouping_steps.go)
 	clock         hrclock.Clock  // nil = hrclock.System()
@@ -559,6 +566,7 @@ func (t *TableView) GetGroupCount(col string) int {
 func (t *TableView) ClearGroupings() {
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
+	t.valueOrder = nil
 	t.groupingSteps = nil
 	// The block registry pins every block (and its groups) it references;
 	// without this reset each regrouping on a live view would keep the
@@ -674,6 +682,7 @@ func (t *TableView) groupTableEager(ctx context.Context, groupingOrder []string,
 	// not keep the previous block tree reachable)
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
+	t.valueOrder = nil
 	t.blocksByColumn = make(map[string][]*grouping.Block)
 
 	// Group directly from the cached filter selection; the bitmap is never
@@ -778,6 +787,7 @@ func topKNote(displayLimit int) string {
 func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, asc map[string]bool, displayLimit int, expansion GroupExpansion) error {
 	t.groupedColumns = make(map[string]*grouping.GroupedColumn)
 	t.firstBlock = nil
+	t.valueOrder = nil
 	t.blocksByColumn = make(map[string][]*grouping.Block)
 
 	t.groupingOrder = groupingOrder
@@ -2031,7 +2041,7 @@ func (tv *TableView) GetColumnTypeName(colName string) string {
 // This should be called after ComputeAggregates.
 // groupAggSorts maps grouped column names to their aggregate sort specification.
 func (tv *TableView) SortGroupsByAggregate(groupAggSorts map[string]*queryspec.GroupAggSort) {
-	if tv.firstBlock == nil || len(groupAggSorts) == 0 {
+	if tv.firstBlock == nil || (len(groupAggSorts) == 0 && len(tv.valueOrder) == 0) {
 		return
 	}
 
@@ -2054,10 +2064,23 @@ func (tv *TableView) sortBlockByAggregate(block *grouping.Block, groupAggSorts m
 		}
 	}
 
+	// Start from the order the build produced: an earlier call may have
+	// re-sorted this cached block by another aggregate, or by one that has
+	// since been removed.
+	if saved, ok := tv.valueOrder[block]; ok {
+		copy(block.Groups, saved)
+	}
+
 	// Check if this grouped column has an aggregate sort
 	if aggSort, ok := groupAggSorts[groupedColName]; ok && aggSort != nil {
-		// Sort groups based on sort type
-		sort.Slice(block.Groups, func(i, j int) bool {
+		if _, ok := tv.valueOrder[block]; !ok {
+			if tv.valueOrder == nil {
+				tv.valueOrder = make(map[*grouping.Block][]*grouping.Group)
+			}
+			tv.valueOrder[block] = append([]*grouping.Group(nil), block.Groups...)
+		}
+		// Sort groups based on sort type; ties keep the build order
+		sort.SliceStable(block.Groups, func(i, j int) bool {
 			var cmp int
 
 			switch aggSort.AggType {

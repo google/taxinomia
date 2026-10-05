@@ -77,7 +77,8 @@ counted: `failed 2` next to them means two rows were left out.
 - To change which column sorts first, drag its header left or right.
 - Groups are sorted by their value. The **⟳** button of a grouped column
   sorts its groups by a number instead: each click steps to the next
-  choice, rows per group, subgroups per group, then every aggregate
+  choice, rows per group, subgroups per group (except on the last grouped
+  column, which has none), then every aggregate
   switched on in the other columns. The number in use is shown in bold
   (an aggregate also in blue); the ▲/▼ button then flips between
   smallest and largest first. Keep clicking ⟳ to sort by value again.

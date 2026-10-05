@@ -1087,7 +1087,11 @@ func (s *Query) WithNextGroupAggSort(groupedColumn string, leafColumns []string,
 
 	// Add group-level sort options first (these use empty leafCol)
 	options = append(options, sortOption{"", AggRowCount})
-	options = append(options, sortOption{"", AggSubgroupCount})
+	// Subgroup count only where there are subgroups: the deepest grouped
+	// column has none, so that step would sort nothing.
+	if n := len(s.GroupedColumns); n == 0 || s.GroupedColumns[n-1] != groupedColumn {
+		options = append(options, sortOption{"", AggSubgroupCount})
+	}
 
 	// Add leaf column aggregate options
 	// Skip count aggregates since they are not displayed in the UI

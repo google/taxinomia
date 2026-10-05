@@ -29,6 +29,8 @@ go_library(
 go_test(
     name = "tables_test",
     srcs = [
+        "agg_sort_limit_test.go",
+        "agg_sort_reuse_test.go",
         "ascii_demo_test.go",
         "ascii_test.go",
         "benchmark_test.go",
