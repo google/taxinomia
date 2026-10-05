@@ -4,6 +4,11 @@ Every column has a filter box under its header. Type in it and press
 Enter to apply; Esc, or the × next to it, clears it. Filters on several
 columns combine: a row is kept only when it matches all of them.
 
+While you type, the **Syntax** button beside the box (or F1) opens this
+help under the row, with a line saying what your filter will do. A
+computed column's formula has the same button: it shows the expression
+syntax and the table's columns, which insert their name when clicked.
+
 ## What you can type
 
 | You type | Keeps the rows whose value |

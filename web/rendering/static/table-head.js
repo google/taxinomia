@@ -266,6 +266,7 @@
             focusNewComputedColumn();
             scheduleAnimCleanup();
             showHelpNoteIfAny();
+            restoreSyntaxPanel();
             hideWaiting();
             if (fragmentState.navtest) {
                 document.documentElement.setAttribute('data-navtest', 'swapped');
@@ -880,6 +881,7 @@
             focusNewComputedColumn();
             scheduleAnimCleanup();
             showHelpNoteIfAny();
+            restoreSyntaxPanel();
             // Self-test hook (see the file comment). Only a table page of this
             // route qualifies: the hash must never be able to send the
             // browser elsewhere.
@@ -894,6 +896,12 @@
             // "#help" opens the control labels on load (a link docs can give).
             if (window.location.hash === "#help") {
                 setTimeout(showHelp, 0);
+            } else if (window.location.hash.startsWith("#syntax=")) {
+                // ... and "#syntax=<filtering|expressions>:<column>" opens the syntax panel.
+                const [kind, column] = decodeURIComponent(window.location.hash.substring(8)).split(":");
+                const sel = (kind === "expressions" ? ".formula-input" : ".filter-input") + '[data-column="' + CSS.escape(column || "") + '"]';
+                const field = document.querySelector(sel);
+                if (field) setTimeout(() => { field.focus(); openSyntaxPanel(field); }, 0);
             } else if (window.location.hash === "#feedback") {
                 // ... and "#feedback" opens the feedback form (when enabled).
                 const fb = document.querySelector(".feedback-open[data-feedback-url]");
@@ -1421,4 +1429,200 @@
         });
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && document.getElementById('feedback-overlay')) closeFeedback();
+        });
+
+        // --- Syntax panel: the detailed syntax while typing -------------------
+        // Focusing a filter box or a computed column's formula shows a small
+        // "Syntax" button beside it. The button opens a wide panel under that
+        // row with the matching part of the help page (fetched once from
+        // ?help=syntax, so the text has one source): for a filter, a line
+        // saying what the filter will do as you type; for a formula, the
+        // table's columns as chips that insert their name. Typing goes on in
+        // the field. The panel stays open across the page changes a filter
+        // makes, until closed with its ×.
+        const syntaxCache = {};
+        const SYNTAX_KEY = 'taxinomia-syntax-panel';
+
+        function syntaxKind(input) {
+            if (input.matches('.filter-input')) return 'filtering';
+            if (input.matches('.formula-input')) return 'expressions';
+            return '';
+        }
+
+        function showSyntaxButton(input) {
+            if (!syntaxKind(input) || input.parentElement.querySelector('.syntax-btn')) return;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'syntax-btn';
+            btn.textContent = 'Syntax';
+            btn.title = 'Show the syntax under this row';
+            // Keep the focus in the field: leaving a filter box applies it.
+            btn.addEventListener('mousedown', e => e.preventDefault());
+            btn.addEventListener('click', () => openSyntaxPanel(input));
+            input.insertAdjacentElement('afterend', btn);
+        }
+
+        function hideSyntaxButton(input) {
+            const btn = input.parentElement && input.parentElement.querySelector('.syntax-btn');
+            if (btn) btn.remove();
+        }
+
+        // What a filter box value will do (the rules of ApplyFilters).
+        function describeFilter(v) {
+            v = v.trim();
+            if (!v) return 'Type a word, "an exact value", or several|values.';
+            if (v.indexOf('|') !== -1) {
+                const values = v.split('|').map(s => s.trim()).filter(Boolean);
+                return 'Keeps rows whose value is exactly one of: ' + values.join(', ') + '.';
+            }
+            if (v.length >= 2 && v[0] === '"' && v[v.length - 1] === '"') {
+                return 'Keeps rows whose value is exactly ' + v.slice(1, -1) + ' (upper and lower case count).';
+            }
+            if (v.toLowerCase() === '[error]') return 'Keeps the rows whose value could not be computed.';
+            if (v.toLowerCase() === '[unmatched]') return 'Keeps the rows without a match in the joined table.';
+            return 'Keeps rows whose value contains "' + v + '", in any case.';
+        }
+
+        function loadSyntaxSection(kind) {
+            if (syntaxCache[kind]) return Promise.resolve(syntaxCache[kind]);
+            const url = currentUrl();
+            url.search = '?help=syntax';
+            url.hash = '';
+            return fetch(url.toString(), {credentials: 'same-origin'})
+                .then(r => r.text())
+                .then(function(html) {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const section = doc.getElementById(kind);
+                    syntaxCache[kind] = section ? section.innerHTML : '';
+                    return syntaxCache[kind];
+                });
+        }
+
+        function closeSyntaxPanel(forget) {
+            document.querySelectorAll('tr.syntax-panel-row').forEach(r => r.remove());
+            if (forget) {
+                try { sessionStorage.removeItem(SYNTAX_KEY); } catch (e) {}
+            }
+        }
+
+        function openSyntaxPanel(input) {
+            const kind = syntaxKind(input);
+            if (!kind) return;
+            closeSyntaxPanel(false);
+            try { sessionStorage.setItem(SYNTAX_KEY, JSON.stringify({kind: kind, column: input.dataset.column, table: currentUrl().searchParams.get('table')})); } catch (e) {}
+            const row = input.closest('tr');
+            const cols = row.children.length;
+            const tr = document.createElement('tr');
+            tr.className = 'syntax-panel-row';
+            const td = document.createElement('td');
+            td.colSpan = cols;
+            td.className = 'syntax-panel-cell';
+            const panel = document.createElement('div');
+            panel.className = 'syntax-panel';
+            const head = document.createElement('div');
+            head.className = 'syntax-panel-head';
+            const title = document.createElement('strong');
+            title.textContent = kind === 'filtering' ? 'Filter syntax' : 'Expression syntax';
+            head.appendChild(title);
+            const full = document.createElement('a');
+            full.href = '?help=syntax#' + kind;
+            full.textContent = 'Open the full help page';
+            head.appendChild(full);
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'syntax-panel-close';
+            close.title = 'Close';
+            close.textContent = '×';
+            close.addEventListener('mousedown', e => e.preventDefault());
+            close.addEventListener('click', () => closeSyntaxPanel(true));
+            head.appendChild(close);
+            panel.appendChild(head);
+
+            if (kind === 'filtering') {
+                const readout = document.createElement('div');
+                readout.className = 'syntax-readout';
+                const update = () => { readout.textContent = describeFilter(input.value); };
+                update();
+                input.addEventListener('input', update);
+                panel.appendChild(readout);
+            } else {
+                const table = document.getElementById('data-table');
+                const names = ((table && table.dataset.columns) || '').split(',')
+                    .filter(n => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n));
+                if (names.length) {
+                    const chips = document.createElement('div');
+                    chips.className = 'syntax-chips';
+                    const label = document.createElement('span');
+                    label.textContent = 'Columns: ';
+                    chips.appendChild(label);
+                    for (const name of names) {
+                        const chip = document.createElement('button');
+                        chip.type = 'button';
+                        chip.className = 'syntax-chip';
+                        chip.textContent = name;
+                        chip.title = 'Insert ' + name + ' at the cursor';
+                        chip.addEventListener('mousedown', e => e.preventDefault());
+                        chip.addEventListener('click', function() {
+                            const start = input.selectionStart != null ? input.selectionStart : input.value.length;
+                            const end = input.selectionEnd != null ? input.selectionEnd : start;
+                            input.value = input.value.slice(0, start) + name + input.value.slice(end);
+                            input.focus();
+                            input.setSelectionRange(start + name.length, start + name.length);
+                            input.dispatchEvent(new Event('input', {bubbles: true}));
+                        });
+                        chips.appendChild(chip);
+                    }
+                    panel.appendChild(chips);
+                }
+            }
+
+            const body = document.createElement('div');
+            body.className = 'syntax-panel-body help-section';
+            body.textContent = 'Loading...';
+            panel.appendChild(body);
+            td.appendChild(panel);
+            tr.appendChild(td);
+            row.insertAdjacentElement('afterend', tr);
+            loadSyntaxSection(kind).then(function(html) {
+                body.innerHTML = html || 'The help page could not be loaded.';
+            }).catch(function() {
+                body.textContent = 'The help page could not be loaded.';
+            });
+            input.focus();
+        }
+
+        // Reopen the panel after a page change (a filter applied while it
+        // was open), on the same column's field.
+        function restoreSyntaxPanel() {
+            let saved = null;
+            try { saved = JSON.parse(sessionStorage.getItem(SYNTAX_KEY) || 'null'); } catch (e) {}
+            if (!saved) return;
+            if (saved.table !== currentUrl().searchParams.get('table')) { closeSyntaxPanel(true); return; }
+            const sel = (saved.kind === 'filtering' ? '.filter-input' : '.formula-input') + '[data-column="' + CSS.escape(saved.column || '') + '"]';
+            const input = document.querySelector(sel);
+            if (input) {
+                showSyntaxButton(input);
+                openSyntaxPanel(input);
+            } else {
+                closeSyntaxPanel(true);
+            }
+        }
+
+        document.addEventListener('focusin', function(e) {
+            const t = e.target;
+            if (t && t.matches && syntaxKind(t)) showSyntaxButton(t);
+        });
+        document.addEventListener('focusout', function(e) {
+            const t = e.target;
+            if (!t || !t.matches || !syntaxKind(t)) return;
+            // Keep the button while this field's panel is open.
+            const panelOpen = !!document.querySelector('tr.syntax-panel-row');
+            if (!panelOpen) setTimeout(() => { if (document.activeElement !== t) hideSyntaxButton(t); }, 150);
+        });
+        document.addEventListener('keydown', function(e) {
+            const t = e.target;
+            if (e.key === 'F1' && t && t.matches && syntaxKind(t)) {
+                e.preventDefault();
+                openSyntaxPanel(t);
+            }
         });

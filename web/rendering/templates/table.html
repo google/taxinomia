@@ -237,7 +237,7 @@
             </div>
             {{end}}
 
-            <table id="data-table" data-total-rows="{{.TotalRows}}" data-displayed-rows="{{.DisplayedRows}}">
+            <table id="data-table" data-total-rows="{{.TotalRows}}" data-displayed-rows="{{.DisplayedRows}}" data-columns="{{range $i, $c := .PaneColumns}}{{if $i}},{{end}}{{$c.Name}}{{end}}">
         <thead>
             <tr>
                 {{range $idx, $header := .Headers}}

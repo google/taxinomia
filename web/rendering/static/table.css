@@ -2555,3 +2555,139 @@
         .help-section table { border-collapse: collapse; margin: 8px 0; width: auto; }
         .help-section th, .help-section td { border: 1px solid #e3e6ea; padding: 4px 8px; text-align: left; vertical-align: top; background: none; font-size: 13px; }
         .help-section th { background-color: #f6f8fa; font-weight: bold; }
+
+        /* Syntax button beside a focused filter box or formula, and the
+           panel it opens under that row. */
+        .syntax-btn {
+            flex: 0 0 auto;
+            margin-left: 2px;
+            padding: 2px 6px;
+            border: 1px solid #2980b9;
+            border-radius: 3px;
+            background-color: #fff;
+            color: #2980b9;
+            font: bold 10px Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .formula-cell .syntax-btn {
+            margin-top: 3px;
+        }
+
+        .syntax-btn:hover {
+            background-color: #eaf3fa;
+        }
+
+        tr.syntax-panel-row td.syntax-panel-cell {
+            padding: 0 !important;
+            background-color: #fff;
+            text-align: left;
+        }
+
+        .syntax-panel {
+            max-height: 50vh;
+            overflow-y: auto;
+            padding: 10px 16px 14px;
+            border-top: 2px solid #2980b9;
+            border-bottom: 1px solid #dde1e6;
+            background-color: #fff;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .syntax-panel-head {
+            position: sticky;
+            top: -10px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 4px 0 6px;
+            background-color: #fff;
+        }
+
+        .syntax-panel-head a {
+            color: #2980b9;
+            font-size: 12px;
+        }
+
+        .syntax-panel-close {
+            margin-left: auto;
+            border: none;
+            background: none;
+            font-size: 18px;
+            line-height: 1;
+            color: #888;
+            cursor: pointer;
+        }
+
+        .syntax-panel-close:hover {
+            color: #222;
+        }
+
+        .syntax-readout {
+            margin: 2px 0 8px;
+            padding: 6px 10px;
+            border-radius: 4px;
+            background-color: #fbf3d5;
+            color: #5a4400;
+            font-size: 13px;
+        }
+
+        .syntax-chips {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            margin: 2px 0 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .syntax-chip {
+            padding: 2px 7px;
+            border: 1px solid #c9ced5;
+            border-radius: 10px;
+            background-color: #f7f8fa;
+            font: 12px Consolas, 'Cascadia Code', monospace;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .syntax-chip:hover {
+            border-color: #2980b9;
+            color: #2980b9;
+        }
+
+        .syntax-panel-body h1 {
+            display: none; /* the panel head names the part already */
+        }
+
+        /* Panel text wraps (table cells do not), and a formula field fills
+           its cell, so its Syntax button sits over the field's right end. */
+        .syntax-panel,
+        .syntax-panel * {
+            white-space: normal;
+        }
+
+        .syntax-panel pre,
+        .syntax-panel pre * {
+            white-space: pre;
+        }
+
+        .formula-cell {
+            position: relative;
+        }
+
+        .formula-cell .syntax-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            margin: 0;
+        }
+
+        .computed-columns-header > span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
