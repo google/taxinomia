@@ -135,7 +135,7 @@ func TestGoldenDemoPages(t *testing.T) {
 		// listed in the pane with fx, header fx with the expression, read-only
 		// formula; net_total refers to line_total (declaration order).
 		{"customer_orders_computed", "/default/table?table=customer_orders&columns=order_id%2Cquantity%2Cunit_price%2Cdiscount_percent%2Cline_total%2Cnet_total&limit=25"},
-		// Single-entity page (on the table route), on fixed data (the google
+		// Single-entity page (on the table route), on fixed data (the google_* demo
 		// tables are generated randomly): the order's row with
 		// entity links, the rows-with-this-value note, every referring table, the
 		// external links of its type.

@@ -7,6 +7,6 @@ package buildinfo
 // importers of the library display; the link-time stamp (when present)
 // overrides it and adds the commit hash and dirty flag.
 const (
-	sourceRevision = "216"
+	sourceRevision = "217"
 	sourceDate     = "2026-10-05"
 )
