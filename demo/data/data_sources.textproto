@@ -208,3 +208,52 @@ entity_types {
   description: "Resource allocation"
   urls { name: "Allocation Details"    template: "https://borg.corp.example.com/allocs/{value}" is_default: true }
 }
+
+# Guided journeys (product authors write these; "? Help" lists them).
+journeys {
+  name: "busiest-cluster"
+  title: "Which cluster has the most CPU?"
+  description: "Group machines by cluster, total their cores and sort the clusters."
+  steps {
+    caption: "Each row is one machine. Clusters group machines; let's compare them by cluster."
+    link: "table=google_machines&columns=cluster,machine,cpu_cores,status&limit=25"
+    target: "column:cluster"
+  }
+  steps {
+    caption: "Grouped by cluster: one row per cluster, with how many machines it has in brackets."
+    link: "table=google_machines&columns=cluster,machine,cpu_cores,status&grouped=cluster&limit=25"
+    target: "group:cluster"
+  }
+  steps {
+    caption: "Σ is switched on for CPU Cores: each cluster now shows its total cores."
+    link: "table=google_machines&columns=cluster,machine,cpu_cores,status&grouped=cluster&agg:cpu_cores=sum&limit=25"
+    target: "aggregate:cpu_cores:sum"
+  }
+  steps {
+    caption: "Sorted by that total, biggest first, with the ⟳ button and the arrow beside it. The top row is the busiest cluster; click its name to open its page."
+    link: "table=google_machines&columns=cluster,machine,cpu_cores,status&grouped=cluster&agg:cpu_cores=sum&groupsort:cluster=-cpu_cores:sum&limit=25"
+    target: "groupsort:cluster"
+  }
+}
+
+journeys {
+  name: "order-value"
+  title: "What is each order worth?"
+  description: "Use the computed line totals and add them up per order."
+  products: "default"
+  steps {
+    caption: "Line Total is computed from quantity × unit price (the fx mark); nothing is stored."
+    link: "table=customer_orders&columns=order_id,product_name,quantity,unit_price,line_total&limit=25"
+    target: "column:line_total"
+  }
+  steps {
+    caption: "Grouped by order with Σ on Line Total: each order's value."
+    link: "table=customer_orders&columns=order_id,product_name,quantity,unit_price,line_total&grouped=order_id&agg:line_total=sum&limit=25"
+    target: "aggregate:line_total:sum"
+  }
+  steps {
+    caption: "A filter keeps the orders with a laptop: type part of a name, Enter applies it."
+    link: "table=customer_orders&columns=order_id,product_name,quantity,unit_price,line_total&grouped=order_id&agg:line_total=sum&filter:product_name=lap&limit=25"
+    target: "filter:product_name"
+  }
+}

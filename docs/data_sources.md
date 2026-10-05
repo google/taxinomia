@@ -480,6 +480,36 @@ Entity types enable joining tables from different sources. For example:
 
 All three tables can be joined on `customer_id` because they share the same entity type, even though they come from different sources (protobuf, CSV, and database).
 
+
+### Journeys
+
+A **journey** is a guided walk through the data, written by the people
+who define the product. Each step opens a view and points at one control
+with a caption; users start journeys from "? Help" (or a link ending in
+`#journey=<name>`) and move with Back / Next.
+
+```textproto
+journeys {
+  name: "busiest-cluster"
+  title: "Which cluster has the most CPU?"
+  description: "Group machines by cluster, total their cores and sort the clusters."
+  products: "default"   # optional; empty = every product
+  steps {
+    caption: "Grouped by cluster: one row per cluster, with its machine count."
+    link: "table=google_machines&columns=cluster,machine,cpu_cores&grouped=cluster"
+    target: "group:cluster"
+  }
+}
+```
+
+- `link` is the query of a table page URL: anything the page can show.
+- `target` names the control: `column:<col>`, `group:<col>`,
+  `sort:<col>`, `filter:<col>`, `aggregate:<col>:<type>` (sum, avg, ...),
+  `groupsort:<col>`, `pane`, `help`; it may be empty.
+- Journeys are checked when the server gets the catalog: one whose step
+  opens a table that does not exist, or names a column that view does
+  not have, is not offered and the reason is logged, so a schema change
+  never leaves a journey pointing at nothing.
 ### Entity pages
 
 An **entity** is an entity type that is some table's primary key

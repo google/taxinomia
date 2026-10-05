@@ -72,8 +72,9 @@ type Server struct {
 	renderer       *rendering.TableRenderer
 	tableViewCache map[string]*tables.TableView
 	userStore      users.UserStore
-	clock          hrclock.Clock // times the request phases of the perf breakdown (SetClock)
-	feedbackURL    string        // where the feedback form posts reports; "" hides the button (SetFeedbackURL)
+	clock          hrclock.Clock    // times the request phases of the perf breakdown (SetClock)
+	feedbackURL    string           // where the feedback form posts reports; "" hides the button (SetFeedbackURL)
+	journeys       []engine.Journey // guided journeys from the catalog that check out (journeys.go)
 
 	// navigator provides the catalog-driven navigation defaults (SetCatalog).
 	// The Set*Resolver callbacks below override it individually where set.
@@ -137,6 +138,7 @@ func (s *Server) SetCatalog(catalog *engine.Catalog) {
 		return
 	}
 	s.navigator = navigation.NewNavigator(catalog)
+	s.setJourneys(catalog.Journeys)
 }
 
 // SetURLResolver sets the URL resolver for entity type links.
@@ -416,6 +418,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 		User:           requestURL.Query().Get("user"), // cache is user-specific
 		DefaultColumns: product.GetDefaultColumns(q.Table),
 		Timing:         timing,
+		Product:        product.GetName(),
 	})
 	if res != nil {
 		return res
@@ -445,6 +448,10 @@ type ExecOptions struct {
 	// server's clock. A caller that timed earlier phases (URL parsing)
 	// passes its own so they appear in the breakdown.
 	Timing *TimingCollector
+	// Product is the product (URL path name) the page is for; it selects the
+	// guided journeys offered (BuildViewModel). Empty: only journeys offered
+	// in every product.
+	Product string
 }
 
 // Execution is the outcome of Execute: the user's table view after joins,
@@ -457,6 +464,7 @@ type Execution struct {
 	TableView  *tables.TableView
 	Validation *ValidationResult
 	Timing     *TimingCollector
+	Product    string // ExecOptions.Product
 }
 
 // Execute runs the request pipeline for q. It is the one supported way to
@@ -659,7 +667,7 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 		}
 	}
 
-	return &Execution{Query: q, View: view, TableView: tableView, Validation: validation, Timing: timing}, nil
+	return &Execution{Query: q, View: view, TableView: tableView, Validation: validation, Timing: timing, Product: opts.Product}, nil
 }
 
 // BuildViewModel turns an execution into the table page's view model:
@@ -699,6 +707,7 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	viewModel.InfoPaneTab = q.InfoPaneTab
 	viewModel.Build = buildinfo.Get()
 	viewModel.FeedbackURL = s.feedbackURL
+	viewModel.JourneysJSON = s.journeysJSON(exec.Product)
 
 	// Set animation state (transient, for newly grouped columns)
 	viewModel.AnimatedColumn = q.AnimatedColumn

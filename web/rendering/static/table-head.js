@@ -267,6 +267,7 @@
             scheduleAnimCleanup();
             showHelpNoteIfAny();
             restoreSyntaxPanel();
+            showJourneyStep();
             hideWaiting();
             if (fragmentState.navtest) {
                 document.documentElement.setAttribute('data-navtest', 'swapped');
@@ -882,6 +883,7 @@
             scheduleAnimCleanup();
             showHelpNoteIfAny();
             restoreSyntaxPanel();
+            showJourneyStep();
             // Self-test hook (see the file comment). Only a table page of this
             // route qualifies: the hash must never be able to send the
             // browser elsewhere.
@@ -902,6 +904,11 @@
                 const sel = (kind === "expressions" ? ".formula-input" : ".filter-input") + '[data-column="' + CSS.escape(column || "") + '"]';
                 const field = document.querySelector(sel);
                 if (field) setTimeout(() => { field.focus(); openSyntaxPanel(field); }, 0);
+            } else if (window.location.hash.startsWith("#journey=")) {
+                // ... and "#journey=<name>" starts that guided journey.
+                const name = decodeURIComponent(window.location.hash.substring(9));
+                history.replaceState(history.state, "", window.location.pathname + window.location.search);
+                setTimeout(() => startJourney(name), 0);
             } else if (window.location.hash === "#feedback") {
                 // ... and "#feedback" opens the feedback form (when enabled).
                 const fb = document.querySelector(".feedback-open[data-feedback-url]");
@@ -1149,6 +1156,8 @@
                 row.appendChild(document.createTextNode(HELP_AREAS[area]));
                 legend.appendChild(row);
             }
+            const journeysList = journeyLegendItems();
+            if (journeysList) legend.appendChild(journeysList);
             layer.appendChild(legend);
             const lr = legend.getBoundingClientRect();
             placed.push({left: lr.left, right: lr.right, top: lr.top, bottom: lr.bottom});
@@ -1660,4 +1669,175 @@
                 e.preventDefault();
                 openSyntaxPanel(t);
             }
+        });
+
+        // --- Journeys: guided walks written by the product's authors --------
+        // The page carries its product's journeys (data-journeys on <body>,
+        // checked by the server). A journey is a list of steps, each a view
+        // (a table page query) and the control to look at, with a caption.
+        // Starting one from the help legend (or "#journey=<name>") opens the
+        // first view; a box shows the step with Back / Next / Exit and points
+        // at its control. The current step survives page changes (session).
+        const JOURNEY_KEY = 'taxinomia-journey';
+
+        function pageJourneys() {
+            try { return JSON.parse(document.body.dataset.journeys || '[]'); } catch (e) { return []; }
+        }
+
+        function journeyState() {
+            try { return JSON.parse(sessionStorage.getItem(JOURNEY_KEY) || 'null'); } catch (e) { return null; }
+        }
+
+        function setJourneyState(state) {
+            try {
+                if (state) sessionStorage.setItem(JOURNEY_KEY, JSON.stringify(state));
+                else sessionStorage.removeItem(JOURNEY_KEY);
+            } catch (e) {}
+        }
+
+        function journeyStepURL(step) {
+            return window.location.pathname + '?' + step.link;
+        }
+
+        function startJourney(name) {
+            const j = pageJourneys().find(x => x.name === name);
+            if (!j) return;
+            hideHelp();
+            goToJourneyStep(j, 0);
+        }
+
+        function goToJourneyStep(j, index) {
+            setJourneyState({name: j.name, step: index});
+            const url = new URL(journeyStepURL(j.steps[index]), window.location);
+            if (url.search === window.location.search) {
+                showJourneyStep(); // already on that view
+            } else {
+                navigate(url);
+            }
+        }
+
+        function endJourney() {
+            setJourneyState(null);
+            clearJourneyUI();
+        }
+
+        function clearJourneyUI() {
+            ['journey-box', 'journey-pointer'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.remove();
+            });
+            document.querySelectorAll('.journey-target').forEach(el => el.classList.remove('journey-target'));
+        }
+
+        // The control a step points at, by name (see JourneyStep.target).
+        function journeyTarget(target) {
+            if (!target) return null;
+            const [kind, column, type] = target.split(':');
+            if (kind === 'pane') return document.getElementById('sidebar');
+            if (kind === 'help') return document.getElementById('help-toggle-pane');
+            const headers = Array.from(headerCells());
+            const idx = headers.findIndex(th => th.dataset.colName === column);
+            if (idx === -1) return null;
+            if (kind === 'column') return headers[idx];
+            if (kind === 'filter') return document.querySelector('.filter-input[data-column="' + CSS.escape(column) + '"]');
+            const cell = document.querySelectorAll('thead tr.grouping-row td.grouping-cell')[idx];
+            if (!cell) return null;
+            if (kind === 'group') return cell.querySelector('.group-toggle-btn');
+            if (kind === 'sort') return cell.querySelector('.sort-toggle-btn');
+            if (kind === 'groupsort') return cell.querySelector('.agg-sort-toggle-btn');
+            if (kind === 'aggregate') return cell.querySelector('.agg-toggle-btn[data-agg="' + CSS.escape(type || '') + '"]');
+            return null;
+        }
+
+        function showJourneyStep() {
+            clearJourneyUI();
+            const state = journeyState();
+            if (!state) return;
+            const j = pageJourneys().find(x => x.name === state.name);
+            if (!j || !j.steps[state.step]) { endJourney(); return; }
+            const step = j.steps[state.step];
+            const last = state.step === j.steps.length - 1;
+
+            const box = document.createElement('div');
+            box.id = 'journey-box';
+            box.className = 'journey-box';
+            box.setAttribute('role', 'dialog');
+            box.setAttribute('aria-label', j.title);
+            const title = document.createElement('div');
+            title.className = 'journey-title';
+            title.textContent = j.title;
+            const count = document.createElement('div');
+            count.className = 'journey-count';
+            count.textContent = 'Step ' + (state.step + 1) + ' of ' + j.steps.length;
+            const caption = document.createElement('div');
+            caption.className = 'journey-caption';
+            caption.textContent = step.caption;
+            const buttons = document.createElement('div');
+            buttons.className = 'journey-buttons';
+            const exit = document.createElement('button');
+            exit.type = 'button';
+            exit.textContent = last ? 'Done' : 'Exit';
+            exit.addEventListener('click', endJourney);
+            buttons.appendChild(exit);
+            if (state.step > 0) {
+                const back = document.createElement('button');
+                back.type = 'button';
+                back.textContent = 'Back';
+                back.addEventListener('click', () => goToJourneyStep(j, state.step - 1));
+                buttons.appendChild(back);
+            }
+            if (!last) {
+                const next = document.createElement('button');
+                next.type = 'button';
+                next.className = 'journey-next';
+                next.textContent = 'Next';
+                next.addEventListener('click', () => goToJourneyStep(j, state.step + 1));
+                buttons.appendChild(next);
+            }
+            box.append(title, count, caption, buttons);
+            document.body.appendChild(box);
+
+            const target = journeyTarget(step.target);
+            if (target) {
+                target.classList.add('journey-target');
+                if (target.scrollIntoView) target.scrollIntoView({block: 'nearest', inline: 'nearest'});
+                const r = target.getBoundingClientRect();
+                const pointer = document.createElement('div');
+                pointer.id = 'journey-pointer';
+                pointer.className = 'journey-pointer';
+                pointer.textContent = 'Here';
+                document.body.appendChild(pointer);
+                // In page coordinates (position: absolute), so it scrolls with
+                // the control.
+                const below = r.bottom + 40 < window.innerHeight;
+                pointer.classList.add(below ? 'below' : 'above');
+                pointer.style.left = Math.max(4, r.left + window.scrollX + r.width / 2 - pointer.offsetWidth / 2) + 'px';
+                pointer.style.top = (below ? r.bottom + window.scrollY + 6 : r.top + window.scrollY - pointer.offsetHeight - 6) + 'px';
+            }
+        }
+
+        // The journeys offered here, for the help legend.
+        function journeyLegendItems() {
+            const list = pageJourneys();
+            if (!list.length) return null;
+            const wrap = document.createElement('div');
+            wrap.className = 'help-legend-journeys';
+            const head = document.createElement('div');
+            head.className = 'help-legend-intro';
+            head.textContent = 'Guided journeys:';
+            wrap.appendChild(head);
+            for (const j of list) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'help-journey';
+                b.textContent = j.title;
+                if (j.description) b.title = j.description;
+                b.addEventListener('click', e => { e.stopPropagation(); startJourney(j.name); });
+                wrap.appendChild(b);
+            }
+            return wrap;
+        }
+
+        window.addEventListener('resize', function() {
+            if (document.getElementById('journey-box')) showJourneyStep();
         });

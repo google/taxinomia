@@ -207,7 +207,7 @@ func TestExecuteMatchesHandler(t *testing.T) {
 		}
 
 		q := urlquery.NewQuery(u)
-		exec, res := srv.Execute(context.Background(), q, handlers.ExecOptions{DefaultColumns: product.GetDefaultColumns(q.Table)})
+		exec, res := srv.Execute(context.Background(), q, handlers.ExecOptions{DefaultColumns: product.GetDefaultColumns(q.Table), Product: product.GetName()})
 		if res != nil {
 			t.Fatalf("Execute(%s): %+v", raw, res)
 		}

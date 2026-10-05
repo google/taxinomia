@@ -191,4 +191,50 @@ message DataSourcesConfig {
   // Entity type hierarchies defining containment relationships.
   // Example: region → zone → cluster → rack → machine
   repeated Hierarchy hierarchies = 4;
+
+  // Guided journeys through the data, written by the people who define the
+  // product: each step opens a view and points at one control with a
+  // caption. Users start them from the help ("? Help").
+  repeated Journey journeys = 5;
+}
+
+// Journey is a guided walk through the data, one step per view.
+message Journey {
+  // Identifier (letters, digits, - and _), used in links (#journey=<name>).
+  string name = 1;
+
+  // Shown in the list of journeys and above each step.
+  string title = 2;
+
+  // One sentence on what the journey shows.
+  string description = 3;
+
+  // Products (URL path names, e.g. "default") the journey is offered in;
+  // empty means every product.
+  repeated string products = 4;
+
+  repeated JourneyStep steps = 5;
+}
+
+// JourneyStep is one view of a journey and the control it points at.
+message JourneyStep {
+  // What to look at or do, shown next to the control.
+  string caption = 1;
+
+  // The view, as the query of a table page URL (without "?"), e.g.
+  // "table=google_machines&grouped=cluster".
+  string link = 2;
+
+  // The control the step points at (optional):
+  //   column:<col>        the column's header
+  //   group:<col>         its GROUP / UNGROUP button
+  //   sort:<col>          its sort direction button
+  //   filter:<col>        its filter box
+  //   aggregate:<col>:<t> its aggregate button of type t (sum, avg, ...)
+  //   groupsort:<col>     the ⟳ button of a grouped column
+  //   pane                the column pane
+  //   help                the "? Help" button
+  // A step naming a column the view does not have, or a table that does not
+  // exist, makes the journey invalid; it is then not offered (and logged).
+  string target = 3;
 }

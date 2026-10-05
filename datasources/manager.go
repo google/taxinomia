@@ -48,6 +48,9 @@ type Manager struct {
 	// Order of hierarchy names (preserves definition order)
 	hierarchyOrder []string
 
+	// Journeys declared in the configuration, in definition order
+	journeys []*Journey
+
 	// Entity type to hierarchies mapping (which hierarchies include each entity type)
 	entityTypeHierarchies map[string][]*Hierarchy
 
@@ -132,6 +135,9 @@ func (m *Manager) LoadConfigFromProto(config *DataSourcesConfig) error {
 	for _, et := range config.GetEntityTypes() {
 		m.entityTypes[et.GetName()] = et
 	}
+
+	// Journeys (eager), in definition order
+	m.journeys = append(m.journeys, config.GetJourneys()...)
 
 	// Load hierarchies and build entity type mapping (eager)
 	// Preserve definition order in hierarchyOrder slice

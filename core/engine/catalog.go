@@ -26,6 +26,10 @@ type Catalog struct {
 	Hierarchies []Hierarchy
 	EntityTypes []EntityTypeMeta
 	Joins       []JoinMeta
+
+	// Journeys are guided walks through the data, declared by the product's
+	// authors (data source configuration); presentation plays them.
+	Journeys []Journey
 }
 
 // TableMeta describes one queryable table.
@@ -79,4 +83,21 @@ type JoinMeta struct {
 
 	// EntityType is the entity type that connects the two columns.
 	EntityType string
+}
+
+// Journey is a guided walk through the data: each step opens a view and
+// points at one control with a caption.
+type Journey struct {
+	Name        string   // identifier, used in links
+	Title       string   // shown in the list and above each step
+	Description string   // one sentence on what it shows
+	Products    []string // products it is offered in; empty = all
+	Steps       []JourneyStep
+}
+
+// JourneyStep is one view of a journey.
+type JourneyStep struct {
+	Caption string // what to look at or do
+	Link    string // the view: a table page URL query, e.g. "table=orders&grouped=region"
+	Target  string // the control pointed at, e.g. "group:region" (see datasources.JourneyStep)
 }

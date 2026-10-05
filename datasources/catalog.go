@@ -84,6 +84,19 @@ func (m *Manager) BuildCatalog(tbls map[string]*tables.DataTable) *engine.Catalo
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	for _, j := range m.journeys {
+		jm := engine.Journey{
+			Name:        j.GetName(),
+			Title:       j.GetTitle(),
+			Description: j.GetDescription(),
+			Products:    append([]string(nil), j.GetProducts()...),
+		}
+		for _, st := range j.GetSteps() {
+			jm.Steps = append(jm.Steps, engine.JourneyStep{Caption: st.GetCaption(), Link: st.GetLink(), Target: st.GetTarget()})
+		}
+		cat.Journeys = append(cat.Journeys, jm)
+	}
+
 	for _, name := range m.hierarchyOrder {
 		h, ok := m.hierarchies[name]
 		if !ok {

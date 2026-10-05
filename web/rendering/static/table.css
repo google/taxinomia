@@ -2691,3 +2691,114 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        /* Guided journeys: the step box, the pointer and the outlined control. */
+        .journey-box {
+            position: fixed;
+            right: 20px;
+            bottom: 56px;
+            z-index: 3050;
+            width: 340px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border-left: 4px solid #2e7d4f;
+            background-color: #fff;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+            font: 13px Arial, sans-serif;
+            color: #333;
+        }
+
+        .journey-title {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .journey-count {
+            margin: 2px 0 8px;
+            font-size: 11px;
+            color: #8a929c;
+        }
+
+        .journey-caption {
+            line-height: 1.45;
+        }
+
+        .journey-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .journey-buttons button {
+            font: 13px Arial, sans-serif;
+            padding: 5px 14px;
+            border-radius: 4px;
+            border: 1px solid #c9ced5;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        .journey-buttons .journey-next {
+            background-color: #2e7d4f;
+            border-color: #2e7d4f;
+            color: #fff;
+        }
+
+        .journey-target {
+            outline: 3px solid #2e7d4f !important;
+            outline-offset: 2px;
+        }
+
+        .journey-pointer {
+            position: absolute;
+            z-index: 3040;
+            padding: 3px 9px;
+            border-radius: 4px;
+            background-color: #2e7d4f;
+            color: #fff;
+            font: bold 11.5px Arial, sans-serif;
+            pointer-events: none;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+        }
+
+        .journey-pointer::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            margin-left: -5px;
+            border: 5px solid transparent;
+        }
+
+        .journey-pointer.below::after {
+            bottom: 100%;
+            border-bottom-color: #2e7d4f;
+        }
+
+        .journey-pointer.above::after {
+            top: 100%;
+            border-top-color: #2e7d4f;
+        }
+
+        .help-legend-journeys {
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 1px solid #eef0f3;
+        }
+
+        .help-journey {
+            display: block;
+            margin: 3px 0;
+            padding: 3px 8px;
+            border: 1px solid #2e7d4f;
+            border-radius: 4px;
+            background-color: #fff;
+            color: #2e7d4f;
+            font: 12px Arial, sans-serif;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .help-journey:hover {
+            background-color: #eef7f1;
+        }

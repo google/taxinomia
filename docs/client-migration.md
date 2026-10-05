@@ -478,3 +478,11 @@ on the table route, `<table path>?help=syntax` (anchors `#filtering`,
 `#grouping`, `#expressions`), so your existing route handles it. The
 expression part is `docs/expression_language.md`, embedded; a test keeps
 the copy in `web/rendering/help/` identical to it.
+
+## Guided journeys (2026-10)
+
+Optional; nothing to do in code. Journeys declared in the data source
+configuration (`DataSourcesConfig.journeys`, see "Journeys" in
+`docs/data_sources.md`) reach the server through the catalog you already
+pass to `SetCatalog` (`engine.Catalog.Journeys`) and are offered under
+"? Help". Invalid ones are logged and left out.

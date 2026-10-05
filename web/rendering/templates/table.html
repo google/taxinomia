@@ -70,7 +70,7 @@
     <script>{{.Assets.InlineHeadJS}}</script>
     {{end}}
 </head>
-<body>
+<body{{if .JourneysJSON}} data-journeys="{{.JourneysJSON}}"{{end}}>
     {{/* Icons as inline SVG symbols: no font fallback lookups for symbol glyphs, which cost tens of milliseconds of layout per page. */}}
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
         <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 4l6 8H2z"/></symbol>

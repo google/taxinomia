@@ -6,6 +6,7 @@ go_library(
         "entity.go",
         "feedback.go",
         "help.go",
+        "journeys.go",
         "http.go",
         "server.go",
     ],
@@ -37,6 +38,15 @@ go_library(
 
 go_test(
     name = "handlers_test",
-    srcs = ["feedback_test.go"],
+    srcs = [
+        "feedback_test.go",
+        "journeys_test.go",
+    ],
+    deps = [
+        "//core/columns",
+        "//core/engine",
+        "//core/models",
+        "//core/tables",
+    ],
     embed = [":handlers"],
 )
