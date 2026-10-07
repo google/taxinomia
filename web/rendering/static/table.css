@@ -1940,6 +1940,24 @@
             padding-right: 2.1em; /* room for the toggle strip */
         }
 
+        /* A group cell spanning several rows keeps its value in view while
+           the page scrolls: the head (value, counts, F, aggregates) is
+           pinned to the top of the window and stops at the cell's bottom
+           edge. Top-aligned so the value starts where the group starts;
+           clip, not hidden, because hidden would make the cell the scroll
+           container the head sticks to, and nothing would move. */
+        td.group-cell[rowspan] {
+            vertical-align: top;
+            overflow: clip;
+        }
+
+        .group-cell-head {
+            position: sticky;
+            top: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         /* The toggle is a strip along the cell's right edge, the full
            height of the cell (all the rows it spans), caret centered */
         .group-expand {
@@ -1966,6 +1984,18 @@
         .group-expand .icon {
             width: 0.8em;
             height: 0.8em;
+        }
+
+        /* In a cell spanning several rows the strip's caret follows the
+           pinned head: at the top, staying in view while the cell scrolls. */
+        td.group-cell[rowspan] .group-expand {
+            align-items: flex-start;
+        }
+
+        td.group-cell[rowspan] .group-expand .icon {
+            position: sticky;
+            top: 10px;
+            margin-top: 10px;
         }
 
         /* Joined column header: a join arrow before the column's own name; the
