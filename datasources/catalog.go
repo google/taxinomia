@@ -122,9 +122,10 @@ func (m *Manager) BuildCatalog(tbls map[string]*tables.DataTable) *engine.Catalo
 		}
 		for _, u := range et.GetUrls() {
 			meta.URLs = append(meta.URLs, engine.URLTemplate{
-				Name:      u.GetName(),
-				Template:  u.GetTemplate(),
-				IsDefault: u.GetIsDefault(),
+				Name:       u.GetName(),
+				Template:   u.GetTemplate(),
+				IsDefault:  u.GetIsDefault(),
+				TableLabel: u.GetTableLabel(),
 			})
 		}
 		cat.EntityTypes = append(cat.EntityTypes, meta)

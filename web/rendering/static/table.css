@@ -1203,6 +1203,26 @@
             border-color: #2980b9;
         }
 
+        /* External link chip after a value: an entity type link declared
+           with a table label; opens in a new tab. Outlined, so it reads as
+           a link away from the table, unlike the grey F. */
+        .cell-link {
+            font-size: 11px;
+            color: #2471a3;
+            text-decoration: none;
+            margin-left: 6px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            border: 1px solid #aed0ea;
+            background-color: #fff;
+        }
+
+        .cell-link:hover {
+            color: #fff;
+            background-color: #2471a3;
+            border-color: #2471a3;
+        }
+
         .entity-link {
             color: #2980b9;
             text-decoration: none;

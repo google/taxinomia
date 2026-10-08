@@ -107,6 +107,28 @@ func (n *Navigator) AllURLs(entityType, value string) []viewmodel.EntityURL {
 	return result
 }
 
+// CellLinks returns the links declared with a table label for the entity
+// type, expanded for value, in declaration order: the chips shown after
+// the value in table cells. Nil when the entity type declares none.
+func (n *Navigator) CellLinks(entityType, value string) []viewmodel.CellLink {
+	et := n.entityTypes[entityType]
+	if et == nil {
+		return nil
+	}
+	var links []viewmodel.CellLink
+	for _, u := range et.URLs {
+		if u.TableLabel == "" {
+			continue
+		}
+		links = append(links, viewmodel.CellLink{
+			Label: u.TableLabel,
+			Title: u.Name,
+			URL:   expandTemplate(u.Template, value, entityType),
+		})
+	}
+	return links
+}
+
 // PrimaryKeyEntityType returns the primary key entity type recorded for the
 // table, "" if the table is unknown or declares none.
 func (n *Navigator) PrimaryKeyEntityType(tableName string) string {

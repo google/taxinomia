@@ -79,3 +79,28 @@ func TestTableHierarchyPaths(t *testing.T) {
 		})
 	}
 }
+
+// TestCellLinks: only links declared with a table label become chips, in
+// declaration order, expanded (escaped) for the value.
+func TestCellLinks(t *testing.T) {
+	cat := testCatalog()
+	for i := range cat.EntityTypes {
+		if cat.EntityTypes[i].Name == "demo.order_id" {
+			cat.EntityTypes[i].URLs[1].TableLabel = "Track"
+		}
+	}
+	n := NewNavigator(cat)
+	links := n.CellLinks("demo.order_id", "A&B 1")
+	if len(links) != 1 || links[0].Label != "Track" || links[0].Title != "Tracking" {
+		t.Fatalf("links = %+v, want the one labelled link", links)
+	}
+	if want := "https://track.example.com/demo.order_id/A%26B%201"; links[0].URL != want {
+		t.Errorf("url = %s, want %s", links[0].URL, want)
+	}
+	if got := n.CellLinks("google.cluster", "c1"); got != nil {
+		t.Errorf("entity type without labelled links: %+v", got)
+	}
+	if got := n.CellLinks("unknown", "x"); got != nil {
+		t.Errorf("unknown entity type: %+v", got)
+	}
+}

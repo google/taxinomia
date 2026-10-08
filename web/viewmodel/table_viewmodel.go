@@ -36,27 +36,28 @@ import (
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
 	Title                 string
-	PrimaryKeyEntityType  string               // The entity type that serves as primary key for this table
-	PrimaryKeyDescription string               // Description of the primary key entity type
-	Headers               []string             // Column display names
-	Columns               []string             // Column names (for data access)
-	ColumnWidths          map[string]int       // Column widths in pixels (from URL)
-	Rows                  []map[string]string  // Each row is a map of column name to value (flat table, ungrouped)
-	RowURLs               []map[string]string  // URLs for each cell in flat rows (parallel to Rows)
-	GroupedRows           []GroupedRow         // Hierarchical rows for grouped display
-	IsGrouped             bool                 // Whether the table is currently grouped
-	AllColumns            []ColumnInfo         // All available columns with metadata
-	PaneColumns           []ColumnInfo         // Column pane: the base table's columns, alphabetical (joined columns hang under their join, computed columns have their own section)
-	ComputedColumns       []ComputedColumnInfo // Computed columns defined by the user
-	CurrentQuery          string               // Current query string
-	CurrentURL            safehtml.URL         // Current URL for building toggle links
-	ColumnStats           []string             // Statistics for each visible column (e.g., "5 groups" or "100 rows")
-	ColumnFilters         map[string]string    // Filter values for each column (from URL parameters like filter:columnA=abc)
-	ColumnFormulas        map[string]string    // Formula for computed columns (columnName -> formula like "concat(a, b)")
-	IsComputedColumn      map[string]bool      // Tracks which columns are computed (for UI, even if formula is empty)
-	JoinedColumnFrom      map[string]string    // Joined columns in view: the table the column comes from (header shows a join arrow and the column's own name)
-	TableFormulas         map[string]string    // Computed columns defined with the table (data source), in view: their expression (header fx mark, read-only formula)
-	ColumnRowErrors       map[string]string    // Computed columns in view whose expression failed on some row: the first failure (cells show [error])
+	PrimaryKeyEntityType  string                  // The entity type that serves as primary key for this table
+	PrimaryKeyDescription string                  // Description of the primary key entity type
+	Headers               []string                // Column display names
+	Columns               []string                // Column names (for data access)
+	ColumnWidths          map[string]int          // Column widths in pixels (from URL)
+	Rows                  []map[string]string     // Each row is a map of column name to value (flat table, ungrouped)
+	RowURLs               []map[string]string     // URLs for each cell in flat rows (parallel to Rows)
+	RowLinks              []map[string][]CellLink // External link chips for each cell in flat rows (parallel to Rows; View.CellLinks)
+	GroupedRows           []GroupedRow            // Hierarchical rows for grouped display
+	IsGrouped             bool                    // Whether the table is currently grouped
+	AllColumns            []ColumnInfo            // All available columns with metadata
+	PaneColumns           []ColumnInfo            // Column pane: the base table's columns, alphabetical (joined columns hang under their join, computed columns have their own section)
+	ComputedColumns       []ComputedColumnInfo    // Computed columns defined by the user
+	CurrentQuery          string                  // Current query string
+	CurrentURL            safehtml.URL            // Current URL for building toggle links
+	ColumnStats           []string                // Statistics for each visible column (e.g., "5 groups" or "100 rows")
+	ColumnFilters         map[string]string       // Filter values for each column (from URL parameters like filter:columnA=abc)
+	ColumnFormulas        map[string]string       // Formula for computed columns (columnName -> formula like "concat(a, b)")
+	IsComputedColumn      map[string]bool         // Tracks which columns are computed (for UI, even if formula is empty)
+	JoinedColumnFrom      map[string]string       // Joined columns in view: the table the column comes from (header shows a join arrow and the column's own name)
+	TableFormulas         map[string]string       // Computed columns defined with the table (data source), in view: their expression (header fx mark, read-only formula)
+	ColumnRowErrors       map[string]string       // Computed columns in view whose expression failed on some row: the first failure (cells show [error])
 
 	// Pagination info
 	TotalRows     int  // Total number of rows in the table
@@ -222,10 +223,11 @@ type GroupedRow struct {
 // GroupedCell represents a cell to be rendered in the grouped table
 // Rowspan indicates how many rows this cell spans (1 = no span, >1 = spans multiple rows)
 type GroupedCell struct {
-	Value                 string // Display value for the cell
-	ValueURL              string // URL for the cell value (if entity type has default URL)
-	NumRows               int    // Number of rows in this group (for display in brackets)
-	NumSubgroups          int    // Number of subgroups (0 if leaf group)
+	Value                 string     // Display value for the cell
+	ValueURL              string     // URL for the cell value (if entity type has default URL)
+	Links                 []CellLink // External link chips after the value (View.CellLinks)
+	NumRows               int        // Number of rows in this group (for display in brackets)
+	NumSubgroups          int        // Number of subgroups (0 if leaf group)
 	Rowspan               int
 	Title                 string       // Tooltip text for hover-over information
 	FilterURL             safehtml.URL // URL to filter on this value and remove grouping
@@ -1013,6 +1015,26 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		}
 	}
 
+	// External link chips (entity type links with a table label), from the
+	// raw values, before integer values get their display separators.
+	if view.CellLinks != nil && len(vm.ColumnEntityTypes) > 0 {
+		vm.RowLinks = make([]map[string][]CellLink, len(vm.Rows))
+		for i, row := range vm.Rows {
+			for colName, entityType := range vm.ColumnEntityTypes {
+				skip := ""
+				if vm.RowURLs != nil && vm.RowURLs[i] != nil {
+					skip = vm.RowURLs[i][colName]
+				}
+				if links := cellLinks(view.CellLinks, entityType, row[colName], skip); len(links) > 0 {
+					if vm.RowLinks[i] == nil {
+						vm.RowLinks[i] = make(map[string][]CellLink)
+					}
+					vm.RowLinks[i][colName] = links
+				}
+			}
+		}
+	}
+
 	// Build selected row data for detail panel (flat rows only)
 	// Find the row by matching the primary key ID
 	if q.SelectedRowID != "" && len(vm.RowIDs) > 0 {
@@ -1127,7 +1149,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 		// sorts reordered it, and this restores the value order.
 		tableView.SortGroupsByAggregate(q.GroupAggregateSorts)
 		// Build grouped rows with limit - stops early and marks incomplete groups
-		groupResult := buildGroupedRows(tableView, view.Columns, q, q.Limit, vm.ColumnEntityTypes, urlResolver)
+		groupResult := buildGroupedRows(tableView, view.Columns, q, q.Limit, vm.ColumnEntityTypes, urlResolver, view.CellLinks)
 		vm.GroupedRows = groupResult.Rows
 
 		// Update pagination info for grouped views
@@ -1425,7 +1447,7 @@ type GroupBuildResult struct {
 // buildGroupedRows converts the hierarchical grouping structure into rows with rowspan
 // It walks the group hierarchy recursively, using the group's display height for rowspan
 // If limit > 0, stops after limit display rows and marks incomplete groups
-func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *urlquery.Query, limit int, columnEntityTypes map[string]string, urlResolver URLResolver) GroupBuildResult {
+func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *urlquery.Query, limit int, columnEntityTypes map[string]string, urlResolver URLResolver, links CellLinksResolver) GroupBuildResult {
 	firstBlock := tableView.GetFirstBlock()
 	if firstBlock == nil {
 		return GroupBuildResult{}
@@ -1437,6 +1459,7 @@ func buildGroupedRows(tableView *tables.TableView, visibleColumns []string, q *u
 		limit:             limit,
 		columnEntityTypes: columnEntityTypes,
 		urlResolver:       urlResolver,
+		cellLinks:         links,
 		openLeaf:          listedGroups(q),
 		sortOrder:         q.EffectiveSortOrder(),
 	}
@@ -1554,6 +1577,7 @@ type groupWalker struct {
 	limit             int               // max display rows (0 = unlimited)
 	columnEntityTypes map[string]string // column name -> entity type, for value URLs
 	urlResolver       URLResolver       // resolves entity type URLs (can be nil)
+	cellLinks         CellLinksResolver // external link chips (can be nil)
 	openLeaf          map[string]bool   // innermost groups whose rows are listed, by path key
 	sortOrder         []urlquery.SortColumn
 }
@@ -1682,6 +1706,7 @@ func (w *groupWalker) walk(block *grouping.Block, rows *[]GroupedRow, level int,
 		groupedCell := GroupedCell{
 			Value:                 displayValue,
 			ValueURL:              valueURL,
+			Links:                 cellLinks(w.cellLinks, w.columnEntityTypes[colName], rawValue, valueURL),
 			NumRows:               numRows,
 			NumSubgroups:          numSubgroups,
 			Rowspan:               w.height(group, path),
@@ -1816,6 +1841,7 @@ func (w *groupWalker) rowValueCell(col, value string) GroupedCell {
 			cell.ValueURL = w.urlResolver(entityType, value)
 		}
 	}
+	cell.Links = cellLinks(w.cellLinks, w.columnEntityTypes[col], value, cell.ValueURL)
 	if isIntegerColumn(w.tableView.GetColumn(col)) {
 		cell.Value = FormatIntString(value)
 	}

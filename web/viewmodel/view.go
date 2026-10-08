@@ -27,5 +27,34 @@ type View struct {
 	Columns        []string        // Column names in display order (including joined columns like "fromColumn.toTable.toColumn.selectedColumn")
 	Expanded       map[string]bool // Set of expanded paths (e.g., "column1", "column1/table2.column2")
 	GroupedColumns []string        // Column names to group by, in grouping order
-	columnViews    map[string]*columns.ColumnView
+	// CellLinks, when set, gives the external links shown in a cell as
+	// labelled chips after its value (entity type links with a table label).
+	CellLinks   CellLinksResolver
+	columnViews map[string]*columns.ColumnView
+}
+
+// CellLink is an external link shown in a table cell as a small chip.
+type CellLink struct {
+	Label string // the chip's text (the link's table label)
+	Title string // the link's full name, shown on hover
+	URL   string
+}
+
+// CellLinksResolver returns the links to show in a cell holding value, a
+// value of entityType; nil when there are none.
+type CellLinksResolver func(entityType, value string) []CellLink
+
+// cellLinks resolves a cell's chips, leaving out the link the value itself
+// already opens (skipURL).
+func cellLinks(resolve CellLinksResolver, entityType, value, skipURL string) []CellLink {
+	if resolve == nil || entityType == "" || value == "" {
+		return nil
+	}
+	var links []CellLink
+	for _, l := range resolve(entityType, value) {
+		if l.URL != "" && l.URL != skipURL {
+			links = append(links, l)
+		}
+	}
+	return links
 }

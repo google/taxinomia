@@ -66,7 +66,7 @@ entity_types {
   name: "demo.order_id"
   description: "Unique identifier for an order"
   urls { name: "Order Details"     template: "https://orders.example.com/orders/{value}" is_default: true }
-  urls { name: "Shipping Status"   template: "https://shipping.example.com/track/{value}" }
+  urls { name: "Shipping Status"   template: "https://shipping.example.com/track/{value}" table_label: "Track" }
 }
 
 entity_types {
@@ -92,8 +92,8 @@ entity_types {
 entity_types {
   name: "region"
   description: "Geographic region"
-  urls { name: "Wikipedia"          template: "https://en.wikipedia.org/wiki/{value}" is_default: true }
-  urls { name: "Weather"            template: "https://weather.example.com/regions/{value}" }
+  urls { name: "Wikipedia"          template: "https://en.wikipedia.org/wiki/{value}" is_default: true table_label: "Wiki" }
+  urls { name: "Weather"            template: "https://weather.example.com/regions/{value}" table_label: "Weather" }
 }
 
 entity_types {

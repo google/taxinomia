@@ -730,7 +730,12 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	if descResolver != nil {
 		entityTypeDescResolver = viewmodel.EntityTypeDescriptionResolver(descResolver)
 	}
-	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, exec.TableView, exec.View, title, q, exec.Validation.ComputedColumnErrors, exec.Validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
+	// External links declared with a table label show as chips in cells.
+	view := exec.View
+	if s.navigator != nil {
+		view.CellLinks = s.navigator.CellLinks
+	}
+	viewModel := viewmodel.BuildViewModel(s.dataModel, q.Table, exec.TableView, view, title, q, exec.Validation.ComputedColumnErrors, exec.Validation.FilterErrors, urlResolver, allURLsResolver, primaryKeyEntityType, entityTypeDescResolver, hierarchyContextBuilder, relatedTablesResolver)
 	displayed := len(viewModel.Rows)
 	if viewModel.IsGrouped {
 		displayed = viewModel.DisplayedRows

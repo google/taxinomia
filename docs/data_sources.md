@@ -536,6 +536,29 @@ When several rows of the home table share the value, the page shows the
 first and links to all of them. Entity types that are no table's key
 (a status, a category) have no page; their cells keep their default link.
 
+### External links in table cells
+
+An external link can also appear in the table itself: give it a
+`table_label`, a short text for a chip shown after every value of the
+entity type, in plain and grouped cells alike:
+
+```protobuf
+entity_types {
+  name: "region"
+  urls { name: "Wikipedia" template: "https://en.wikipedia.org/wiki/{value}" table_label: "Wiki" }
+  urls { name: "Weather"   template: "https://weather.example.com/regions/{value}" table_label: "Weather" }
+  urls { name: "Travel guide" template: "https://travel.example.com/{value}" }
+}
+```
+
+Here a region cell reads `Bern  Wiki  Weather`; each chip opens its link
+in a new tab, and hovering it shows the link's full name and address. The
+value itself still links to the entity page (or, for an entity type that
+is no table's key, to its default link, which is then not repeated as a
+chip). Links without a `table_label`, like the travel guide, stay on the
+entity page and in the detail panel. Every labelled link is shown, in
+declaration order.
+
 ## API Summary
 
 ```go

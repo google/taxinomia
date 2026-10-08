@@ -526,3 +526,16 @@ mux.Handle("/import", srv.ImportHandler(handlers.ImportOptions{
   (303) to the new table under the product path in its `return` field.
 - **Concurrency**: `models.DataModel` now locks its maps, so tables can be
   added while requests are served; `GetAllTables` returns a copy.
+
+## External links in table cells (2026-10)
+
+Optional; nothing changes until a link declares one. `URLTemplate`
+(`DataSourcesConfig.entity_types[].urls[]`) has a new field
+`table_label`: a link that has one is shown in every cell holding a value
+of its entity type, as a chip with that label after the value (see
+"External links in table cells" in `docs/data_sources.md`). The catalog
+carries it as `engine.URLTemplate.TableLabel`; `navigation.Navigator`
+expands it with `CellLinks`, and `viewmodel.View.CellLinks` is the hook
+the view model reads (set by the server from the catalog). If you render
+with your own template, the chips are `TableViewModel.RowLinks` (flat
+rows) and `GroupedCell.Links`.

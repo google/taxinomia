@@ -71,6 +71,9 @@ type URLTemplate struct {
 	Name      string
 	Template  string
 	IsDefault bool // preferred template for single-link contexts
+	// TableLabel, when set, shows the link in table cells as a chip with
+	// this label after every value of the entity type.
+	TableLabel string
 }
 
 // JoinMeta describes one declared join between two tables, by name — the

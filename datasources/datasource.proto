@@ -138,6 +138,12 @@ message URLTemplate {
   // Only one URL per entity type should be marked as default.
   // If no URL is marked as default, the first URL is used.
   bool is_default = 3;
+
+  // Short label for showing this link in table cells (e.g. "Wiki"). When
+  // set, every cell holding a value of the entity type shows the link as a
+  // small chip with this label, after the value; when empty, the link is
+  // listed on the entity page and in the detail panel only.
+  string table_label = 4;
 }
 
 // EntityTypeDefinition defines metadata for an entity type.

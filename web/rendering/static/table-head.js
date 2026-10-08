@@ -1043,6 +1043,8 @@
              why: 'Tick several groups to keep only those, as one filter.'},
             {sel: 'tbody td.group-cell', label: 'Value [subgroups/rows]', area: 'group', inside: true,
              why: 'Each group shows its value and, in brackets, how many subgroups and rows it holds.'},
+            {sel: 'tbody .cell-link', label: 'Link to another site', area: 'view', show: '',
+             why: 'Opens this value on another site, in a new tab: a link the data source declared for this kind of value. Hover it for the full name.'},
             {sel: 'tbody .filter-link', label: 'Drill into group', area: 'filter', show: 'click',
              why: 'Keeps only this group\'s rows. While levels are grouped below it, its levels stay grouped and show once; on the last level they are ungrouped to show the rows.'},
             {sel: 'tbody .group-expand', label: 'List group rows', area: 'group', show: 'click',

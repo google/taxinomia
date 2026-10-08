@@ -79,7 +79,7 @@ func groupedRowsFor(t *testing.T, rawURL string) (GroupBuildResult, *urlquery.Qu
 	tv.GroupTableWindowed(q.GroupedColumns, nil, make(map[string]tables.Compare), asc, q.Limit, expansion)
 	return buildGroupedRows(tv, tv.VisibleColumns, q, q.Limit, map[string]string{"category": "demo.category"}, func(entityType, value string) string {
 		return "/entity/" + entityType + "/" + value
-	}), q
+	}, nil), q
 }
 
 func cellNames(row GroupedRow) string {
