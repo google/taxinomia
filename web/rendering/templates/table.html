@@ -99,7 +99,7 @@
             <div class="sidebar-header">
                 <h2>Columns</h2>
                 <button type="button" class="help-open" id="help-toggle-pane" title="What is each control, and why use it">? Help</button>
-                {{if .FeedbackURL}}<button type="button" class="feedback-open" data-feedback-url="{{.FeedbackURL}}" title="Report a bug or ask for a feature">Feedback</button>{{end}}
+                {{if .FeedbackURL}}<button type="button" class="feedback-open" data-feedback-url="{{.FeedbackURL}}" title="Report a bug or ask for a feature">Feedback</button>{{end}}{{if .ImportURL}}<button type="button" class="import-open" data-import-url="{{.ImportURL}}" title="Paste a table or load a CSV or TSV file">Import</button>{{end}}
                 <button class="sidebar-toggle" onclick="toggleSidebar()">
                     <span>&times;</span>
                 </button>
@@ -446,7 +446,7 @@ Use &quot;quotes&quot; for exact match">
                         <a href="javascript:void(0)" class="info-pane-toggle" onclick="hideInfoPane()" title="Collapse the pane to the status bar">Hide</a>
                         {{else}}
                         <a href="javascript:void(0)" class="info-pane-toggle help-toggle" id="help-toggle" title="What is each control, and why use it (Esc closes)">? Help</a>
-                        {{if .FeedbackURL}}<a href="javascript:void(0)" class="info-pane-toggle feedback-open" data-feedback-url="{{.FeedbackURL}}" title="Report a bug or ask for a feature">Feedback</a>{{end}}
+                        {{if .FeedbackURL}}<a href="javascript:void(0)" class="info-pane-toggle feedback-open" data-feedback-url="{{.FeedbackURL}}" title="Report a bug or ask for a feature">Feedback</a>{{end}}{{if .ImportURL}}<a href="javascript:void(0)" class="info-pane-toggle import-open" data-import-url="{{.ImportURL}}" title="Paste a table or load a CSV or TSV file">Import</a>{{end}}
                         <a href="javascript:void(0)" class="info-pane-toggle" data-help="url" onclick="showInfoPane('url')" title="Open the URL and parameter breakdown">Show URL</a>
                         <a href="javascript:void(0)" class="info-pane-toggle" data-help="perf" onclick="showInfoPane('perf')" title="Open the server and browser timing breakdown">Show perf</a>
                         {{end}}

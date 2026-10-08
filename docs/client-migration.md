@@ -486,3 +486,43 @@ configuration (`DataSourcesConfig.journeys`, see "Journeys" in
 `docs/data_sources.md`) reach the server through the catalog you already
 pass to `SetCatalog` (`engine.Catalog.Journeys`) and are offered under
 "? Help". Invalid ones are logged and left out.
+
+## Importing tables: paste or load a CSV / TSV file (2026-10)
+
+Optional; nothing changes until you opt in. An "Import" button next to
+"Feedback" (column pane header and status bar) opens a dialog: paste cells
+copied from a spreadsheet (they arrive tab-separated), or CSV or TSV text,
+or choose or drop a file, optionally name the table, and Load. Landing
+pages show the same as a plain form (no script) and list the imported
+tables first. The parsing, the handler and the pages are taxinomia's; you
+turn it on and decide what is allowed:
+
+```go
+srv.SetImportURL("/import") // shows the button and the landing form
+mux.Handle("/import", srv.ImportHandler(handlers.ImportOptions{
+    MaxBytes: 32 << 20, // the default
+    Accept: func(ctx context.Context, r *http.Request, t *handlers.ImportedTable) error {
+        return mayImport(ctx, r) // your rules; an error is shown to the user
+    },
+}))
+```
+
+- **What is read**: the first line names the columns (turned into names
+  usable in expressions; the header stays the display name). The
+  delimiter is detected (tab, comma, semicolon, pipe); quoted fields work
+  as spreadsheets write them. Each column becomes a whole number, decimal
+  (decimal commas when the delimiter is not a comma), yes/no, date, or
+  text column; numbers with a leading zero stay text. Empty cells and
+  NA, N/A, NULL, ... are missing values, left out of aggregates. The
+  parser is `csvimport.ImportText`, usable on its own.
+- **Where the table goes**: into the server's data model, under the name
+  given, else the file's, else "pasted" (made unique with _2, _3, ...),
+  until the process ends. It is visible under every product; a scratchpad
+  product needs no tables of its own (the demo's `scratchpad` product has
+  none). A table URL ending in `#import` opens the dialog on load.
+- **Answers**: the dialog asks for JSON and gets `{"table", "url", "rows",
+  "columns"}`, or `{"error"}` with 400 (not a table), 403 (your `Accept`
+  refused), 405 or 413 (over `MaxBytes`). A plain form post is redirected
+  (303) to the new table under the product path in its `return` field.
+- **Concurrency**: `models.DataModel` now locks its maps, so tables can be
+  added while requests are served; `GetAllTables` returns a copy.

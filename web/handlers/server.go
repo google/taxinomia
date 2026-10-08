@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/taxinomia/core/buildinfo"
@@ -74,6 +75,9 @@ type Server struct {
 	userStore      users.UserStore
 	clock          hrclock.Clock    // times the request phases of the perf breakdown (SetClock)
 	feedbackURL    string           // where the feedback form posts reports; "" hides the button (SetFeedbackURL)
+	importURL      string           // where the import dialog posts tables; "" hides the button (SetImportURL)
+	importsMu      sync.Mutex       // guards imports and the name check-and-add of an import
+	imports        []importRecord   // tables added by ImportHandler, in order (import.go)
 	journeys       []engine.Journey // guided journeys from the catalog that check out (journeys.go)
 
 	// navigator provides the catalog-driven navigation defaults (SetCatalog).
@@ -512,6 +516,9 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	// Default columns from the caller, or the first few columns if not defined
 	defaultColumns := opts.DefaultColumns
 	if len(defaultColumns) == 0 {
+		defaultColumns = s.importedColumns(q.Table) // an imported table: all columns, in file order
+	}
+	if len(defaultColumns) == 0 {
 		// Use first 4 columns as default
 		allCols := table.GetColumnNames()
 		if len(allCols) > 4 {
@@ -740,6 +747,7 @@ func (s *Server) BuildViewModel(exec *Execution) viewmodel.TableViewModel {
 	viewModel.InfoPaneTab = q.InfoPaneTab
 	viewModel.Build = buildinfo.Get()
 	viewModel.FeedbackURL = s.feedbackURL
+	viewModel.ImportURL = s.importURL
 	viewModel.JourneysJSON = s.journeysJSON(exec.Product)
 	viewModel.GroupConditions = exec.Query.GroupConditions
 	viewModel.GroupConditionErrors = exec.Validation.GroupConditionErrors
@@ -815,6 +823,11 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product 
 	} else {
 		// No user filtering - show all tables
 		vm.Tables = product.GetTables()
+	}
+	if s.importURL != "" {
+		vm.ImportURL = s.importURL
+		vm.ImportReturn = returnPath(requestURL.Path)
+		vm.Tables = append(s.importedTableInfos(), vm.Tables...)
 	}
 
 	if err := s.renderer.RenderLanding(w, vm); err != nil {

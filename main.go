@@ -55,6 +55,12 @@ func main() {
 		return nil
 	}))
 
+	// Import: users paste a table or load a CSV / TSV file (the "Import"
+	// button, and the form on landing pages; the scratchpad product has no
+	// tables of its own). This demo accepts every import.
+	srv.SetImportURL("/import")
+	mux.Handle("/import", srv.ImportHandler(handlers.ImportOptions{}))
+
 	// Handle all requests and route based on product path
 	// URL format: /{product}/ or /{product}/table
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

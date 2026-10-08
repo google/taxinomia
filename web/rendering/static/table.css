@@ -2464,7 +2464,8 @@
         }
 
         /* Feedback: the button next to "? Help" and its form. */
-        .feedback-open {
+        .feedback-open,
+        .import-open {
             margin-right: 6px;
             padding: 4px 10px;
             border: 1px solid #2980b9;
@@ -2475,11 +2476,13 @@
             cursor: pointer;
         }
 
-        .feedback-open:hover {
+        .feedback-open:hover,
+        .import-open:hover {
             background-color: #eaf3fa;
         }
 
-        .info-pane-toggle.feedback-open {
+        .info-pane-toggle.feedback-open,
+        .info-pane-toggle.import-open {
             border-radius: 4px;
         }
 
@@ -2542,6 +2545,43 @@
         .feedback-status.ok { color: #2e7d4f; }
         .feedback-status.error { color: #b03a2e; }
 
+        /* Import dialog: the feedback box, wider, with a file row; a file
+           dragged over it outlines the box. */
+        .import-box {
+            width: min(720px, calc(100vw - 32px));
+        }
+
+        .import-box .import-hint {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .import-box .import-text {
+            font: 12px monospace;
+            tab-size: 12;
+            white-space: pre;
+        }
+
+        .import-box .import-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 24px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .import-box .import-name {
+            padding: 3px 6px;
+            border: 1px solid #c9ced5;
+            border-radius: 4px;
+        }
+
+        .import-box.dragging-file {
+            outline: 3px dashed #2980b9;
+            outline-offset: -8px;
+        }
+
         .feedback-buttons {
             display: flex;
             justify-content: flex-end;
@@ -2572,11 +2612,34 @@
         /* The pane header holds Columns, "? Help", Feedback and the close
            cross in 250px: keep the buttons on one line and compact. */
         .sidebar-header .help-open,
-        .sidebar-header .feedback-open {
+        .sidebar-header .feedback-open,
+        .sidebar-header .import-open {
             white-space: nowrap;
             padding: 3px 8px;
             font-size: 11px;
             margin-right: 4px;
+        }
+
+        /* With Import as well, the buttons do not fit beside the title in
+           250px: Columns and the close cross on the first row, the buttons
+           on a second. */
+        .sidebar-header:has(.import-open) {
+            flex-wrap: wrap;
+            row-gap: 6px;
+        }
+
+        .sidebar-header:has(.import-open) h2 {
+            flex: 1 1 calc(100% - 40px);
+        }
+
+        .sidebar-header:has(.import-open) .sidebar-toggle {
+            order: 1;
+        }
+
+        .sidebar-header:has(.import-open) .help-open,
+        .sidebar-header:has(.import-open) .feedback-open,
+        .sidebar-header:has(.import-open) .import-open {
+            order: 2;
         }
 
         .sidebar-header {

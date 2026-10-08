@@ -19,6 +19,7 @@ go_library(
     name = "csvimport",
     srcs = [
         "csv_import.go",
+        "text_import.go",
         "textproto.go",
     ],
     embed = [":csvimport_go_proto"],
@@ -35,6 +36,7 @@ go_test(
     name = "csvimport_test",
     srcs = [
         "csv_import_test.go",
+        "text_import_test.go",
         "textproto_test.go",
     ],
     embed = [":csvimport"],

@@ -7,6 +7,7 @@ go_library(
         "feedback.go",
         "help.go",
         "hierarchy_paths.go",
+        "import.go",
         "journeys.go",
         "http.go",
         "server.go",
@@ -24,6 +25,7 @@ go_library(
     deps = [
         "//core/buildinfo",
         "//core/columns",
+        "//core/csvimport",
         "//core/engine",
         "//core/expr",
         "//core/hrclock",
@@ -42,6 +44,7 @@ go_test(
     name = "handlers_test",
     srcs = [
         "feedback_test.go",
+        "import_test.go",
         "journeys_test.go",
     ],
     deps = [
@@ -49,6 +52,7 @@ go_test(
         "//core/engine",
         "//core/models",
         "//core/tables",
+        "//web/urlquery",
     ],
     embed = [":handlers"],
 )

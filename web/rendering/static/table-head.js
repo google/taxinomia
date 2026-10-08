@@ -913,6 +913,10 @@
                 // ... and "#feedback" opens the feedback form (when enabled).
                 const fb = document.querySelector(".feedback-open[data-feedback-url]");
                 if (fb) setTimeout(() => openFeedback(fb.dataset.feedbackUrl), 0);
+            } else if (window.location.hash === "#import") {
+                // ... and "#import" opens the import dialog (when enabled).
+                const im = document.querySelector(".import-open[data-import-url]");
+                if (im) setTimeout(() => openImport(im.dataset.importUrl), 0);
             } else if (window.location.hash.startsWith("#help-card=")) {
                 // ... and "#help-card=<label>" also opens that label's card.
                 const wanted = decodeURIComponent(window.location.hash.substring(11));
@@ -1442,6 +1446,127 @@
         });
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && document.getElementById('feedback-overlay')) closeFeedback();
+        });
+
+        // --- Import: paste a table or load a CSV / TSV file ------------------
+        // The "Import" button (shown when the application set an import
+        // address, Server.SetImportURL) opens a dialog: paste cells copied
+        // from a spreadsheet (tab-separated) or CSV text, or choose or drop a
+        // file. Load posts it as a form and opens the new table.
+        function openImport(url) {
+            closeImport();
+            const overlay = document.createElement('div');
+            overlay.id = 'import-overlay';
+            overlay.className = 'feedback-overlay';
+            const box = document.createElement('div');
+            box.className = 'feedback-box import-box';
+            box.setAttribute('role', 'dialog');
+            box.setAttribute('aria-label', 'Import a table');
+            box.innerHTML =
+                '<div class="feedback-title">Import a table</div>' +
+                '<div class="import-hint">Paste cells copied from a spreadsheet, or CSV or TSV text, ' +
+                'or choose or drop a file. The first line holds the column names.</div>' +
+                '<textarea class="feedback-text import-text" rows="9" placeholder="Paste here, or drop a file"></textarea>' +
+                '<div class="import-row">' +
+                '<label>Or a file <input type="file" class="import-file" accept=".csv,.tsv,.tab,.txt,text/csv,text/tab-separated-values,text/plain"></label>' +
+                '<label>Table name <input type="text" class="import-name" placeholder="optional"></label>' +
+                '</div>' +
+                '<div class="feedback-status" aria-live="polite"></div>' +
+                '<div class="feedback-buttons">' +
+                '<button type="button" class="feedback-cancel">Cancel</button>' +
+                '<button type="button" class="feedback-send">Load</button>' +
+                '</div>';
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            const text = box.querySelector('.import-text');
+            const fileInput = box.querySelector('.import-file');
+            const nameInput = box.querySelector('.import-name');
+            const status = box.querySelector('.feedback-status');
+            const load = box.querySelector('.feedback-send');
+            let droppedFile = null;
+            text.focus();
+            overlay.addEventListener('click', e => { if (e.target === overlay) closeImport(); });
+            box.querySelector('.feedback-cancel').addEventListener('click', closeImport);
+            // A pasted range keeps its tabs: Tab in the box types a tab
+            // instead of leaving it.
+            text.addEventListener('keydown', function(e) {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                    e.preventDefault();
+                    const s = text.selectionStart;
+                    text.setRangeText('\t', s, text.selectionEnd, 'end');
+                }
+            });
+            fileInput.addEventListener('change', function() {
+                droppedFile = null;
+                if (fileInput.files[0]) status.textContent = 'File: ' + fileInput.files[0].name;
+            });
+            box.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                box.classList.add('dragging-file');
+            });
+            box.addEventListener('dragleave', function() { box.classList.remove('dragging-file'); });
+            box.addEventListener('drop', function(e) {
+                e.preventDefault();
+                box.classList.remove('dragging-file');
+                const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                if (f) {
+                    droppedFile = f;
+                    fileInput.value = '';
+                    status.textContent = 'File: ' + f.name;
+                    status.className = 'feedback-status';
+                }
+            });
+            load.addEventListener('click', function() {
+                const form = new FormData();
+                const file = droppedFile || fileInput.files[0];
+                if (file) form.append('file', file, file.name);
+                else if (text.value.trim()) form.append('text', text.value);
+                else {
+                    status.textContent = 'Paste a table or choose a file first.';
+                    status.className = 'feedback-status error';
+                    text.focus();
+                    return;
+                }
+                if (nameInput.value.trim()) form.append('name', nameInput.value.trim());
+                load.disabled = true;
+                status.textContent = 'Loading...';
+                status.className = 'feedback-status';
+                fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {'Accept': 'application/json'},
+                    body: form,
+                }).then(function(resp) {
+                    return resp.json().catch(() => ({})).then(function(j) {
+                        if (!resp.ok) throw new Error(j.error || ('error ' + resp.status));
+                        return j;
+                    });
+                }).then(function(j) {
+                    // The answer is relative to the product: /<product>/table?...
+                    const base = window.location.pathname.replace(/[^/]*$/, '');
+                    window.location.href = base + j.url;
+                }).catch(function(err) {
+                    load.disabled = false;
+                    status.textContent = 'Could not import: ' + err.message;
+                    status.className = 'feedback-status error';
+                });
+            });
+        }
+
+        function closeImport() {
+            const overlay = document.getElementById('import-overlay');
+            if (overlay) overlay.remove();
+        }
+
+        document.addEventListener('click', function(e) {
+            const button = e.target.closest && e.target.closest('.import-open');
+            if (button && button.dataset.importUrl) {
+                e.preventDefault();
+                openImport(button.dataset.importUrl);
+            }
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('import-overlay')) closeImport();
         });
 
         // --- Syntax panel: the detailed syntax while typing -------------------

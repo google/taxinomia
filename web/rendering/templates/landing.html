@@ -119,6 +119,66 @@
             color: #2c3e50;
         }
 
+
+        .import-panel {
+            margin: 0 0 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .import-panel h2 {
+            font-size: 18px;
+            margin-bottom: 6px;
+            color: #2c3e50;
+        }
+
+        .import-hint {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .import-panel textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #c9ced5;
+            border-radius: 4px;
+            font: 12px monospace;
+            resize: vertical;
+            tab-size: 12;
+        }
+
+        .import-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 24px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .import-row input[type="text"] {
+            padding: 5px 8px;
+            border: 1px solid #c9ced5;
+            border-radius: 4px;
+        }
+
+        .import-row button {
+            margin-left: auto;
+            padding: 8px 22px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .import-row button:hover {
+            background-color: #2980b9;
+        }
         .view-table-btn {
             display: block;
             width: 100%;
@@ -185,6 +245,22 @@
             <p class="subtitle">{{.Subtitle}}</p>
             <p class="build-version" title="{{.Build.Long}}">Taxinomia {{.Build.Display}}</p>
         </header>
+
+        {{if .ImportURL}}
+        {{/* Import (Server.SetImportURL): a plain form, so it needs no script;
+             the server redirects to the new table. */}}
+        <form class="import-panel" method="post" action="{{.ImportURL}}" enctype="multipart/form-data">
+            <h2>Import a table</h2>
+            <p class="import-hint">Paste cells copied from a spreadsheet, or CSV or TSV text, or choose a file. The first line holds the column names.</p>
+            <textarea name="text" rows="6" placeholder="Paste here"></textarea>
+            <div class="import-row">
+                <label>Or a file <input type="file" name="file" accept=".csv,.tsv,.tab,.txt,text/csv,text/tab-separated-values,text/plain"></label>
+                <label>Table name <input type="text" name="name" placeholder="optional"></label>
+                <input type="hidden" name="return" value="{{.ImportReturn}}">
+                <button type="submit">Load</button>
+            </div>
+        </form>
+        {{end}}
 
         <div class="tables-grid">
             {{range .Tables}}

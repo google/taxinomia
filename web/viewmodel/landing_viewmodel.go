@@ -27,6 +27,10 @@ type LandingViewModel struct {
 	Tables   []TableInfo
 	UserName string         // Current user's display name (empty if no user)
 	Build    buildinfo.Info // Build that produced the serving binary
+	// ImportURL is where the import form posts tables (Server.SetImportURL); "" hides it.
+	ImportURL string
+	// ImportReturn is the product path the import form returns to ("/name/").
+	ImportReturn string
 }
 
 // TableInfo contains information about a table for the landing page

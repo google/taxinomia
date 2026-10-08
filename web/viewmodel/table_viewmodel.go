@@ -81,6 +81,8 @@ type TableViewModel struct {
 	Build buildinfo.Info
 	// FeedbackURL is where the feedback form posts reports (Server.SetFeedbackURL); "" hides the Feedback button.
 	FeedbackURL string
+	// ImportURL is where the import dialog posts tables (Server.SetImportURL); "" hides the Import button.
+	ImportURL string
 	// JourneysJSON lists the guided journeys offered in this product (JSON; "" for none), played by the page.
 	JourneysJSON string
 	// GroupConditions: grouped column -> its group condition (having:), shown in its "where" field.

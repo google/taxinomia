@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Scratchpad product: no tables of its own. Users paste a table or load a
+# CSV / TSV file (the server's import address, Server.SetImportURL) and
+# explore it; imported tables are listed on its landing page.
+
+name: "scratchpad"
+title: "Scratchpad"
+subtitle: "Paste a table or load a CSV or TSV file, then explore it"
+
+# A domain no table has: the landing page lists only imported tables.
+domains: "scratchpad"

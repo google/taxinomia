@@ -20,6 +20,7 @@ package models
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/tables"
@@ -56,6 +57,11 @@ func (j *Join) String() string {
 }
 
 type DataModel struct {
+	// mu guards the maps below: tables can be added while requests are
+	// served (imported tables). Exported methods lock; the unexported
+	// helpers that join discovery shares with them expect it held.
+	mu sync.RWMutex
+
 	// key is table name "." column name
 	tables map[string]*tables.DataTable
 
@@ -80,6 +86,8 @@ func NewDataModel() *DataModel {
 
 // AddTable adds a table to the data model and automatically registers entity types
 func (dm *DataModel) AddTable(name string, table *tables.DataTable) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
 	dm.tables[name] = table
 
 	// Automatically register entity types for all columns in the table
@@ -103,16 +111,31 @@ func (dm *DataModel) AddTable(name string, table *tables.DataTable) {
 
 // GetTable returns a table by name
 func (dm *DataModel) GetTable(name string) *tables.DataTable {
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
 	return dm.tables[name]
 }
 
-// GetAllTables returns all tables in the data model
+func (dm *DataModel) getTable(name string) *tables.DataTable {
+	return dm.tables[name]
+}
+
+// GetAllTables returns all tables in the data model, as a copy of the name
+// -> table map: tables added afterwards do not appear in it.
 func (dm *DataModel) GetAllTables() map[string]*tables.DataTable {
-	return dm.tables
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
+	all := make(map[string]*tables.DataTable, len(dm.tables))
+	for name, t := range dm.tables {
+		all[name] = t
+	}
+	return all
 }
 
 // GetColumnsByEntityType returns all columns for a specific entity type
 func (dm *DataModel) GetColumnsByEntityType(entityType string) []columns.IDataColumn {
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
 	var columns []columns.IDataColumn
 
 	// Get the table/column references for this entity type
@@ -142,6 +165,12 @@ type TableColumnRef struct {
 
 // GetAllEntityTypes returns all entity types and their usage across tables
 func (dm *DataModel) GetAllEntityTypes() []EntityTypeUsage {
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
+	return dm.allEntityTypes()
+}
+
+func (dm *DataModel) allEntityTypes() []EntityTypeUsage {
 	var result []EntityTypeUsage
 
 	// Simply convert the columnsByEntityType map to the result format
@@ -161,12 +190,16 @@ func (dm *DataModel) RegisterJoin(join *Join) error {
 	// algorithm already enforces all the same rules that the validator checks.
 
 	// Add the join to our registry
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
 	dm.joins[join.Key] = join
 	return nil
 }
 
 // GetJoins returns all registered joins
 func (dm *DataModel) GetJoins() []*Join {
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
 	joins := make([]*Join, 0, len(dm.joins))
 	for _, join := range dm.joins {
 		joins = append(joins, join)
@@ -177,6 +210,8 @@ func (dm *DataModel) GetJoins() []*Join {
 // GetJoin returns a specific join by its key
 // Returns nil if the join doesn't exist (not a typed nil)
 func (dm *DataModel) GetJoin(key string) interface{} {
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
 	join, exists := dm.joins[key]
 	if !exists {
 		return nil
@@ -213,7 +248,7 @@ func (dm *DataModel) discoverJoins() {
 	dm.joins = make(map[string]*Join)
 
 	// Get all entity types and their usage
-	entityTypes := dm.GetAllEntityTypes()
+	entityTypes := dm.allEntityTypes()
 
 	// For each entity type, find potential joins
 	for _, entityUsage := range entityTypes {
@@ -224,7 +259,7 @@ func (dm *DataModel) discoverJoins() {
 		// Find all columns with this entity type that have IsKey = true
 		var keyColumns []TableColumnRef
 		for _, ref := range entityUsage.Usage {
-			table := dm.GetTable(ref.TableName)
+			table := dm.getTable(ref.TableName)
 			if table != nil {
 				col := table.GetColumn(ref.ColumnName)
 				if col != nil && col.IsKey() {
@@ -241,7 +276,7 @@ func (dm *DataModel) discoverJoins() {
 		// For each column with this entity type, create joins to all key columns
 		// This includes both non-key columns (foreign keys) and key columns (for chained lookups)
 		for _, sourceRef := range entityUsage.Usage {
-			sourceTable := dm.GetTable(sourceRef.TableName)
+			sourceTable := dm.getTable(sourceRef.TableName)
 			if sourceTable == nil {
 				continue
 			}
@@ -354,11 +389,11 @@ func (j *Join) GetJoiner() columns.IJoiner {
 func NewJoin(fromTable, fromColumn, toTable, toColumn, entityType string, dm *DataModel) *Join {
 	return &Join{
 		Key:        fmt.Sprintf("%s.%s->%s.%s", fromTable, fromColumn, toTable, toColumn),
-		FromTable:  dm.GetTable(fromTable),
-		FromColumn: dm.GetTable(fromTable).GetColumn(fromColumn),
-		ToTable:    dm.GetTable(toTable),
-		ToColumn:   dm.GetTable(toTable).GetColumn(toColumn),
-		Joiner:     dm.createJoiner(dm.GetTable(fromTable).GetColumn(fromColumn), dm.GetTable(toTable).GetColumn(toColumn)),
+		FromTable:  dm.getTable(fromTable),
+		FromColumn: dm.getTable(fromTable).GetColumn(fromColumn),
+		ToTable:    dm.getTable(toTable),
+		ToColumn:   dm.getTable(toTable).GetColumn(toColumn),
+		Joiner:     dm.createJoiner(dm.getTable(fromTable).GetColumn(fromColumn), dm.getTable(toTable).GetColumn(toColumn)),
 		EntityType: entityType,
 	}
 }
