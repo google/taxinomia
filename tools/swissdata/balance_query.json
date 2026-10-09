@@ -1,0 +1,7 @@
+{"query":[
+ {"code":"Jahr","selection":{"filter":"item","values":["2024"]}},
+ {"code":"Kanton (-) / Bezirk (>>) / Gemeinde (......)","selection":{"filter":"all","values":["*"]}},
+ {"code":"Staatsangehörigkeit (Kategorie)","selection":{"filter":"item","values":["0"]}},
+ {"code":"Geschlecht","selection":{"filter":"item","values":["0"]}},
+ {"code":"Demografische Komponente","selection":{"filter":"item","values":["1","2","4","7","10"]}}
+],"response":{"format":"csv"}}

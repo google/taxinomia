@@ -1,16 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-# Switzerland: real data from the Swiss Federal Statistical Office and
-# Wikidata (demo/data/switzerland/SOURCES.md).
+# Switzerland: real data, mostly from the Swiss Federal Statistical Office
+# (demo/data/switzerland/SOURCES.md).
 
 name: "switzerland"
 title: "Switzerland"
-subtitle: "Regions, cantons, districts and municipalities, population 2024, mountains and lakes. Sources: Swiss Federal Statistical Office (commune register, STAT-TAB) and Wikidata."
+subtitle: "Every municipality, population 2024, and the federal popular votes of 2021 to 2025 by municipality. Sources: Swiss Federal Statistical Office, Federal Chancellery, Wikidata."
 
 domains: "switzerland"
 
-default_columns { table_name: "ch_municipalities" columns: "name" columns: "canton" columns: "district" columns: "language_region" columns: "urbanisation" columns: "population" columns: "foreign_pct" columns: "area_km2" columns: "density" columns: "elevation_m" }
-default_columns { table_name: "ch_cantons" columns: "canton" columns: "name" columns: "capital" columns: "joined" columns: "official_languages" columns: "region" }
-default_columns { table_name: "ch_districts" columns: "district" columns: "name" columns: "canton" }
-default_columns { table_name: "ch_regions" columns: "region" columns: "local_name" }
-default_columns { table_name: "ch_mountains" columns: "name" columns: "elevation_m" columns: "prominence_m" columns: "range" columns: "canton" columns: "cantons" }
-default_columns { table_name: "ch_lakes" columns: "name" columns: "area_km2" columns: "max_depth_m" columns: "elevation_m" columns: "volume_km3" columns: "canton" columns: "cantons" }
+default_columns { table_name: "ch_municipalities" columns: "name" columns: "canton" columns: "district" columns: "language_region" columns: "urbanisation" columns: "population" columns: "foreign_pct" columns: "over_65_pct" columns: "median_age" columns: "density" columns: "elevation_m" }
+default_columns { table_name: "ch_votes" columns: "date" columns: "title" columns: "kind" columns: "accepted" columns: "yes_pct" columns: "turnout_pct" }
+default_columns { table_name: "ch_vote_results" columns: "vote" columns: "bfs_nr" columns: "yes_pct" columns: "turnout_pct" columns: "yes" columns: "no" }

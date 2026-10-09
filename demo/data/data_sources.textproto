@@ -259,7 +259,8 @@ journeys {
 }
 
 # Switzerland (demo/data/switzerland/SOURCES.md): the administrative
-# hierarchy and the entity types of the ch_* tables.
+# hierarchy and the entity types of the ch_* tables. Regions, cantons and
+# districts are columns of ch_municipalities (no tables of their own).
 hierarchies {
   name: "ch.administrative"
   description: "Major region, canton, district and municipality"
@@ -291,15 +292,8 @@ entity_types {
 }
 
 entity_types {
-  name: "ch.mountain"
-  description: "A summit, by its Wikidata item"
-  urls { name: "Wikidata" template: "https://www.wikidata.org/wiki/{value}" table_label: "Wikidata" }
-}
-
-entity_types {
-  name: "ch.lake"
-  description: "A lake, by its Wikidata item"
-  urls { name: "Wikidata" template: "https://www.wikidata.org/wiki/{value}" table_label: "Wikidata" }
+  name: "ch.vote"
+  description: "A federal popular vote, by its Federal Chancellery number"
 }
 
 entity_types {

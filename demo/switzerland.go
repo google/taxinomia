@@ -26,34 +26,24 @@ import (
 	"github.com/google/taxinomia/core/tables"
 )
 
-// The Switzerland demo: real data from the Swiss Federal Statistical Office
-// (commune register, population 2024) and Wikidata, built by tools/swissdata
-// (sources and cleaning in demo/data/switzerland/SOURCES.md). Regions,
-// cantons, districts and municipalities form the administrative hierarchy;
-// mountains and lakes join their canton.
-
-//go:embed data/switzerland/ch_regions.csv
-var chRegionsCSV []byte
-
-//go:embed data/switzerland/ch_cantons.csv
-var chCantonsCSV []byte
-
-//go:embed data/switzerland/ch_districts.csv
-var chDistrictsCSV []byte
+// The Switzerland demo: real data, mostly from the Swiss Federal Statistical
+// Office, built by tools/swissdata (sources in demo/data/switzerland/
+// SOURCES.md). One table of municipalities, the federal popular votes of
+// 2021-2025, and each vote's result in each municipality, which joins both.
 
 //go:embed data/switzerland/ch_municipalities.csv
 var chMunicipalitiesCSV []byte
 
-//go:embed data/switzerland/ch_mountains.csv
-var chMountainsCSV []byte
+//go:embed data/switzerland/ch_votes.csv
+var chVotesCSV []byte
 
-//go:embed data/switzerland/ch_lakes.csv
-var chLakesCSV []byte
+//go:embed data/switzerland/ch_vote_results.csv
+var chVoteResultsCSV []byte
 
 type col = csvimport.TextColumnOptions
 
-var cantonCol = col{DisplayName: "Canton", EntityType: "ch.canton"}
-var regionCol = col{DisplayName: "Region", EntityType: "ch.region"}
+var municipalityCol = col{DisplayName: "Municipality no.", EntityType: "ch.municipality"}
+var voteCol = col{DisplayName: "Vote", EntityType: "ch.vote"}
 
 var swissTables = []struct {
 	name     string
@@ -61,29 +51,12 @@ var swissTables = []struct {
 	columns  map[string]col
 	computed []tables.ComputedDefinition
 }{
-	{"ch_regions", chRegionsCSV, map[string]col{
-		"region":     regionCol,
-		"local_name": {DisplayName: "Local name"},
-	}, nil},
-	{"ch_cantons", chCantonsCSV, map[string]col{
-		"canton":             cantonCol,
-		"name":               {DisplayName: "Name"},
-		"capital":            {DisplayName: "Capital"},
-		"joined":             {DisplayName: "Joined"},
-		"official_languages": {DisplayName: "Official languages"},
-		"region":             regionCol,
-	}, nil},
-	{"ch_districts", chDistrictsCSV, map[string]col{
-		"district": {DisplayName: "District", EntityType: "ch.district"},
-		"name":     {DisplayName: "Name"},
-		"canton":   cantonCol,
-	}, nil},
 	{"ch_municipalities", chMunicipalitiesCSV, map[string]col{
-		"bfs_nr":            {DisplayName: "BFS no.", EntityType: "ch.municipality"},
+		"bfs_nr":            municipalityCol,
 		"name":              {DisplayName: "Municipality"},
-		"canton":            cantonCol,
+		"canton":            {DisplayName: "Canton", EntityType: "ch.canton"},
 		"district":          {DisplayName: "District", EntityType: "ch.district"},
-		"region":            regionCol,
+		"region":            {DisplayName: "Region", EntityType: "ch.region"},
 		"language_region":   {DisplayName: "Language region"},
 		"urbanisation":      {DisplayName: "Urbanisation"},
 		"municipality_type": {DisplayName: "Type"},
@@ -92,6 +65,16 @@ var swissTables = []struct {
 		"foreign":           {DisplayName: "Foreign"},
 		"men":               {DisplayName: "Men"},
 		"women":             {DisplayName: "Women"},
+		"age_0_19":          {DisplayName: "Aged 0-19"},
+		"age_20_64":         {DisplayName: "Aged 20-64"},
+		"age_65_plus":       {DisplayName: "Aged 65+"},
+		"age_80_plus":       {DisplayName: "Aged 80+"},
+		"median_age":        {DisplayName: "Median age"},
+		"births":            {DisplayName: "Births"},
+		"deaths":            {DisplayName: "Deaths"},
+		"immigration":       {DisplayName: "Immigration"},
+		"emigration":        {DisplayName: "Emigration"},
+		"net_migration":     {DisplayName: "Net migration"},
 		"area_km2":          {DisplayName: "Area (km²)"},
 		"elevation_m":       {DisplayName: "Elevation (m)"},
 		"latitude":          {DisplayName: "Latitude"},
@@ -100,31 +83,31 @@ var swissTables = []struct {
 	}, []tables.ComputedDefinition{
 		{Name: "density", DisplayName: "Density (per km²)", Expression: "round(population / area_km2)"},
 		{Name: "foreign_pct", DisplayName: "Foreign (%)", Expression: "round(foreign * 100 / population, 1)"},
+		{Name: "over_65_pct", DisplayName: "Aged 65+ (%)", Expression: "round(age_65_plus * 100 / population, 1)"},
 	}},
-	{"ch_mountains", chMountainsCSV, map[string]col{
-		"mountain":     {DisplayName: "Wikidata", EntityType: "ch.mountain"},
-		"name":         {DisplayName: "Mountain"},
-		"elevation_m":  {DisplayName: "Elevation (m)"},
-		"prominence_m": {DisplayName: "Prominence (m)"},
-		"range":        {DisplayName: "Range"},
-		"canton":       cantonCol,
-		"cantons":      {DisplayName: "Cantons"},
-		"latitude":     {DisplayName: "Latitude"},
-		"longitude":    {DisplayName: "Longitude"},
+	{"ch_votes", chVotesCSV, map[string]col{
+		"vote":        voteCol,
+		"date":        {DisplayName: "Date"},
+		"title":       {DisplayName: "Title"},
+		"kind":        {DisplayName: "Kind"},
+		"accepted":    {DisplayName: "Accepted"},
+		"yes_pct":     {DisplayName: "Yes (%)"},
+		"turnout_pct": {DisplayName: "Turnout (%)"},
 	}, nil},
-	{"ch_lakes", chLakesCSV, map[string]col{
-		"lake":        {DisplayName: "Wikidata", EntityType: "ch.lake"},
-		"name":        {DisplayName: "Lake"},
-		"area_km2":    {DisplayName: "Area (km²)"},
-		"max_depth_m": {DisplayName: "Max depth (m)"},
-		"elevation_m": {DisplayName: "Elevation (m)"},
-		"volume_km3":  {DisplayName: "Volume (km³)"},
-		"canton":      cantonCol,
-		"cantons":     {DisplayName: "Cantons"},
-		"latitude":    {DisplayName: "Latitude"},
-		"longitude":   {DisplayName: "Longitude"},
+	{"ch_vote_results", chVoteResultsCSV, map[string]col{
+		"vote":        voteCol,
+		"bfs_nr":      municipalityCol,
+		"yes_pct":     {DisplayName: "Yes (%)"},
+		"turnout_pct": {DisplayName: "Turnout (%)"},
+		"yes":         {DisplayName: "Yes"},
+		"no":          {DisplayName: "No"},
+		"valid":       {DisplayName: "Valid votes"},
+		"electorate":  {DisplayName: "Electorate"},
 	}, nil},
 }
+
+// SwissTableNames lists the Switzerland demo tables, in display order.
+var SwissTableNames = []string{"ch_municipalities", "ch_votes", "ch_vote_results"}
 
 // CreateSwissTables imports the Switzerland demo tables, by name.
 func CreateSwissTables() map[string]*tables.DataTable {

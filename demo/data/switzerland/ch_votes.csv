@@ -1,0 +1,43 @@
+vote,date,title,kind,accepted,yes_pct,turnout_pct
+6380,2021-03-07,Popular initiative ‘Yes to a ban on full facial coverings’,Popular initiative,true,51.19,51.42
+6390,2021-03-07,Federal Act on Electronic Identification Services (e-ID Act),Optional referendum,false,35.64,51.29
+6400,2021-03-07,Economic partnership agreement with Indonesia,Optional referendum,true,51.65,51.10
+6410,2021-06-13,Popular initiative 'For clean drinking water and healthy food',Popular initiative,false,39.31,59.78
+6420,2021-06-13,Popular initiative 'For a Switzerland without artificial pesticides',Popular initiative,false,39.44,59.76
+6430,2021-06-13,Federal Act on the Statutory Principles for Federal Council Ordinances on Combating the COVID-19 Epidemic (COVID-19 Act),Optional referendum,true,60.20,59.66
+6440,2021-06-13,Federal Act on the Reduction of Greenhouse Gas Emissions (CO2 Act),Optional referendum,false,48.41,59.70
+6450,2021-06-13,Federal Act on Police Measures to Combat Terrorism (PMCT),Optional referendum,true,56.58,59.57
+6460,2021-09-26,"Federal Popular Initiative 'Reduce tax on salaries, tax capital fairly'",Popular initiative,false,35.12,52.23
+6470,2021-09-26,Marriage for all,Optional referendum,true,64.10,52.60
+6480,2021-11-28,Nursing initiative,Popular initiative,true,60.98,65.31
+6490,2021-11-28,Judge Initiative,Popular initiative,false,31.92,64.68
+6500,2021-11-28,Amendment to the COVID-19 Act,Optional referendum,true,62.02,65.73
+6510,2022-02-13,Popular initiative 'Yes to the ban on animal and human experiments – Yes to research that brings safety and progress',Popular initiative,false,20.86,44.20
+6520,2022-02-13,Popular initiative 'Yes to protecting children and young adults from tobacco advertising' (No tobacco ads for children and young adults),Popular initiative,true,56.65,44.24
+6530,2022-02-13,Amendment of the Federal Act on Stamp Duties,Optional referendum,false,37.37,44.03
+6540,2022-02-13,Federal Act on a Package of Measures to benefit the Media,Optional referendum,false,45.42,44.14
+6550,2022-05-15,Amendment to the Federal Act on Film Production and Film Culture,Optional referendum,true,58.42,40.03
+6560,2022-05-15,Transplantation Act,Optional referendum,true,60.20,40.26
+6570,2022-05-15,Adoption of the Regulation on the European Border and Coast Guard and repealing Regulations (Development of the Schengen Acquis).,Optional referendum,true,71.48,39.98
+6580,2022-09-25,Factory Faming Initiative,Popular initiative,false,37.13,52.28
+6590,2022-09-25,Supplementary financing of OASI by increasing Value Added Tax,Mandatory referendum,true,55.07,52.16
+6600,2022-09-25,Amendment to the Federal Act on Old-Age and Survivors' Insurance (OASI 21),Optional referendum,true,50.55,52.19
+6610,2022-09-25,Amendment to the Federal Act on Withholding Tax,Optional referendum,false,47.99,51.71
+6620,2023-06-18,Implementation of the OECD/G20 project on the taxation of large corporate groups,Mandatory referendum,true,78.45,42.34
+6630,2023-06-18,"Federal Act on Climate Protection Targets, Innovation and Strengthening Energy Security (KIG)",Optional referendum,true,59.07,42.51
+6640,2023-06-18,Amendment to the COVID-19 Act,Optional referendum,true,61.94,42.46
+6650,2024-03-03,Initiative for a 13th OASI pension payment,Popular initiative,true,58.25,58.36
+6660,2024-03-03,Pensions Initiative (retirement age),Popular initiative,false,25.25,58.13
+6670,2024-06-09,Popular initiative ‘Keep health insurance premiums to no more than 10% of income (Premium Relief Initiative)’,Popular initiative,false,44.53,45.45
+6680,2024-06-09,Popular initiative ‘For lower premiums – a cost brake in the health-care system (Cost-Brake Initiative)',Popular initiative,false,37.23,45.40
+6690,2024-06-09,Popular initiative ‘For freedom and physical integrity’,Popular initiative,false,26.27,45.37
+6700,2024-06-09,Federal Act on a Secure Electricity Supply from Renewable Energy Sources,Optional referendum,true,68.72,45.42
+6710,2024-09-22,Popular initiative 'For the future of our nature and our landscape',Popular initiative,false,36.96,45.19
+6720,2024-09-22,"Amendment to the federal law on retirement, survivors’ and disability pension plans (BVG/LPP)",Optional referendum,false,32.87,45.04
+6730,2024-11-24,Federal Decree on the 2023 expansion programme for the national highways,Optional referendum,false,47.30,45.06
+6740,2024-11-24,Amendment to the Code of Obligations (tenancy law: subletting),Optional referendum,false,48.42,44.90
+6750,2024-11-24,Amendment to the Code of Obligations (tenancy law: termination to permit personal use),Optional referendum,false,46.17,44.91
+6760,2024-11-24,Amendment to the Health Insurance Act (standardised financing of benefits),Optional referendum,true,53.31,44.89
+6770,2025-02-09,Popular Initiative 'For a responsible economy within our planet’s limits (Environmental Responsibility Initiative)',Popular initiative,false,30.25,38.05
+6780,2025-09-28,Federal decree on cantonal property taxes on second homes,Mandatory referendum,true,57.73,49.53
+6790,2025-09-28,Federal Act on Electronic Identification Services (e-ID Act),Optional referendum,true,50.39,49.58
