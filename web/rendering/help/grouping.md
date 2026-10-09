@@ -30,6 +30,13 @@ The table's own level is not offered: on a table of racks, grouping by
 rack would give one row per group.
 
 
+## Groups from a filter
+
+Instead of one group per value, a column can be grouped by filters: type
+them in its filter box separated by `||`, e.g. `east || west ||` (the
+trailing `||` adds [other], the rest). See Groups from a filter under
+Filtering.
+
 ## Keeping only some groups
 
 Under a grouped column's buttons, the **keep groups where...** field keeps

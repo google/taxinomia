@@ -109,7 +109,11 @@ type TableView struct {
 	filtersRecomputed bool
 	// groupConds are applied after the row filters (SetGroupConditions,
 	// group_conditions.go); their signature is part of lastFilters.
-	groupConds  []*GroupCondition
+	groupConds []*GroupCondition
+	// groupDefs replace grouped columns' value groups with filter-term
+	// groups (SetGroupDefinitions, group_definitions.go); their signature is
+	// part of lastFilters.
+	groupDefs   map[string]*groupDefinition
 	lastFilters map[string]string // Filters that produced current selection (for change detection)
 
 	// Grouping cache tracking
@@ -308,13 +312,19 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 	// signature sits under a reserved key, so a changed condition misses
 	// both this cache and the grouping cache (which compares lastFilters).
 	condSig := t.groupConditionsSignature()
+	defSig := t.groupDefinitionsSignature()
 	effective := filters
-	if condSig != "" {
-		effective = make(map[string]string, len(filters)+1)
+	if condSig != "" || defSig != "" {
+		effective = make(map[string]string, len(filters)+2)
 		for k, v := range filters {
 			effective[k] = v
 		}
-		effective[groupConditionsKey] = condSig
+		if condSig != "" {
+			effective[groupConditionsKey] = condSig
+		}
+		if defSig != "" {
+			effective[groupDefinitionsKey] = defSig
+		}
 	}
 	// Check if filters are unchanged - skip recomputation
 	if t.filtersEqual(effective) {
@@ -343,6 +353,19 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 			// Column not found - no rows pass
 			t.filterSel = columns.NewSelection(t.baseTable.Length())
 			return nil
+		}
+
+		// Ranges and comparisons on number and date columns (10..100,
+		// >=2024-03), and quoted alternatives ("a"|"b"), go row by row
+		// (filter_terms.go); the plain forms keep the structured paths below.
+		if needsRowPredicate(col, filterValue) {
+			pred := compileFilterText(col, filterValue)
+			t.filterSel.ForEach(func(i uint32) {
+				if !pred(i) {
+					t.filterSel.Remove(i)
+				}
+			})
+			continue
 		}
 
 		// Check for multi-value filter (pipe-separated exact matches)
@@ -436,6 +459,11 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 				})
 			}
 		}
+	}
+
+	// Group definitions without [other]: drop the rows no group takes.
+	if defSig != "" {
+		t.applyGroupDefinitions()
 	}
 
 	// Group conditions: drop the rows of the groups that fail them.
@@ -818,7 +846,7 @@ func (t *TableView) groupTableLazy(ctx context.Context, groupingOrder []string, 
 	// counts and stats resolve even when no subtree at that level is open.
 	for level, col := range groupingOrder[1:] {
 		t.groupedColumns[col] = &grouping.GroupedColumn{
-			DataColumn: t.GetColumn(col),
+			DataColumn: t.groupingColumn(col),
 			ColumnView: t.columnViews[col],
 			Level:      level + 1,
 			Tag:        "next",
@@ -1241,7 +1269,7 @@ func releaseGroupMembership(block *grouping.Block) {
 func (t *TableView) groupFirstColumnInTable(ctx context.Context, sel columns.RowSet) ([]*grouping.Block, error) {
 	firstColumn := t.groupingOrder[0]
 	columnView := t.columnViews[firstColumn]
-	dataColumn := t.GetColumn(firstColumn)
+	dataColumn := t.groupingColumn(firstColumn)
 
 	g := &grouping.GroupedColumn{
 		DataColumn: dataColumn,
@@ -1276,7 +1304,7 @@ func (t *TableView) groupSubsequentColumnsInTable(ctx context.Context, cols []st
 	for level, col := range cols {
 		step := t.stepStart()
 		parentRows := 0
-		dataColumn := t.GetColumn(col)
+		dataColumn := t.groupingColumn(col)
 		columnView := t.columnViews[col]
 
 		g := &grouping.GroupedColumn{

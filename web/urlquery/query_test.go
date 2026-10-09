@@ -625,3 +625,23 @@ func TestShowGroupedColumns(t *testing.T) {
 		t.Errorf("columns = %s, want the URL's order region,zone,cluster,rack", c)
 	}
 }
+
+// TestGroupDefinitionFilters: a filter with || (outside quotes) defines
+// groups; ungrouping its column drops it; a defined group drills to its term.
+func TestGroupDefinitionFilters(t *testing.T) {
+	for text, want := range map[string]bool{"a||b": true, "a||": true, "a|b": false, `"a||b"`: false, `"x"|y || z`: true} {
+		if IsGroupDefinition(text) != want {
+			t.Errorf("IsGroupDefinition(%q) = %v", text, !want)
+		}
+	}
+	u, _ := url.Parse("/table?table=t&grouped=region&filter:region=" + url.QueryEscape("east || west ||"))
+	q := NewQuery(u)
+	off, _ := url.Parse(q.WithGroupedColumnToggled("region").String())
+	if _, ok := NewQuery(off).Filters["region"]; ok {
+		t.Error("ungrouping kept the group definition (the column would group again)")
+	}
+	drill, _ := url.Parse(q.WithFilterPath([]FilterStep{{Column: "region", Value: "east", Term: "east"}}).String())
+	if got := NewQuery(drill).Filters["region"]; got != "east" {
+		t.Errorf("drill filter = %q, want the group's term", got)
+	}
+}

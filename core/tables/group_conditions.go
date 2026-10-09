@@ -260,7 +260,7 @@ func (t *TableView) applyGroupCondition(ctx context.Context, c *GroupCondition, 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	col := t.GetColumn(c.Columns[level])
+	col := t.groupingColumn(c.Columns[level])
 	if col == nil {
 		return nil
 	}
@@ -296,7 +296,7 @@ func (t *TableView) groupAggValues(c *GroupCondition, members []uint32) map[stri
 		case "subgroups":
 			n := 0
 			if c.Level+1 < len(c.Columns) {
-				if next := t.GetColumn(c.Columns[c.Level+1]); next != nil {
+				if next := t.groupingColumn(c.Columns[c.Level+1]); next != nil {
 					counts, _ := columns.GroupOpsFor(next, t.columnViews[c.Columns[c.Level+1]]).GroupCounts(columns.RowIndices(members))
 					for _, k := range counts {
 						if k > 0 {

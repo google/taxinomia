@@ -532,6 +532,12 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	if len(q.Columns) == 0 {
 		q.Columns = defaultColumns
 	}
+	// A filter that defines groups (east || west ||) groups its column.
+	for col, f := range q.Filters {
+		if urlquery.IsGroupDefinition(f) && !q.IsColumnGrouped(col) {
+			q.GroupedColumns = append(q.GroupedColumns, col)
+		}
+	}
 	// Grouped columns are always shown, leading in grouping order.
 	q.ShowGroupedColumns()
 
@@ -610,7 +616,26 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 
 	// Apply filters to the table view (even with errors, apply valid filters)
 	filterStart := timing.Now()
-	if err := tableView.ApplyFiltersContext(ctx, q.Filters); err != nil {
+	// Group definitions leave the row filters: they set the groups of their
+	// (grouped) column, and drop only the rows no group takes.
+	rowFilters := make(map[string]string, len(q.Filters))
+	groupDefs := map[string]string{}
+	for col, f := range q.Filters {
+		if urlquery.IsGroupDefinition(f) {
+			groupDefs[col] = f
+		} else {
+			rowFilters[col] = f
+		}
+	}
+	for col, err := range tableView.SetGroupDefinitions(groupDefs) {
+		if validation.FilterErrors == nil {
+			validation.FilterErrors = map[string]string{}
+		}
+		if _, taken := validation.FilterErrors[col]; !taken {
+			validation.FilterErrors[col] = err.Error()
+		}
+	}
+	if err := tableView.ApplyFiltersContext(ctx, rowFilters); err != nil {
 		return nil, &TableHandlerResult{StatusCode: 499, Message: "request cancelled"}
 	}
 	var filterLinks []viewmodel.SettingLink

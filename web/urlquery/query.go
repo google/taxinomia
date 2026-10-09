@@ -880,6 +880,11 @@ func (s *Query) WithGroupedColumnToggled(column string) safehtml.URL {
 		newState.GroupedColumns = newGrouped
 		newState.AnimatedColumn = ""             // No animation when ungrouping
 		delete(newState.GroupConditions, column) // a condition belongs to a grouping level
+		// A group definition (a filter with ||) groups its column by itself;
+		// ungrouping drops it, or the column would be grouped again.
+		if IsGroupDefinition(newState.Filters[column]) {
+			delete(newState.Filters, column)
+		}
 	} else {
 		// Column was not grouped, add it to the end
 		newState.GroupedColumns = append(s.GroupedColumns, column)
@@ -957,6 +962,17 @@ func (s *Query) IsColumnGrouped(column string) bool {
 type FilterStep struct {
 	Column string
 	Value  string
+	// Term, when set, is the filter written for this step instead of the
+	// exact-match "Value": a defined group's own filter term.
+	Term string
+}
+
+// filter is the filter text of a drill step.
+func (s FilterStep) filter() string {
+	if s.Term != "" {
+		return s.Term
+	}
+	return `"` + s.Value + `"`
 }
 
 // WithFilterPath returns the drill URL of the filter-by control on a
@@ -972,7 +988,7 @@ func (s *Query) WithFilterPath(path []FilterStep) safehtml.URL {
 	}
 	newState := s.Clone()
 	for _, step := range path {
-		newState.Filters[step.Column] = `"` + step.Value + `"`
+		newState.Filters[step.Column] = step.filter()
 	}
 	// Back to the default expansion: an explicit one could leave the
 	// drilled group closed.
@@ -993,7 +1009,7 @@ func (s *Query) WithFilterPathAndUngrouped(path []FilterStep) safehtml.URL {
 
 	remove := make(map[string]bool, len(path))
 	for _, step := range path {
-		newState.Filters[step.Column] = `"` + step.Value + `"`
+		newState.Filters[step.Column] = step.filter()
 		remove[step.Column] = true
 	}
 
@@ -1353,4 +1369,21 @@ func (s *Query) WithGroupExpansionToggled(path []string) safehtml.URL {
 		newState.ExpandedGroups = append(newState.ExpandedGroups, append([]string(nil), path[:len(path)-1]...))
 	}
 	return newState.ToSafeURL()
+}
+
+// IsGroupDefinition reports whether a filter text defines groups: it holds
+// "||" outside quotes (each group is a filter; a trailing "||" adds
+// [other]). Such a filter groups its column by those groups instead of
+// filtering rows. Same rule as tables.IsGroupDefinition.
+func IsGroupDefinition(filter string) bool {
+	quoted := false
+	for i := 0; i+1 < len(filter); i++ {
+		switch {
+		case filter[i] == '"':
+			quoted = !quoted
+		case !quoted && filter[i] == '|' && filter[i+1] == '|':
+			return true
+		}
+	}
+	return false
 }

@@ -1610,9 +1610,51 @@
         }
 
         // What a filter box value will do (the rules of ApplyFilters).
+        // Splits at sep outside "quotes".
+        function splitOutsideQuotes(v, sep) {
+            const parts = [];
+            let quoted = false, start = 0;
+            for (let i = 0; i < v.length; i++) {
+                if (v[i] === '"') quoted = !quoted;
+                else if (!quoted && v.startsWith(sep, i)) {
+                    parts.push(v.slice(start, i));
+                    start = i + sep.length;
+                    i += sep.length - 1;
+                }
+            }
+            parts.push(v.slice(start));
+            return parts;
+        }
+
+        function describeRange(v) {
+            const m = v.match(/^(<=|>=|<|>)\s*(\S.*)$/);
+            if (m) {
+                const words = {'<': 'below', '<=': 'up to', '>': 'above', '>=': 'from'};
+                return 'value ' + words[m[1]] + ' ' + m[2];
+            }
+            const at = v.indexOf('..');
+            if (at < 0 || v.indexOf('..', at + 2) >= 0) return '';
+            const a = v.slice(0, at).trim(), b = v.slice(at + 2).trim();
+            if (!a && !b) return '';
+            if (!a) return 'value below ' + b;
+            if (!b) return 'value from ' + a;
+            return 'value from ' + a + ' up to, not including, ' + b;
+        }
+
         function describeFilter(v) {
             v = v.trim();
-            if (!v) return 'Type a word, "an exact value", or several|values.';
+            if (!v) return 'Type a word, "an exact value", several|values, a range such as 10..100, or groups: east || west ||.';
+            const groups = splitOutsideQuotes(v, '||');
+            if (groups.length > 1) {
+                const other = groups[groups.length - 1].trim() === '';
+                const terms = groups.slice(0, other ? -1 : undefined).map(s => s.trim());
+                if (terms.some(t => !t)) return 'A group is empty: write a filter between each || and the next.';
+                return 'Groups the rows into ' + terms.join(', then ') +
+                    (other ? ', and [other] for the rest' : '; rows in none of them leave the view') +
+                    '. A row goes to the first group it matches.';
+            }
+            const range = describeRange(v);
+            if (range) return 'Keeps rows whose ' + range + ' (on number and date columns; elsewhere it is text).';
             if (v.indexOf('|') !== -1) {
                 const values = v.split('|').map(s => s.trim()).filter(Boolean);
                 return 'Keeps rows whose value is exactly one of: ' + values.join(', ') + '.';

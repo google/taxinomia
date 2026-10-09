@@ -226,6 +226,7 @@ type GroupedCell struct {
 	Value                 string     // Display value for the cell
 	ValueURL              string     // URL for the cell value (if entity type has default URL)
 	Links                 []CellLink // External link chips after the value (View.CellLinks)
+	IsOtherGroup          bool       // The [other] group of a group definition: no drill (F)
 	NumRows               int        // Number of rows in this group (for display in brackets)
 	NumSubgroups          int        // Number of subgroups (0 if leaf group)
 	Rowspan               int
@@ -1634,10 +1635,15 @@ func (w *groupWalker) walk(block *grouping.Block, rows *[]GroupedRow, level int,
 		// that value across all ancestors.
 		filterPath := make([]urlquery.FilterStep, 0, level+1)
 		for g, l := group, level; g != nil && l >= 0; g, l = g.ParentGroup, l-1 {
-			filterPath = append(filterPath, urlquery.FilterStep{
+			step := urlquery.FilterStep{
 				Column: q.GroupedColumns[l],
 				Value:  g.GetValue(),
-			})
+			}
+			// A defined group (a filter with ||) drills to its own filter term.
+			if term, _, ok := w.tableView.DefinedGroup(step.Column, step.Value); ok {
+				step.Term = term
+			}
+			filterPath = append(filterPath, step)
 		}
 
 		// Tooltip explains the bracket format
@@ -1691,9 +1697,13 @@ func (w *groupWalker) walk(block *grouping.Block, rows *[]GroupedRow, level int,
 		isRowCountSorted := aggSort != nil && aggSort.AggType == urlquery.AggRowCount
 		isSubgroupCountSorted := aggSort != nil && aggSort.AggType == urlquery.AggSubgroupCount
 
+		// A defined group's label is a filter term, not a value: no entity
+		// link or link chips; [other] has no drill (there is no "not" filter).
+		_, isOther, defined := w.tableView.DefinedGroup(colName, rawValue)
+
 		// Resolve URL for the cell value if entity type is defined
 		var valueURL string
-		if w.urlResolver != nil && rawValue != "" {
+		if w.urlResolver != nil && rawValue != "" && !defined {
 			if entityType, ok := w.columnEntityTypes[colName]; ok {
 				valueURL = w.urlResolver(entityType, rawValue)
 			}
@@ -1703,11 +1713,16 @@ func (w *groupWalker) walk(block *grouping.Block, rows *[]GroupedRow, level int,
 		if isIntegerColumn(block.GroupedColumn.DataColumn) {
 			displayValue = FormatIntString(rawValue)
 		}
+		var links []CellLink
+		if !defined {
+			links = cellLinks(w.cellLinks, w.columnEntityTypes[colName], rawValue, valueURL)
+		}
 		groupedCell := GroupedCell{
 			Value:                 displayValue,
 			ValueURL:              valueURL,
-			Links:                 cellLinks(w.cellLinks, w.columnEntityTypes[colName], rawValue, valueURL),
+			Links:                 links,
 			NumRows:               numRows,
+			IsOtherGroup:          isOther,
 			NumSubgroups:          numSubgroups,
 			Rowspan:               w.height(group, path),
 			Title:                 tooltip,

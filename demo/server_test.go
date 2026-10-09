@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 
@@ -247,3 +248,37 @@ var (
 	parseQueryRowRE = regexp.MustCompile(`(?s)\s*<li class="perf-timing-item">\s*<span class="perf-operation">Parse Query</span>.*?</li>`)
 	subStepRowRE    = regexp.MustCompile(`(?s)\s*<li class="perf-timing-item sub">.*?</li>`)
 )
+
+var groupCellRE = regexp.MustCompile(`data-column="region" data-value="([^"]*)"`)
+
+// TestGroupDefinitionPage: a filter with || on an ungrouped column groups
+// it by those filters, in typed order, with [other] last; [other] has no
+// drill, and a defined group drills to its own term.
+func TestGroupDefinitionPage(t *testing.T) {
+	srv, products := goldenSetup(t)
+	u, err := url.Parse("/default/table?table=orders&columns=region%2Cstatus&limit=25&filter:region=" + url.QueryEscape(`north || "East" ||`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if res := srv.HandleTableRequest(&buf, u, products.Get("default"), func(k, v string) {}); res != nil {
+		t.Fatalf("HandleTableRequest failed: %+v", res)
+	}
+	page := buf.String()
+	var groups []string
+	for _, m := range groupCellRE.FindAllStringSubmatch(page, -1) {
+		groups = append(groups, m[1])
+	}
+	if got, want := strings.Join(groups, ","), "north,&#34;East&#34;,[other]"; got != want {
+		t.Errorf("groups = %s, want %s", got, want)
+	}
+	if !strings.Contains(page, `class="group-other"`) {
+		t.Error("[other] is not styled apart")
+	}
+	if n := strings.Count(page, `class="filter-link"`); n != 2 {
+		t.Errorf("%d drill links, want 2 ([other] has none)", n)
+	}
+	if !strings.Contains(page, "filter%3Aregion=north&amp;") && !strings.Contains(page, "filter%3Aregion=north\"") {
+		t.Error("the north group does not drill to its term")
+	}
+}

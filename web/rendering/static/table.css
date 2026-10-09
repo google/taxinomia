@@ -1222,6 +1222,13 @@
             border-color: #2471a3;
         }
 
+        /* The [other] group of a group definition (a filter with ||): set
+           apart from real values. */
+        .group-other {
+            font-style: italic;
+            color: #888;
+        }
+
         /* The chips after a value wrap only when needed: they move together
            to a second line when the column is too narrow for value and
            chips, the value staying whole on its line. Group cells wrap
