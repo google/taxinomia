@@ -243,7 +243,7 @@ func TestSelectEncodingsRenderingParity(t *testing.T) {
 	render := func(dt *DataTable) string {
 		tv := NewTableView(dt, "parity")
 		tv.VisibleColumns = []string{"dim", "pk", "val"}
-		tv.ApplyFilters(map[string]string{"dim": "alpha|bravo"})
+		tv.ApplyFilters(map[string]string{"dim": `"alpha"|"bravo"`})
 		tv.GroupTable([]string{"dim"}, nil, make(map[string]Compare), map[string]bool{"dim": true})
 		return dumpGroupTree(tv, tv.GetLeafColumns()) + "\n=== ascii ===\n" + tv.ToAscii()
 	}
@@ -291,7 +291,7 @@ func TestSelectEncodingsRenderingParityStringPK(t *testing.T) {
 	render := func(dt *DataTable) string {
 		tv := NewTableView(dt, "parity")
 		tv.VisibleColumns = []string{"dim", "id", "note"}
-		tv.ApplyFilters(map[string]string{"dim": "alpha|bravo", "id": "\"id-0042\""})
+		tv.ApplyFilters(map[string]string{"dim": `"alpha"|"bravo"`, "id": "\"id-0042\""})
 		tv.GroupTable([]string{"dim"}, nil, make(map[string]Compare), map[string]bool{"dim": true})
 		out := dumpGroupTree(tv, tv.GetLeafColumns()) + "\n=== ascii ===\n" + tv.ToAscii()
 		tv2 := NewTableView(dt, "parity2")

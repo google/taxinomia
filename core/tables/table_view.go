@@ -370,8 +370,15 @@ func (t *TableView) ApplyFiltersContext(ctx context.Context, filters map[string]
 
 		// Check for multi-value filter (pipe-separated exact matches)
 		if strings.Contains(filterValue, "|") {
-			// Multi-value OR filter - match any of the pipe-separated values (exact match)
+			// Multi-value OR filter of exact values: every alternative is
+			// quoted here ("a"|"b", as ticking several values writes it);
+			// bare ones (contains) and ranges took the row predicate above.
 			values := strings.Split(filterValue, "|")
+			for k, v := range values {
+				if exact, ok := unquote(v); ok {
+					values[k] = exact
+				}
+			}
 			// Columns with a structured multi-value filter (the chunked
 			// columns) evaluate it themselves, skipping chunks their zone
 			// maps rule out. Same matches as the per-row scan below.

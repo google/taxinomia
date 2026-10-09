@@ -34,8 +34,9 @@ import (
 //
 //	east           contains "east", any case
 //	"East"         exactly East
-//	a|b            any of the alternatives; each is exact ("quoted" or bare)
-//	               or a range
+//	a|b            any of the alternatives, each read like a whole filter:
+//	               a word contains, "quoted" is exact, or a range;
+//	               "a"|"b" (what ticking several values writes) is exact
 //	[error]        the row's value could not be computed ([unmatched]: no
 //	               match in a joined table)
 //	<10  <=10  >10  >=10  10..100  ..10  100..
@@ -76,32 +77,37 @@ func compileFilterText(col columns.IDataColumn, text string) rowPredicate {
 	return containsPredicate(col, text)
 }
 
-// compileAlternative: one alternative of a|b — a range, else an exact value
-// (quotes optional).
+// compileAlternative: one alternative of a|b, read like a whole filter: a
+// range, a "quoted" exact value, else a word the value contains (any case).
 func compileAlternative(col columns.IDataColumn, alt string) rowPredicate {
+	alt = strings.TrimSpace(alt)
 	if p := compileRange(col, alt); p != nil {
 		return p
 	}
 	if exact, ok := unquote(alt); ok {
 		return exactPredicate(col, exact)
 	}
-	return exactPredicate(col, alt)
+	return containsPredicate(col, alt)
 }
 
 // needsRowPredicate reports whether ApplyFiltersContext must use the row
-// predicate for text instead of its structured paths: a range somewhere, or
-// quoted alternatives (the structured a|b path compares the quotes too).
+// predicate for text instead of its structured paths: a range somewhere, a
+// bare (contains) alternative, or a | inside quotes. Alternatives that are
+// all quoted keep the structured exact-values path, quotes removed.
 func needsRowPredicate(col columns.IDataColumn, text string) bool {
 	alts := splitOutsideQuotes(text, "|")
+	if len(alts) != len(strings.Split(text, "|")) {
+		return true // a | inside quotes
+	}
 	for _, a := range alts {
 		if compileRange(col, a) != nil {
 			return true
 		}
-		if _, ok := unquote(a); ok && len(alts) > 1 {
-			return true
+		if _, quoted := unquote(a); !quoted && len(alts) > 1 {
+			return true // a bare alternative: contains
 		}
 	}
-	return len(splitOutsideQuotes(text, "|")) != len(strings.Split(text, "|"))
+	return false
 }
 
 func cellText(col columns.IDataColumn, i uint32) string {

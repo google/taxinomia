@@ -79,12 +79,12 @@ func TestApplyFiltersSelectionParity(t *testing.T) {
 		},
 		{
 			name:    "multi-value exact",
-			filters: map[string]string{"note": "note-1|note-3"},
+			filters: map[string]string{"note": `"note-1"|"note-3"`},
 			match:   func(region, note string) bool { return note == "note-1" || note == "note-3" },
 		},
 		{
 			name:    "two columns AND",
-			filters: map[string]string{"region": "orth", "note": "note-1|note-3"},
+			filters: map[string]string{"region": "orth", "note": `"note-1"|"note-3"`},
 			match: func(region, note string) bool {
 				return strings.Contains(strings.ToLower(region), "orth") &&
 					(note == "note-1" || note == "note-3")

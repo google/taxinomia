@@ -783,7 +783,7 @@
                     });
                     toggle.classList.remove('active');
                     if (values.length > 0) {
-                        applyFilter(columnName, values.join('|'));
+                        applyFilter(columnName, values.map(v => '"' + v + '"').join('|')); // exact values: "a"|"b"
                     }
                 } else {
                     toggle.classList.add('active');
@@ -1643,7 +1643,7 @@
 
         function describeFilter(v) {
             v = v.trim();
-            if (!v) return 'Type a word, "an exact value", several|values, a range such as 10..100, or groups: east || west ||.';
+            if (!v) return 'Type a word, "an exact value", alternatives such as east|west, a range such as 10..100, or groups: east || west ||.';
             const groups = splitOutsideQuotes(v, '||');
             if (groups.length > 1) {
                 const other = groups[groups.length - 1].trim() === '';
@@ -1656,8 +1656,11 @@
             const range = describeRange(v);
             if (range) return 'Keeps rows whose ' + range + ' (on number and date columns; elsewhere it is text).';
             if (v.indexOf('|') !== -1) {
-                const values = v.split('|').map(s => s.trim()).filter(Boolean);
-                return 'Keeps rows whose value is exactly one of: ' + values.join(', ') + '.';
+                const alts = splitOutsideQuotes(v, '|').map(s => s.trim()).filter(Boolean);
+                const say = a => (a.length >= 2 && a[0] === '"' && a[a.length - 1] === '"')
+                    ? 'is exactly ' + a.slice(1, -1)
+                    : (describeRange(a) ? describeRange(a).replace(/^value /, 'is ') : 'contains "' + a + '"');
+                return 'Keeps rows whose value ' + alts.map(say).join(', or ') + '.';
             }
             if (v.length >= 2 && v[0] === '"' && v[v.length - 1] === '"') {
                 return 'Keeps rows whose value is exactly ' + v.slice(1, -1) + ' (upper and lower case count).';

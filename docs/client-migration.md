@@ -542,16 +542,22 @@ rows) and `GroupedCell.Links`.
 
 ## Filters: ranges, and groups defined by filters (2026-10)
 
-Nothing to do in code; three filter texts change meaning:
+Check filters your code writes; three filter texts change meaning:
 
 - **Ranges and comparisons on number and date columns.** `<10`, `<=10`,
   `>100`, `>=100` and `10..100` (10 included, 100 not; open ends `..10`,
   `100..`) compare values; on a date column a year, month or day stands for
   its whole period (`2024`, `2024-03`, `2024-01..2024-07`). Before, these
   were text and matched almost nothing. On text columns they still are.
-- **Quoted alternatives.** In `"North"|"South"` the quotes are now removed
-  from each alternative (before, they were compared too, so it matched
-  nothing).
+- **Alternatives read like whole filters.** In `a|b` each alternative now
+  follows the single-filter rules: a bare word matches anywhere, in any
+  case (`north|south` keeps Northeast too), `"quoted"` is exact, and a
+  range compares. Before, every alternative was an exact value. So a
+  `North|South` written by your code or saved in a link now also keeps
+  values that merely contain North or South; write `"North"|"South"` for
+  the exact values (what ticking several values now writes, and as fast as
+  before). Before, quoted alternatives compared the quotes too and
+  matched nothing.
 - **`||` defines groups.** A filter holding `||` (outside quotes) no longer
   filters rows: each part, written as a filter, becomes one group of that
   column, in the order typed; a trailing `||` adds `[other]` for the rest,

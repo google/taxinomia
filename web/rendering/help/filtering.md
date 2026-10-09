@@ -16,7 +16,8 @@ syntax and the table's columns, which insert their name when clicked.
 |----------|----------------------------|
 | `east` | contains "east" anywhere, in any case: East, Northeast, EAST |
 | `"East"` | is exactly East (upper and lower case count) |
-| `North\|South` | is exactly North or exactly South |
+| `north\|south` | contains "north" or contains "south" |
+| `"North"\|"South"` | is exactly North or exactly South (what ticking several values writes) |
 | `10..100` | is from 10 up to, not including, 100 (number and date columns) |
 | `<10`, `<=10`, `>100`, `>=100` | is below, up to, above, or from the number |
 | `2024-01..2024-07`, `>=2025` | on a date column: a year, month or day stands for its whole period |
@@ -27,7 +28,9 @@ syntax and the table's columns, which insert their name when clicked.
 - A plain word looks for the text anywhere in the value and ignores
   upper and lower case.
 - Quotes ask for the whole value, exactly.
-- A vertical bar lists several exact values: any of them is kept.
+- A vertical bar lists alternatives: a row is kept when it matches any of
+  them, each read like a whole filter (a word anywhere, "quoted" exactly,
+  or a range).
 - `[error]` and `[unmatched]` match only when typed in full; a part of
   them, such as `e`, never matches those rows.
 
@@ -64,7 +67,8 @@ group per value.
   level they are ungrouped, to show the rows.
 - The tick-box button next to a grouped column's filter box picks
   several groups at once: click it, tick the groups to keep, then click
-  it again. The ticked values become one filter (several exact values).
+  it again. The ticked values become one filter of exact values,
+  `"a"|"b"`.
 
 ## How a filtered column looks
 

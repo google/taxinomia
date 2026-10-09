@@ -123,16 +123,16 @@ func TestGroupConditionsWithFiltersAndCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	tv.SetGroupConditions([]*GroupCondition{c})
-	tv.ApplyFilters(map[string]string{"region": "N|S"}) // N (sum 60) kept, S (sum 10) dropped
+	tv.ApplyFilters(map[string]string{"region": `"N"|"S"`}) // N (sum 60) kept, S (sum 10) dropped
 	if got := tv.GetFilteredRowCount(); got != 3 {
 		t.Errorf("filter then condition: %d rows, want 3", got)
 	}
-	tv.ApplyFilters(map[string]string{"region": "N|S"})
+	tv.ApplyFilters(map[string]string{"region": `"N"|"S"`})
 	if tv.LastFiltersRecomputed() {
 		t.Errorf("same filters and condition: recomputed")
 	}
 	tv.SetGroupConditions(nil)
-	tv.ApplyFilters(map[string]string{"region": "N|S"})
+	tv.ApplyFilters(map[string]string{"region": `"N"|"S"`})
 	if !tv.LastFiltersRecomputed() || tv.GetFilteredRowCount() != 5 {
 		t.Errorf("condition removed: recomputed=%v rows=%d, want true and 5", tv.LastFiltersRecomputed(), tv.GetFilteredRowCount())
 	}

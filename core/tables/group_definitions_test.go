@@ -93,8 +93,10 @@ func TestFilterRanges(t *testing.T) {
 		{"day", "<=2024-06", "East,Northeast,West,North"},
 		{"day", ">2024-06", "South,East"},
 		{"day", ">=2025", "East"},
-		{"region", `"East"|"West"`, "East,West,East"}, // quoted alternatives
-		{"region", "<b", ""},                           // text column: plain text
+		{"region", `"East"|"West"`, "East,West,East"},             // quoted alternatives
+		{"region", "east|WEST", "East,Northeast,West,East"},       // bare alternatives: contains, any case
+		{"region", "north|\"East\"", "East,Northeast,North,East"}, // mixed
+		{"region", "<b", ""},                                      // text column: plain text
 	}
 	for _, c := range cases {
 		if got := filteredRegions(t, tv, map[string]string{c.col: c.filter}); got != c.want {
