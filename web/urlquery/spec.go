@@ -51,6 +51,8 @@ const (
 	AggTrue  = queryspec.AggTrue
 	AggFalse = queryspec.AggFalse
 	AggRatio = queryspec.AggRatio
+	AggAny   = queryspec.AggAny
+	AggAll   = queryspec.AggAll
 
 	AggSpan = queryspec.AggSpan
 

@@ -981,16 +981,18 @@
             ['stddev', 'σ spread', 'How widely the values spread around the average within each group (the standard deviation).'],
             ['min', '↓ minimum', 'The smallest value in each group: the lowest number, the earliest date, or the first text alphabetically.'],
             ['max', '↑ maximum', 'The largest value in each group: the highest number, the latest date, or the last text alphabetically.'],
-            ['true', '✓ true count', 'How many rows in each group are true (yes/no columns).'],
-            ['false', '✗ false count', 'How many rows in each group are false (yes/no columns).'],
-            ['ratio', '% true share', 'The share of rows in each group that are true (yes/no columns).'],
+            ['true', '✓ true count', 'How many rows in each group are true (boolean columns).'],
+            ['false', '✗ false count', 'How many rows in each group are false (boolean columns).'],
+            ['ratio', '% true share', 'The share of rows in each group that are true (boolean columns).'],
+            ['any', 'any', 'Whether at least one row in each group is true (boolean columns): true or false.'],
+            ['all', 'all', 'Whether every row in each group is true (boolean columns): true or false.'],
             ['span', 'Δ time span', 'The time from the earliest to the latest date in each group.'],
         ].map(([type, label, why]) => ({
             sel: '.agg-toggle-btn[data-agg="' + type + '"]', label: label, area: 'group', show: 'click', why: why,
             how: [
                 'Click the button to switch this aggregate on or off for every group. It shows in each group\'s row and adds up in the group above.',
                 'Once on, it can sort the groups: the ⟳ button of the grouped column.',
-                'Which aggregates a column offers depends on its type: numbers, text, dates, yes/no.',
+                'Which aggregates a column offers depends on its type: numbers, text, dates, booleans.',
             ],
         }));
 

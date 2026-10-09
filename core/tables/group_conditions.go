@@ -46,7 +46,7 @@ import (
 //	count()  subgroups()                    any column
 //	sum avg stddev min max (col)            numbers
 //	unique min max (col)                    text
-//	true false ratio any all (col)          yes/no
+//	true false ratio any all (col)          boolean
 //	min max avg stddev span (col)           dates and times
 //
 // Conditions apply after the row filters and before grouping for display,
@@ -92,7 +92,7 @@ var groupAggFns = map[string][]queryspec.ColumnType{
 var columnTypeWords = map[queryspec.ColumnType]string{
 	queryspec.ColumnTypeNumeric:  "number",
 	queryspec.ColumnTypeString:   "text",
-	queryspec.ColumnTypeBool:     "yes/no",
+	queryspec.ColumnTypeBool:     "boolean",
 	queryspec.ColumnTypeDatetime: "date",
 }
 
@@ -157,7 +157,7 @@ func (t *TableView) CompileGroupCondition(groupingOrder []string, level int, src
 	}
 	c.expr = compiled
 	// Dry run on sample values: catches bare column names (which are not
-	// aggregates) and conditions that do not produce yes/no.
+	// aggregates) and conditions that do not produce true or false.
 	sample := make(map[string]expr.Value, len(c.aggs))
 	for _, a := range c.aggs {
 		sample[a.ident] = sampleAggValue(a)
@@ -166,7 +166,7 @@ func (t *TableView) CompileGroupCondition(groupingOrder []string, level int, src
 		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "unknown") {
 			return nil, fmt.Errorf("%v (a column must be inside an aggregate, e.g. sum(amount))", err)
 		}
-		if strings.Contains(err.Error(), "yes/no") {
+		if strings.Contains(err.Error(), "must be true or false") {
 			return nil, err
 		}
 	}
@@ -209,7 +209,7 @@ func (c *GroupCondition) eval(values map[string]expr.Value) (bool, error) {
 		return false, err
 	}
 	if !v.IsBool() {
-		return false, fmt.Errorf("the condition must be yes/no, e.g. a comparison (got %s)", v.TypeName())
+		return false, fmt.Errorf("the condition must be true or false, e.g. a comparison (got %s)", v.TypeName())
 	}
 	return v.AsBool(), nil
 }

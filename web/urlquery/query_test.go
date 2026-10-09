@@ -645,3 +645,16 @@ func TestGroupDefinitionFilters(t *testing.T) {
 		t.Errorf("drill filter = %q, want the group's term", got)
 	}
 }
+
+func TestBooleanAnyAllAggregates(t *testing.T) {
+	u, _ := url.Parse("/table?table=t&grouped=kind&agg:accepted=any,all,true&groupsort:kind=-accepted:all")
+	q := NewQuery(u)
+	got := q.GetEnabledAggregates("accepted", ColumnTypeBool)
+	// In the column type's order: true, ..., any, all.
+	if len(got) != 3 || got[0] != AggTrue || got[1] != AggAny || got[2] != AggAll {
+		t.Errorf("enabled = %v, want true, any, all", got)
+	}
+	if s := q.GetGroupAggSort("kind"); s == nil || s.AggType != AggAll || !s.Descending {
+		t.Errorf("group sort = %+v, want descending by all", s)
+	}
+}

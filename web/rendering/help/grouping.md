@@ -55,8 +55,8 @@ A condition compares aggregates of the group's rows, with `and`, `or`,
 | `sum(col)`, `avg(col)`, `stddev(col)` | sum, average, spread of a number column |
 | `min(col)`, `max(col)` | smallest, largest (numbers, text, dates) |
 | `unique(col)` | number of distinct values of a text column |
-| `true(col)`, `false(col)`, `ratio(col)` | yes/no column: how many true, how many false, share true (0 to 1) |
-| `any(col)`, `all(col)` | yes/no column: is any value true, are all true |
+| `true(col)`, `false(col)`, `ratio(col)` | boolean column: how many true, how many false, share true (0 to 1) |
+| `any(col)`, `all(col)` | boolean column: is any value true, are all true |
 | `span(col)` | time from the earliest to the latest date |
 
 Examples:
@@ -85,7 +85,7 @@ button for its name.
 | Numbers | # rows, Σ sum, μ average, σ spread (standard deviation), ↓ smallest, ↑ largest |
 | Text | # rows, ◇ distinct values, ↓ first and ↑ last alphabetically |
 | Dates and times | # rows, ↓ earliest, ↑ latest, μ average, σ spread, Δ time span |
-| Yes/no | # rows, ✓ how many true, ✗ how many false, % share true |
+| Booleans | # rows, ✓ how many true, ✗ how many false, % share true, any (is any true), all (are all true) |
 
 Rows whose value could not be computed are left out of the aggregates and
 counted: `failed 2` next to them means two rows were left out.

@@ -59,6 +59,8 @@ const (
 	AggTrue  = urlquery.AggTrue
 	AggFalse = urlquery.AggFalse
 	AggRatio = urlquery.AggRatio
+	AggAny   = urlquery.AggAny
+	AggAll   = urlquery.AggAll
 
 	AggSpan = urlquery.AggSpan
 

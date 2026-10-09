@@ -2235,6 +2235,16 @@ func (tv *TableView) getAggregateNumericValue(state aggregates.AggregateState, a
 			return float64(s.FalseCount)
 		case queryspec.AggRatio:
 			return s.Ratio()
+		case queryspec.AggAny: // false sorts before true
+			if s.TrueCount > 0 {
+				return 1
+			}
+			return 0
+		case queryspec.AggAll:
+			if s.Count > 0 && s.FalseCount == 0 {
+				return 1
+			}
+			return 0
 		}
 	case *aggregates.StringAggState:
 		switch aggType {

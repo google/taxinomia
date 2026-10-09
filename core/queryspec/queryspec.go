@@ -67,6 +67,8 @@ const (
 	AggTrue  AggregateType = "true"  // Count of true values
 	AggFalse AggregateType = "false" // Count of false values
 	AggRatio AggregateType = "ratio" // Ratio of true to total
+	AggAny   AggregateType = "any"   // Whether any value is true
+	AggAll   AggregateType = "all"   // Whether every value is true
 )
 
 // Aggregate types for datetime columns (also uses min, max, avg, stddev)
@@ -98,7 +100,7 @@ func GetAvailableAggregates(colType ColumnType) []AggregateType {
 	case ColumnTypeString:
 		return []AggregateType{AggCount, AggUnique, AggMin, AggMax}
 	case ColumnTypeBool:
-		return []AggregateType{AggCount, AggTrue, AggFalse, AggRatio}
+		return []AggregateType{AggCount, AggTrue, AggFalse, AggRatio, AggAny, AggAll}
 	case ColumnTypeDatetime:
 		return []AggregateType{AggCount, AggMin, AggMax, AggAvg, AggStdDev, AggSpan}
 	default:
@@ -129,6 +131,10 @@ func AggregateSymbol(agg AggregateType) string {
 		return "✗"
 	case AggRatio:
 		return "%"
+	case AggAny:
+		return "any"
+	case AggAll:
+		return "all"
 	case AggSpan:
 		return "Δ"
 	case AggRowCount:
@@ -163,6 +169,10 @@ func AggregateTitle(agg AggregateType) string {
 		return "False Count"
 	case AggRatio:
 		return "True Ratio"
+	case AggAny:
+		return "Any true"
+	case AggAll:
+		return "All true"
 	case AggSpan:
 		return "Time Span"
 	case AggRowCount:

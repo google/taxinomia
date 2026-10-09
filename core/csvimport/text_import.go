@@ -39,7 +39,7 @@ import (
 // comma, semicolon or pipe) unless TextOptions gives one; fields may be
 // quoted the way spreadsheets and CSV writers quote them. Each column's
 // type is inferred from all of its values: whole number, decimal (a decimal
-// comma is recognised when the delimiter is not a comma), yes/no, date and
+// comma is recognised when the delimiter is not a comma), boolean (true/false, yes/no, ...), date and
 // time, or text. Numbers with a leading zero ("007", postal codes) stay
 // text. Empty cells and the usual missing markers (NA, N/A, NULL, ...) are
 // missing values: in a number or date column they are rows whose value
@@ -198,7 +198,7 @@ type TextColumn struct {
 const (
 	KindInteger  = "whole number"
 	KindDecimal  = "decimal"
-	KindBool     = "yes/no"
+	KindBool     = "boolean"
 	KindDatetime = "date"
 	KindText     = "text"
 )

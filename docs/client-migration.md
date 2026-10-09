@@ -511,7 +511,7 @@ mux.Handle("/import", srv.ImportHandler(handlers.ImportOptions{
   usable in expressions; the header stays the display name). The
   delimiter is detected (tab, comma, semicolon, pipe); quoted fields work
   as spreadsheets write them. Each column becomes a whole number, decimal
-  (decimal commas when the delimiter is not a comma), yes/no, date, or
+  (decimal commas when the delimiter is not a comma), boolean, date, or
   text column; numbers with a leading zero stay text. Empty cells and
   NA, N/A, NULL, ... are missing values, left out of aggregates. The
   parser is `csvimport.ImportText`, usable on its own.
@@ -572,3 +572,14 @@ from the filters), `DefinedGroup`, `HasGroupDefinition`,
 `GroupSeparator`; `urlquery.IsGroupDefinition`; `urlquery.FilterStep.Term`
 (a drill step that writes a defined group's own filter);
 `viewmodel.GroupedCell.IsOtherGroup` (no drill for `[other]`).
+
+## Boolean aggregates any and all (2026-10)
+
+Nothing to do. Boolean columns offer two more aggregates, `any` (at least
+one row is true) and `all` (every row is true), shown as true or false, in
+the URL as `agg:<col>=any,all`, and usable as group sorts
+(`groupsort:<col>=-<leaf>:all`). Additive constants: `queryspec.AggAny`,
+`AggAll` (re-exported by `urlquery`, `core/query`) and `engine.AggAny`,
+`AggAll`. Wording: the UI says boolean and true/false instead of yes/no;
+`csvimport.KindBool` is now `"boolean"`, and a group condition that is not
+true or false reports "the condition must be true or false".

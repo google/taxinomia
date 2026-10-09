@@ -24,6 +24,7 @@ package aggregates
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/google/taxinomia/core/queryspec"
@@ -214,6 +215,10 @@ func (s *BoolAggState) Format(aggType queryspec.AggregateType) string {
 		return fmt.Sprintf("%d", s.FalseCount)
 	case queryspec.AggRatio:
 		return fmt.Sprintf("%.1f%%", s.Ratio()*100)
+	case queryspec.AggAny:
+		return strconv.FormatBool(s.TrueCount > 0)
+	case queryspec.AggAll:
+		return strconv.FormatBool(s.FalseCount == 0)
 	default:
 		return "-"
 	}
@@ -590,8 +595,12 @@ func FormatAggregatesWithSort(state AggregateState, enabledAggs []queryspec.Aggr
 	result := make([]FormattedAggregate, 0, len(enabledAggs)+1)
 	for _, aggType := range enabledAggs {
 		isSorted := sortedColName != "" && aggType == sortedAggType
+		symbol := queryspec.AggregateSymbol(aggType)
+		if aggType == queryspec.AggAny || aggType == queryspec.AggAll {
+			symbol += " " // a word: "any true"
+		}
 		result = append(result, FormattedAggregate{
-			Symbol:   queryspec.AggregateSymbol(aggType),
+			Symbol:   symbol,
 			Value:    state.Format(aggType),
 			Title:    queryspec.AggregateTitle(aggType),
 			IsSorted: isSorted,

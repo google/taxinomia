@@ -340,7 +340,7 @@ func parseAggregates(aggStr string) []AggregateType {
 		aggType := AggregateType(part)
 		switch aggType {
 		case AggSum, AggAvg, AggStdDev, AggMin, AggMax, AggCount,
-			AggUnique, AggTrue, AggFalse, AggRatio, AggSpan:
+			AggUnique, AggTrue, AggFalse, AggRatio, AggAny, AggAll, AggSpan:
 			result = append(result, aggType)
 		}
 	}
@@ -379,7 +379,7 @@ func parseGroupAggSort(groupedCol, value string) *GroupAggSort {
 	aggType := AggregateType(aggTypeStr)
 	switch aggType {
 	case AggSum, AggAvg, AggStdDev, AggMin, AggMax, AggCount,
-		AggUnique, AggTrue, AggFalse, AggRatio, AggSpan,
+		AggUnique, AggTrue, AggFalse, AggRatio, AggAny, AggAll, AggSpan,
 		AggRowCount, AggSubgroupCount:
 		// Valid
 	default:

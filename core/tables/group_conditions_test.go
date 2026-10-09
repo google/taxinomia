@@ -142,13 +142,13 @@ func TestGroupConditionErrors(t *testing.T) {
 	tv := groupConditionView(t)
 	for _, tc := range []struct{ src, want string }{
 		{"sum(region) > 1", "sum needs a number column; region is text"},
-		{"any(amount)", "any needs a yes/no column"},
+		{"any(amount)", "any needs a boolean column"},
 		{"count(amount) > 1", "count() takes no column"},
 		{"sum() > 1", "sum needs a column"},
 		{"sum(nope) > 1", `no column "nope"`},
 		{"amount > 1", "use an aggregate"},
 		{"count() > 1 and amount > 1", "inside an aggregate"},
-		{"count()", "must be yes/no"},
+		{"count()", "must be true or false"},
 		{"count() >", "syntax"},
 	} {
 		_, err := tv.CompileGroupCondition([]string{"region"}, 0, tc.src)

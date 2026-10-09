@@ -124,6 +124,8 @@ const (
 	AggTrue  AggregateKind = "true"
 	AggFalse AggregateKind = "false"
 	AggRatio AggregateKind = "ratio"
+	AggAny   AggregateKind = "any"
+	AggAll   AggregateKind = "all"
 )
 
 // Aggregate kinds for datetime columns (which also use min, max, avg, stddev).

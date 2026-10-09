@@ -57,7 +57,7 @@ func TestImportTextPastedSpreadsheet(t *testing.T) {
 	if imp.Delimiter != '\t' || imp.Rows != 2 {
 		t.Fatalf("delimiter %q rows %d, want tab and 2", imp.Delimiter, imp.Rows)
 	}
-	want := "station=text year=whole number rain_l_m2=decimal active=yes/no start=date"
+	want := "station=text year=whole number rain_l_m2=decimal active=boolean start=date"
 	if got := kinds(imp); got != want {
 		t.Errorf("kinds = %s\nwant    %s", got, want)
 	}
