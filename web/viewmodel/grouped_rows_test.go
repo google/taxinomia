@@ -270,3 +270,26 @@ func TestMarkJoinTargetsShown(t *testing.T) {
 		t.Errorf("hasColumnWithPrefix wrong")
 	}
 }
+
+// TestCollapsedGroupSpansDeeperLevels: a collapsed group above the last
+// grouped level has no cells for the grouped columns below it, so its cell
+// spans them; otherwise the row's other cells sit one column to the left.
+func TestCollapsedGroupSpansDeeperLevels(t *testing.T) {
+	res, _ := groupedRowsFor(t, "/table?table=demo&grouped=status,region&gexp=Active&limit=50")
+	spans := map[string]int{}
+	for _, row := range res.Rows {
+		for _, c := range row.Cells {
+			if c.IsGroupedColumn && c.ColumnName == "status" {
+				spans[c.RawValue] = c.Colspan
+			}
+		}
+	}
+	if spans["Active"] > 1 {
+		t.Errorf("open group Active spans %d columns, want 1", spans["Active"])
+	}
+	for _, v := range []string{"Inactive", "Pending"} {
+		if spans[v] != 2 {
+			t.Errorf("collapsed group %s spans %d columns, want 2 (status and region)", v, spans[v])
+		}
+	}
+}

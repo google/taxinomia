@@ -227,6 +227,7 @@ type GroupedCell struct {
 	ValueURL              string     // URL for the cell value (if entity type has default URL)
 	Links                 []CellLink // External link chips after the value (View.CellLinks)
 	IsOtherGroup          bool       // The [other] group of a group definition: no drill (F)
+	Colspan               int        // Columns the cell spans (a collapsed group over the grouped columns below it); 0 or 1: one
 	NumRows               int        // Number of rows in this group (for display in brackets)
 	NumSubgroups          int        // Number of subgroups (0 if leaf group)
 	Rowspan               int
@@ -1737,6 +1738,11 @@ func (w *groupWalker) walk(block *grouping.Block, rows *[]GroupedRow, level int,
 			IsIncomplete:          false, // Set by fixRowspans based on rowspan reduction
 			GroupPath:             path,
 			IsExpanded:            group.ChildBlock != nil || listed,
+		}
+		// A collapsed group above the last grouped level spans the grouped
+		// columns below it: its row has no cells for them.
+		if !listed && group.ChildBlock == nil && level < len(q.GroupedColumns)-1 {
+			groupedCell.Colspan = len(q.GroupedColumns) - level
 		}
 		(*rows)[len(*rows)-1].Cells = append((*rows)[len(*rows)-1].Cells, groupedCell)
 
