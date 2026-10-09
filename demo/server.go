@@ -49,6 +49,14 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 	dataModel.AddTable("capitals", capitalsTable)
 	dataModel.AddTable("items", itemsTable)
 
+	// Switzerland: regions, cantons, districts, municipalities (population
+	// 2024), mountains and lakes, from the Federal Statistical Office and
+	// Wikidata (demo/data/switzerland/SOURCES.md).
+	swissTables := CreateSwissTables()
+	for _, name := range []string{"ch_regions", "ch_cantons", "ch_districts", "ch_municipalities", "ch_mountains", "ch_lakes"} {
+		dataModel.AddTable(name, swissTables[name])
+	}
+
 	// Create events table with datetime columns
 	fmt.Println("\n=== Creating Events Table (Datetime Demo) ===")
 	eventsTable := CreateEventsTable()
@@ -221,6 +229,14 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 		"google_jobs":     "google.job",
 		"google_tasks":    "google.task",
 		"google_allocs":   "google.alloc",
+		// Switzerland: the wikidata column of ch_municipalities is unique too; the
+		// declared key keeps it a plain external link.
+		"ch_regions":        "ch.region",
+		"ch_cantons":        "ch.canton",
+		"ch_districts":      "ch.district",
+		"ch_municipalities": "ch.municipality",
+		"ch_mountains":      "ch.mountain",
+		"ch_lakes":          "ch.lake",
 	}
 	for i := range catalog.Tables {
 		if pk, ok := googleTablePrimaryKeys[catalog.Tables[i].Name]; ok {
@@ -471,6 +487,66 @@ func SetupDemoServer(fileReader datasources.FileReader, dirReader datasources.Di
 			DefaultColumns: "7 columns",
 			Categories:     "Google, Workloads",
 			Domains:        []string{"google"},
+		},
+		{
+			Name:           "Switzerland: Municipalities",
+			Description:    "All 2115 municipalities with canton, district, language region, urbanisation and type; population 2024 by citizenship and sex; area and elevation.",
+			URL:            "table?table=ch_municipalities&limit=25",
+			RecordCount:    2115,
+			ColumnCount:    20,
+			DefaultColumns: "10 columns",
+			Categories:     "Population, Geography",
+			Domains:        []string{"switzerland"},
+		},
+		{
+			Name:           "Switzerland: Cantons",
+			Description:    "The 26 cantons: capital, year of joining the Confederation, official languages, major region.",
+			URL:            "table?table=ch_cantons&limit=26",
+			RecordCount:    26,
+			ColumnCount:    6,
+			DefaultColumns: "6 columns",
+			Categories:     "Administration",
+			Domains:        []string{"switzerland"},
+		},
+		{
+			Name:           "Switzerland: Districts",
+			Description:    "The 143 districts and their canton.",
+			URL:            "table?table=ch_districts&limit=25",
+			RecordCount:    143,
+			ColumnCount:    3,
+			DefaultColumns: "3 columns",
+			Categories:     "Administration",
+			Domains:        []string{"switzerland"},
+		},
+		{
+			Name:           "Switzerland: Major regions",
+			Description:    "The seven major regions (Grossregionen) the cantons belong to.",
+			URL:            "table?table=ch_regions&limit=25",
+			RecordCount:    7,
+			ColumnCount:    2,
+			DefaultColumns: "2 columns",
+			Categories:     "Administration",
+			Domains:        []string{"switzerland"},
+		},
+		{
+			Name:           "Switzerland: Mountains",
+			Description:    "Summits of 3500 m and more: elevation, prominence, range and canton.",
+			URL:            "table?table=ch_mountains&limit=25",
+			RecordCount:    281,
+			ColumnCount:    9,
+			DefaultColumns: "6 columns",
+			Categories:     "Geography",
+			Domains:        []string{"switzerland"},
+		},
+		{
+			Name:           "Switzerland: Lakes",
+			Description:    "Lakes of 1 km² and more: area, depth, elevation, volume and cantons.",
+			URL:            "table?table=ch_lakes&limit=25",
+			RecordCount:    41,
+			ColumnCount:    10,
+			DefaultColumns: "7 columns",
+			Categories:     "Geography",
+			Domains:        []string{"switzerland"},
 		},
 	})
 

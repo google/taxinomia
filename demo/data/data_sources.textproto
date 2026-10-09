@@ -257,3 +257,53 @@ journeys {
     target: "filter:product_name"
   }
 }
+
+# Switzerland (demo/data/switzerland/SOURCES.md): the administrative
+# hierarchy and the entity types of the ch_* tables.
+hierarchies {
+  name: "ch.administrative"
+  description: "Major region, canton, district and municipality"
+  levels: "ch.region"
+  levels: "ch.canton"
+  levels: "ch.district"
+  levels: "ch.municipality"
+}
+
+entity_types {
+  name: "ch.region"
+  description: "One of the seven major regions (Grossregionen)"
+}
+
+entity_types {
+  name: "ch.canton"
+  description: "A canton, by its two-letter code"
+}
+
+entity_types {
+  name: "ch.district"
+  description: "A district, by its FSO number"
+}
+
+entity_types {
+  name: "ch.municipality"
+  description: "A municipality, by its FSO number (BFS-Nr.)"
+  urls { name: "Wikidata" template: "https://www.wikidata.org/w/index.php?search=haswbstatement%3AP771%3D{value}" }
+}
+
+entity_types {
+  name: "ch.mountain"
+  description: "A summit, by its Wikidata item"
+  urls { name: "Wikidata" template: "https://www.wikidata.org/wiki/{value}" table_label: "Wikidata" }
+}
+
+entity_types {
+  name: "ch.lake"
+  description: "A lake, by its Wikidata item"
+  urls { name: "Wikidata" template: "https://www.wikidata.org/wiki/{value}" table_label: "Wikidata" }
+}
+
+entity_types {
+  name: "wikidata.item"
+  description: "A Wikidata item"
+  urls { name: "Wikidata" template: "https://www.wikidata.org/wiki/{value}" is_default: true }
+}

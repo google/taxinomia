@@ -1,0 +1,11 @@
+SELECT ?bfs (SAMPLE(?m) AS ?item) (MAX(?pop) AS ?population) (SAMPLE(?popDate) AS ?population_date)
+       (SAMPLE(?area) AS ?area_km2) (SAMPLE(?elev) AS ?elevation_m) (SAMPLE(?coord) AS ?coord)
+WHERE {
+  ?m wdt:P771 ?bfs.
+  FILTER NOT EXISTS { ?m wdt:P576 ?end }
+  OPTIONAL { ?m p:P1082 ?ps. ?ps a wikibase:BestRank; ps:P1082 ?pop. OPTIONAL { ?ps pq:P585 ?popDate } }
+  OPTIONAL { ?m wdt:P2046 ?area }
+  OPTIONAL { ?m wdt:P2044 ?elev }
+  OPTIONAL { ?m wdt:P625 ?coord }
+}
+GROUP BY ?bfs

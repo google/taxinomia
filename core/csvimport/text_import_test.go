@@ -131,3 +131,22 @@ func TestImportTextRefusals(t *testing.T) {
 		t.Errorf("header only: %v rows=%v", err, imp)
 	}
 }
+
+func TestImportTextColumnOptions(t *testing.T) {
+	imp, err := ImportText([]byte("Code,Name\nZH,Zürich\nBE,Bern\n"), TextOptions{
+		Columns: map[string]TextColumnOptions{"code": {DisplayName: "Canton", EntityType: "ch.canton"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	def := imp.Table.GetColumn("code").ColumnDef()
+	if def.DisplayName() != "Canton" || def.EntityType() != "ch.canton" {
+		t.Errorf("code column = %q %q", def.DisplayName(), def.EntityType())
+	}
+	if !imp.Table.GetColumn("code").IsKey() {
+		t.Error("unique code column is not a key")
+	}
+	if imp.Table.GetColumn("name").ColumnDef().EntityType() != "" {
+		t.Error("unlisted column got an entity type")
+	}
+}

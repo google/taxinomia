@@ -1,0 +1,12 @@
+SELECT ?m (SAMPLE(?label) AS ?name) (MAX(?elev) AS ?elevation_m) (SAMPLE(?prom) AS ?prominence_m)
+       (GROUP_CONCAT(DISTINCT ?iso; separator="|") AS ?cantons) (SAMPLE(?coord) AS ?coord) (SAMPLE(?rangeLabel) AS ?range)
+WHERE {
+  ?m wdt:P31/wdt:P279* wd:Q8502; wdt:P17 wd:Q39; p:P2044/psn:P2044/wikibase:quantityAmount ?elev.
+  FILTER(?elev >= 3500)
+  ?m wdt:P131+ ?c. ?c wdt:P31 wd:Q23058; wdt:P300 ?iso.
+  OPTIONAL { ?m p:P2660/psn:P2660/wikibase:quantityAmount ?prom }
+  OPTIONAL { ?m wdt:P625 ?coord }
+  OPTIONAL { ?m wdt:P4552 ?r. ?r rdfs:label ?rangeLabel. FILTER(LANG(?rangeLabel) = "en") }
+  ?m rdfs:label ?label. FILTER(LANG(?label) = "en")
+}
+GROUP BY ?m ORDER BY DESC(?elevation_m)

@@ -103,7 +103,14 @@ func ImportText(data []byte, opts TextOptions) (*TextImport, error) {
 	result := &TextImport{Table: tables.NewDataTable(), Rows: len(rows), Delimiter: delim}
 	for i, h := range headers {
 		kind := inferKind(rows, i, cell, decimalComma)
-		def := columns.NewColumnDef(names[i], displayName(h, names[i]), "")
+		display, entityType := displayName(h, names[i]), ""
+		if o, ok := opts.Columns[names[i]]; ok {
+			if o.DisplayName != "" {
+				display = o.DisplayName
+			}
+			entityType = o.EntityType
+		}
+		def := columns.NewColumnDef(names[i], display, entityType)
 		empty := 0
 		for _, row := range rows {
 			if cell(row, i) == "" {
@@ -146,6 +153,16 @@ type TextOptions struct {
 	MissingValues []string
 	// MaxRows refuses tables with more data rows; 0 means no limit.
 	MaxRows int
+	// Columns overrides the display name and sets the entity type of
+	// columns, by column name (the name ImportText derives from the header,
+	// see ColumnNames). Entity types make joins and entity pages.
+	Columns map[string]TextColumnOptions
+}
+
+// TextColumnOptions configures one column of ImportText.
+type TextColumnOptions struct {
+	DisplayName string // "" keeps the header
+	EntityType  string
 }
 
 // DefaultMissingValues are the missing-value markers ImportText knows by
