@@ -1210,7 +1210,6 @@
             font-size: 11px;
             color: #2471a3;
             text-decoration: none;
-            margin-left: 6px;
             padding: 1px 5px;
             border-radius: 3px;
             border: 1px solid #aed0ea;
@@ -1221,6 +1220,33 @@
             color: #fff;
             background-color: #2471a3;
             border-color: #2471a3;
+        }
+
+        /* The chips after a value wrap only when needed: they move together
+           to a second line when the column is too narrow for value and
+           chips, the value staying whole on its line. Group cells wrap
+           freely (value, counts, F, chips): they have the height. */
+        .cell-links {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 3px 4px;
+            margin-left: 6px;
+            vertical-align: baseline;
+            white-space: nowrap;
+        }
+
+        td:has(> .cell-links) {
+            white-space: normal;
+        }
+
+        td:has(> .cell-links) > .entity-link {
+            white-space: nowrap;
+        }
+
+        td.group-cell,
+        td.group-cell .group-cell-head {
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
 
         .entity-link {
