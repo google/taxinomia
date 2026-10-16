@@ -1387,3 +1387,33 @@ func IsGroupDefinition(filter string) bool {
 	}
 	return false
 }
+
+// WithColumnsShown returns a URL with every column of columns shown (show)
+// or hidden (!show), keeping the order of the columns already shown; added
+// columns go last, in the given order. It is the tick box of a whole class
+// in the column pane.
+func (s *Query) WithColumnsShown(columns []string, show bool) safehtml.URL {
+	newState := s.Clone()
+	listed := make(map[string]bool, len(columns))
+	for _, c := range columns {
+		listed[c] = true
+	}
+	kept := make([]string, 0, len(s.Columns)+len(columns))
+	present := map[string]bool{}
+	for _, c := range s.Columns {
+		if show || !listed[c] {
+			kept = append(kept, c)
+			present[c] = true
+		}
+	}
+	if show {
+		for _, c := range columns {
+			if !present[c] {
+				kept = append(kept, c)
+				present[c] = true
+			}
+		}
+	}
+	newState.Columns = kept
+	return newState.ToSafeURL()
+}

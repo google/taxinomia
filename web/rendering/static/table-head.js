@@ -1061,6 +1061,10 @@
              why: 'Adds a column computed from an expression over the others, for this view only.'},
             {sel: '#sidebar a.pane-disclosure', label: 'Join other tables', area: 'columns', show: 'click',
              why: 'Opens the tables this column links to, so you can add their columns here.'},
+            {sel: '#sidebar .pane-class-toggle', label: 'Column class', area: 'columns', show: 'click',
+             why: 'Columns of the same kind under one heading (from the data source). The arrow lists all of them or only those in the table; the box beside it adds or removes them all.'},
+            {sel: '#sidebar .pane-search', label: 'Find a column', area: 'columns', show: '',
+             why: 'Type part of a column name to narrow the list, also inside closed classes; Esc clears it.'},
             {sel: '#sidebar .pane-main .pane-toggle', label: 'Show / hide column', area: 'columns', show: 'click',
              why: 'Adds the column to the table, or removes it.'},
             {sel: '.info-pane-toggle[data-help="url"]', label: 'Shareable view', area: 'view', show: 'click',
@@ -1571,6 +1575,36 @@
         });
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && document.getElementById('import-overlay')) closeImport();
+        });
+
+        // --- Column search: narrows the column pane while typing --------------
+        // Matches the columns' shown names, also those kept hidden in a
+        // collapsed class (data-pane-collapsed); a class shows while one of its
+        // columns matches. An empty box restores the pane; Esc empties it.
+        function filterPane(text) {
+            const q = text.trim().toLowerCase();
+            const pane = document.querySelector('#sidebar .pane-main');
+            if (!pane) return;
+            pane.querySelectorAll(':scope > .pane-item, .pane-class-columns > .pane-item').forEach(function(li) {
+                if (!q) {
+                    li.hidden = li.dataset.paneCollapsed === '1';
+                    return;
+                }
+                const name = li.querySelector('.pane-name');
+                li.hidden = !name || name.textContent.toLowerCase().indexOf(q) < 0;
+            });
+            pane.querySelectorAll('.pane-class').forEach(function(cls) {
+                cls.hidden = !!q && !cls.querySelector('.pane-class-columns > .pane-item:not([hidden])');
+            });
+        }
+        document.addEventListener('input', function(e) {
+            if (e.target.matches && e.target.matches('.pane-search')) filterPane(e.target.value);
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && e.target.matches && e.target.matches('.pane-search')) {
+                e.target.value = '';
+                filterPane('');
+            }
         });
 
         // --- Syntax panel: the detailed syntax while typing -------------------

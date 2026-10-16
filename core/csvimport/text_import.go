@@ -103,14 +103,15 @@ func ImportText(data []byte, opts TextOptions) (*TextImport, error) {
 	result := &TextImport{Table: tables.NewDataTable(), Rows: len(rows), Delimiter: delim}
 	for i, h := range headers {
 		kind := inferKind(rows, i, cell, decimalComma)
-		display, entityType := displayName(h, names[i]), ""
+		display, entityType, class := displayName(h, names[i]), "", ""
 		if o, ok := opts.Columns[names[i]]; ok {
 			if o.DisplayName != "" {
 				display = o.DisplayName
 			}
 			entityType = o.EntityType
+			class = o.Class
 		}
-		def := columns.NewColumnDef(names[i], display, entityType)
+		def := columns.NewColumnDef(names[i], display, entityType).SetClass(class)
 		empty := 0
 		for _, row := range rows {
 			if cell(row, i) == "" {
@@ -163,6 +164,7 @@ type TextOptions struct {
 type TextColumnOptions struct {
 	DisplayName string // "" keeps the header
 	EntityType  string
+	Class       string // heading in the column pane (see columns.ColumnDef.Class)
 }
 
 // DefaultMissingValues are the missing-value markers ImportText knows by

@@ -45,6 +45,7 @@ func applyComputedColumns(source *DataSource, table *tables.DataTable) error {
 			DisplayName: c.GetDisplayName(),
 			Expression:  c.GetExpression(),
 			EntityType:  c.GetEntityType(),
+			Class:       c.GetClass(),
 		})
 	}
 	return table.SetComputedDefinitions(defs)

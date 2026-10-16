@@ -37,6 +37,7 @@ type ComputedDefinition struct {
 	DisplayName string // shown in headers and the column pane; Name if empty
 	Expression  string // expression over the table's columns (see the expression language)
 	EntityType  string // optional entity type, for entity links on its values
+	Class       string // optional class: its heading in the column pane (see ColumnDef.Class)
 }
 
 // SetComputedDefinitions declares the table's computed columns, in order: a

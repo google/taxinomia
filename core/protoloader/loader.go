@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/taxinomia/core/columns"
 	"github.com/google/taxinomia/core/tables"
@@ -379,6 +380,7 @@ func (l *Loader) CreateDataTableWithMetadata(rb *RowBuilder, columnMeta map[stri
 			entityType = meta.EntityType
 		}
 		colDef := columns.NewColumnDef(colName, displayName, entityType)
+		colDef.SetClass(LevelClass(fd))
 
 		switch fd.Kind() {
 		case protoreflect.BoolKind:
@@ -619,4 +621,25 @@ func fieldDescToColumnType(fd protoreflect.FieldDescriptor) ColumnType {
 	default:
 		return ColTypeString
 	}
+}
+
+// LevelClass is the default column-pane class of a column loaded from a
+// field: the name of the message it belongs to, spaced out ("LineItem" ->
+// "Line item"), so the levels of a nested message (customer, order, item)
+// list apart. An annotation's class takes precedence.
+func LevelClass(fd protoreflect.FieldDescriptor) string {
+	if fd == nil || fd.ContainingMessage() == nil {
+		return ""
+	}
+	name := string(fd.ContainingMessage().Name())
+	var b strings.Builder
+	for i, r := range name {
+		if i > 0 && unicode.IsUpper(r) {
+			b.WriteByte(' ')
+			b.WriteRune(unicode.ToLower(r))
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }

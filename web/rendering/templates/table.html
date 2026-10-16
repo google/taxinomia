@@ -7,7 +7,7 @@
     {{/* Column pane rows. Every row has the same shape: a disclosure slot (an arrow when the row
          has something to open, else empty), then one link spanning the rest of the row. */}}
     {{define "paneColumn"}}
-        <li class="pane-item">
+        <li class="pane-item"{{if .PaneHidden}} hidden data-pane-collapsed="1"{{end}}>
             <div class="pane-row">
                 {{if .JoinTargets}}<a href="{{.ToggleURL}}" class="pane-disclosure{{if .IsExpanded}} open{{end}}" title="{{if .IsExpanded}}Hide{{else}}Show{{end}} the tables {{.PaneName}} joins to"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></a>{{else}}<span class="pane-disclosure"></span>{{end}}
                 <a href="{{.ToggleColumnURL}}" class="pane-toggle{{if .IsVisible}} on{{end}}" title="{{if .IsVisible}}Remove {{.PaneName}} from the table{{else}}Add {{.PaneName}} to the table{{end}}{{if .IsKey}} (unique per row){{else if .HasEntityType}} (links to other tables){{end}}">
@@ -134,8 +134,21 @@
                     {{end}}
                 </div>
 
-                <ul class="pane-list pane-main">
-                    {{range .PaneColumns}}{{template "paneColumn" .}}{{end}}
+                {{if .PaneSearch}}<input type="search" class="pane-search" placeholder="Find a column" aria-label="Find a column" autocomplete="off">{{end}}<ul class="pane-list pane-main">
+                    {{if .PaneClasses}}{{range .PaneClasses}}{{if .Name}}
+                    {{/* A class: its heading (expand, show or hide all) over its columns. Collapsed, it lists the columns in the view; the others stay in the page, hidden, for the search. */}}
+                    <li class="pane-class{{if .Expanded}} open{{end}}">
+                        <div class="pane-class-row">
+                            <a href="{{.ShowURL}}" class="pane-class-all" title="{{if .AllShown}}Remove all {{.Name}} columns from the table{{else}}Add all {{.Name}} columns to the table{{end}}"><span class="pane-box{{if and .Shown (not .AllShown)}} partial{{end}}">{{if .AllShown}}<svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{end}}</span></a>
+                            <a href="{{.ToggleURL}}" class="pane-class-toggle" title="{{if .Expanded}}List only the {{.Name}} columns in the table{{else}}List all {{.Name}} columns{{end}}">
+                                <span class="pane-disclosure{{if .Expanded}} open{{end}}"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></span>
+                                <span class="pane-class-name">{{.Name}}</span> <span class="pane-class-count">{{.Shown}} / {{.Total}}</span>
+                            </a>
+                        </div>
+                        <ul class="pane-list pane-class-columns">{{range .Columns}}{{template "paneColumn" .}}{{end}}</ul>
+                    </li>
+                    {{else}}{{range .Columns}}{{template "paneColumn" .}}{{end}}{{end}}{{end}}
+                    {{else}}{{range .PaneColumns}}{{template "paneColumn" .}}{{end}}{{end}}
                 </ul>
 
                 <div class="pane-legend">

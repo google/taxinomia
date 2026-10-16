@@ -636,3 +636,28 @@ manager.LoadConfigFromBytes(configData, ".")
 // Load data on demand (lazy)
 table, err := manager.LoadData("customer_orders")
 ```
+
+## Column classes
+
+A table with many columns can sort them into classes: headings the column
+pane lists them under, such as "Population" or "Geography". Give a column
+its class in its annotation (computed columns take the same field):
+
+```protobuf
+annotations {
+  annotations_id: "sales"
+  columns { name: "population" display_name: "Population" class: "Population" }
+  columns { name: "area_km2"   display_name: "Area (km²)" class: "Geography" }
+}
+```
+
+- Classes are listed in the order of their first column, and a class lists
+  its columns in the source's order. Columns without a class come last,
+  under "Other".
+- A class is collapsed at first: it lists only its columns that are in the
+  table. Its arrow lists all of them; its box adds or removes them all.
+- Columns loaded from nested protobuf messages fall into their message's
+  class (customer, order, line item) unless an annotation says otherwise.
+- A table whose columns have no class, or all the same one, keeps the flat
+  list. Tables with more than 12 columns also get a search box above the
+  list.

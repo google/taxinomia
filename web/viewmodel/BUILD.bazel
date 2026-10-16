@@ -6,6 +6,7 @@ go_library(
         "assets.go",
         "entity_viewmodel.go",
         "landing_viewmodel.go",
+        "pane_classes.go",
         "perf_viewmodel.go",
         "help_viewmodel.go",
         "format.go",
@@ -36,7 +37,10 @@ go_library(
 
 go_test(
     name = "viewmodel_test",
-    srcs = ["grouped_rows_test.go"],
+    srcs = [
+        "grouped_rows_test.go",
+        "pane_classes_test.go",
+    ],
     embed = [":viewmodel"],
     deps = [
         "//core/columns",

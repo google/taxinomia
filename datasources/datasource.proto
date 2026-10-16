@@ -38,6 +38,12 @@ message ColumnAnnotation {
   // groups and the storage sort. Ignored for non-string columns (they order
   // by their own type).
   Collation collation = 4;
+
+  // Class of the column in the column pane: a heading it is listed under
+  // with the other columns of the same class (e.g. "Population"). Classes
+  // are listed in the order of their first column; columns without one
+  // come last, as before.
+  string class = 5;
 }
 
 // Collation specifies the ordering of a string column's values.
@@ -123,6 +129,9 @@ message ComputedColumn {
 
   // Optional entity type of the values, for entity links (e.g. a derived key).
   string entity_type = 4;
+
+  // Class of the column in the column pane, as ColumnAnnotation.class.
+  string class = 5;
 }
 
 // URLTemplate defines a single URL template with a display name.

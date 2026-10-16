@@ -583,3 +583,19 @@ the URL as `agg:<col>=any,all`, and usable as group sorts
 `AggAll`. Wording: the UI says boolean and true/false instead of yes/no;
 `csvimport.KindBool` is now `"boolean"`, and a group condition that is not
 true or false reports "the condition must be true or false".
+
+## Column classes in the column pane (2026-10)
+
+Nothing to do; tables without classes look as before. A column can carry a
+class (`ColumnAnnotation.class`, `ComputedColumn.class`,
+`csvimport.TextColumnOptions.Class`, `tables.ComputedDefinition.Class`;
+in Go `columns.ColumnDef.SetClass` / `Class`): the column pane lists the
+columns under one heading per class, collapsed to the columns in the view,
+with a box that adds or removes the whole class (see "Column classes" in
+`docs/data_sources.md`). Columns from nested protobuf messages default to
+their message's class (`protoloader.LevelClass`). The expanded classes are
+`class:<name>` entries of the URL's `expanded` list. New, additive:
+`tables.DataTable.ColumnNamesInOrder` (columns in the order they were
+added), `urlquery.Query.WithColumnsShown`, `viewmodel.TableViewModel.PaneClasses`
+and `PaneSearch`. Tables with more than 12 columns get a search box above
+the pane list.

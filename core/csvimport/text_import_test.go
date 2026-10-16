@@ -150,3 +150,18 @@ func TestImportTextColumnOptions(t *testing.T) {
 		t.Error("unlisted column got an entity type")
 	}
 }
+
+func TestImportTextClassAndOrder(t *testing.T) {
+	imp, err := ImportText([]byte("b,a,c\n1,2,3\n"), TextOptions{
+		Columns: map[string]TextColumnOptions{"a": {Class: "Group"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := imp.Table.GetColumn("a").ColumnDef().Class(); got != "Group" {
+		t.Errorf("class = %q", got)
+	}
+	if got := strings.Join(imp.Table.ColumnNamesInOrder(), ","); got != "b,a,c" {
+		t.Errorf("column order = %s, want the header order", got)
+	}
+}

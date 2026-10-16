@@ -244,6 +244,89 @@
             height: 11px;
         }
 
+        /* Column classes (ColumnDef.Class): a heading per class over its
+           columns; its box shows or hides them all, its arrow lists all of
+           them or only those in the table. */
+        .pane-class {
+            list-style: none;
+            margin-top: 6px;
+        }
+
+        .pane-class-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 26px;
+            padding-left: 2px;
+        }
+
+        .pane-class-all {
+            display: flex;
+            text-decoration: none;
+        }
+
+        .pane-class-all:hover .pane-box {
+            border-color: #2980b9;
+        }
+
+        .pane-class-all .pane-box {
+            flex: 0 0 14px;
+            width: 14px;
+        }
+
+        .pane-box.partial::after {
+            content: "";
+            width: 8px;
+            height: 2px;
+            background-color: #2980b9;
+        }
+
+        .pane-class:has(.pane-class-all .icon) .pane-class-all .pane-box {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+
+        .pane-class-toggle {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            text-decoration: none;
+            color: #333;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .pane-class-toggle:hover .pane-class-name {
+            color: #2980b9;
+        }
+
+        .pane-class-count {
+            margin-left: auto;
+            font-weight: normal;
+            color: #8a929c;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        .pane-class-columns {
+            padding-left: 12px;
+        }
+
+        /* Column search (tables with many columns): narrows the pane while
+           typing. */
+        .pane-search {
+            width: calc(100% - 16px);
+            box-sizing: border-box;
+            margin: 8px 8px 4px;
+            padding: 4px 8px;
+            border: 1px solid #c9ced5;
+            border-radius: 4px;
+            font: 12px Arial, sans-serif;
+        }
+
         .pane-name {
             flex: 1;
             min-width: 0;

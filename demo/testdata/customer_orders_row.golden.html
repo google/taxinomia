@@ -60,8 +60,18 @@
                     
                 </div>
 
-                <ul class="pane-list pane-main">
+                <input type="search" class="pane-search" placeholder="Find a column" aria-label="Find a column" autocomplete="off"><ul class="pane-list pane-main">
                     
+                    
+                    <li class="pane-class">
+                        <div class="pane-class-row">
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Ccustomer_name%2Ccustomer_email&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-all" title="Add all Customer orders columns to the table"><span class="pane-box partial"></span></a>
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus&amp;expanded=class%3ACustomer+orders&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-toggle" title="List all Customer orders columns">
+                                <span class="pane-disclosure"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></span>
+                                <span class="pane-class-name">Customer orders</span> <span class="pane-class-count">1 / 3</span>
+                            </a>
+                        </div>
+                        <ul class="pane-list pane-class-columns">
         <li class="pane-item">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
@@ -75,7 +85,7 @@
             
         </li>
     
-        <li class="pane-item">
+        <li class="pane-item" hidden data-pane-collapsed="1">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
                 <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Ccustomer_name&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Customer Name to the table">
@@ -88,46 +98,7 @@
             
         </li>
     
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_percent&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount % to the table">
-                    <span class="pane-box"></span>
-                    <span class="pane-name">Discount %</span>
-                    
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_code&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount Code to the table (links to other tables)">
-                    <span class="pane-box"></span>
-                    <span class="pane-name">Discount Code</span>
-                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Creason&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount Reason to the table">
-                    <span class="pane-box"></span>
-                    <span class="pane-name">Discount Reason</span>
-                    
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
+        <li class="pane-item" hidden data-pane-collapsed="1">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
                 <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Ccustomer_email&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Email to the table">
@@ -139,46 +110,19 @@
             </div>
             
         </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cline_total&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Line Total to the table">
-                    <span class="pane-box"></span>
-                    <span class="pane-fx" title="Computed: quantity * unit_price">fx</span><span class="pane-name">Line Total</span>
+    </ul>
+                    </li>
                     
                     
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cnet_total&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Net Total to the table">
-                    <span class="pane-box"></span>
-                    <span class="pane-fx" title="Computed: line_total * (100 - discount_percent) / 100">fx</span><span class="pane-name">Net Total</span>
-                    
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Corder_date&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Order Date to the table">
-                    <span class="pane-box"></span>
-                    <span class="pane-name">Order Date</span>
-                    
-                    
-                </a>
-            </div>
-            
-        </li>
-    
+                    <li class="pane-class">
+                        <div class="pane-class-row">
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Corder_date&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-all" title="Add all Order columns to the table"><span class="pane-box partial"></span></a>
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus&amp;expanded=class%3AOrder&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-toggle" title="List all Order columns">
+                                <span class="pane-disclosure"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></span>
+                                <span class="pane-class-name">Order</span> <span class="pane-class-count">2 / 3</span>
+                            </a>
+                        </div>
+                        <ul class="pane-list pane-class-columns">
         <li class="pane-item">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
@@ -192,38 +136,12 @@
             
         </li>
     
-        <li class="pane-item">
+        <li class="pane-item" hidden data-pane-collapsed="1">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle on" title="Remove Product ID from the table (links to other tables)">
-                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-                    <span class="pane-name">Product ID</span>
-                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cproduct_name&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Product Name to the table">
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Corder_date&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Order Date to the table">
                     <span class="pane-box"></span>
-                    <span class="pane-name">Product Name</span>
-                    
-                    
-                </a>
-            </div>
-            
-        </li>
-    
-        <li class="pane-item">
-            <div class="pane-row">
-                <span class="pane-disclosure"></span>
-                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cquantity&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Quantity to the table">
-                    <span class="pane-box"></span>
-                    <span class="pane-name">Quantity</span>
+                    <span class="pane-name">Order Date</span>
                     
                     
                 </a>
@@ -243,8 +161,59 @@
             </div>
             
         </li>
-    
+    </ul>
+                    </li>
+                    
+                    
+                    <li class="pane-class">
+                        <div class="pane-class-row">
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cproduct_name%2Cquantity%2Cunit_price&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-all" title="Add all Line item columns to the table"><span class="pane-box partial"></span></a>
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus&amp;expanded=class%3ALine+item&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-toggle" title="List all Line item columns">
+                                <span class="pane-disclosure"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></span>
+                                <span class="pane-class-name">Line item</span> <span class="pane-class-count">1 / 4</span>
+                            </a>
+                        </div>
+                        <ul class="pane-list pane-class-columns">
         <li class="pane-item">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cstatus&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle on" title="Remove Product ID from the table (links to other tables)">
+                    <span class="pane-box"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+                    <span class="pane-name">Product ID</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item" hidden data-pane-collapsed="1">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cproduct_name&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Product Name to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Product Name</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item" hidden data-pane-collapsed="1">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cquantity&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Quantity to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Quantity</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item" hidden data-pane-collapsed="1">
             <div class="pane-row">
                 <span class="pane-disclosure"></span>
                 <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cunit_price&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Unit Price to the table">
@@ -256,7 +225,99 @@
             </div>
             
         </li>
+    </ul>
+                    </li>
+                    
+                    
+                    <li class="pane-class">
+                        <div class="pane-class-row">
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_code%2Cdiscount_percent%2Creason&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-all" title="Add all Discount columns to the table"><span class="pane-box"></span></a>
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus&amp;expanded=class%3ADiscount&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-toggle" title="List all Discount columns">
+                                <span class="pane-disclosure"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></span>
+                                <span class="pane-class-name">Discount</span> <span class="pane-class-count">0 / 3</span>
+                            </a>
+                        </div>
+                        <ul class="pane-list pane-class-columns">
+        <li class="pane-item" hidden data-pane-collapsed="1">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_code&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount Code to the table (links to other tables)">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Discount Code</span>
+                    <svg class="icon pane-kind" aria-hidden="true"><use href="#i-link"></use></svg>
+                    
+                </a>
+            </div>
+            
+        </li>
     
+        <li class="pane-item" hidden data-pane-collapsed="1">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cdiscount_percent&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount % to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Discount %</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item" hidden data-pane-collapsed="1">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Creason&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Discount Reason to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-name">Discount Reason</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    </ul>
+                    </li>
+                    
+                    
+                    <li class="pane-class">
+                        <div class="pane-class-row">
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cline_total%2Cnet_total&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-all" title="Add all Other columns to the table"><span class="pane-box"></span></a>
+                            <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus&amp;expanded=class%3AOther&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-class-toggle" title="List all Other columns">
+                                <span class="pane-disclosure"><svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg></span>
+                                <span class="pane-class-name">Other</span> <span class="pane-class-count">0 / 2</span>
+                            </a>
+                        </div>
+                        <ul class="pane-list pane-class-columns">
+        <li class="pane-item" hidden data-pane-collapsed="1">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cline_total&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Line Total to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-fx" title="Computed: quantity * unit_price">fx</span><span class="pane-name">Line Total</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    
+        <li class="pane-item" hidden data-pane-collapsed="1">
+            <div class="pane-row">
+                <span class="pane-disclosure"></span>
+                <a href="/default/table?columns=order_id%2Ccustomer_id%2Cproduct_id%2Cstatus%2Cnet_total&amp;limit=25&amp;row=ORD-2024-001&amp;table=customer_orders" class="pane-toggle" title="Add Net Total to the table">
+                    <span class="pane-box"></span>
+                    <span class="pane-fx" title="Computed: line_total * (100 - discount_percent) / 100">fx</span><span class="pane-name">Net Total</span>
+                    
+                    
+                </a>
+            </div>
+            
+        </li>
+    </ul>
+                    </li>
+                    
+                    
                 </ul>
 
                 <div class="pane-legend">

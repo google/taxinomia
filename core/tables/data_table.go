@@ -26,6 +26,9 @@ import (
 
 type DataTable struct {
 	columns map[string]columns.IDataColumn
+	// order lists the column names in the order they were added (the
+	// source's order), for ColumnNamesInOrder.
+	order []string
 	// sortKey records the physical sort order of the storage, set by
 	// SortByKey. Nil means unspecified (load order).
 	sortKey []string
@@ -63,6 +66,9 @@ func (dt *DataTable) AddColumn(col columns.IDataColumn) {
 	// Initialize the column with empty data
 	def := col.ColumnDef()
 	name := def.Name()
+	if _, exists := dt.columns[name]; !exists {
+		dt.order = append(dt.order, name)
+	}
 	dt.columns[name] = col
 }
 
@@ -71,6 +77,12 @@ func (dt *DataTable) GetColumn(name string) columns.IDataColumn {
 		return col
 	}
 	return nil
+}
+
+// ColumnNamesInOrder returns the table's column names in the order they
+// were added: the source's column order for the loaders.
+func (dt *DataTable) ColumnNamesInOrder() []string {
+	return append([]string(nil), dt.order...)
 }
 
 // GetColumnNames returns all column names in the table

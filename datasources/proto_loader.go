@@ -211,6 +211,9 @@ func (l *ProtoLoader) createTableFromRows(rb *protoloader.RowBuilder, enrichedCo
 
 		colDef := CreateColumnDef(enriched)
 		fd := fieldDescs[i]
+		if colDef.Class() == "" {
+			colDef.SetClass(protoloader.LevelClass(fd)) // the message level, unless annotated
+		}
 
 		switch enriched.Type {
 		case TypeBool:

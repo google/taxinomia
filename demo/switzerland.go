@@ -45,6 +45,12 @@ type col = csvimport.TextColumnOptions
 var municipalityCol = col{DisplayName: "Municipality no.", EntityType: "ch.municipality"}
 var voteCol = col{DisplayName: "Vote", EntityType: "ch.vote"}
 
+// withClass returns c in the column pane class class.
+func withClass(c col, class string) col {
+	c.Class = class
+	return c
+}
+
 var swissTables = []struct {
 	name     string
 	csv      []byte
@@ -52,38 +58,38 @@ var swissTables = []struct {
 	computed []tables.ComputedDefinition
 }{
 	{"ch_municipalities", chMunicipalitiesCSV, map[string]col{
-		"bfs_nr":            municipalityCol,
-		"name":              {DisplayName: "Municipality"},
-		"canton":            {DisplayName: "Canton", EntityType: "ch.canton"},
-		"district":          {DisplayName: "District", EntityType: "ch.district"},
-		"region":            {DisplayName: "Region", EntityType: "ch.region"},
-		"language_region":   {DisplayName: "Language region"},
-		"urbanisation":      {DisplayName: "Urbanisation"},
-		"municipality_type": {DisplayName: "Type"},
-		"population":        {DisplayName: "Population"},
-		"swiss":             {DisplayName: "Swiss"},
-		"foreign":           {DisplayName: "Foreign"},
-		"men":               {DisplayName: "Men"},
-		"women":             {DisplayName: "Women"},
-		"age_0_19":          {DisplayName: "Aged 0-19"},
-		"age_20_64":         {DisplayName: "Aged 20-64"},
-		"age_65_plus":       {DisplayName: "Aged 65+"},
-		"age_80_plus":       {DisplayName: "Aged 80+"},
-		"median_age":        {DisplayName: "Median age"},
-		"births":            {DisplayName: "Births"},
-		"deaths":            {DisplayName: "Deaths"},
-		"immigration":       {DisplayName: "Immigration"},
-		"emigration":        {DisplayName: "Emigration"},
-		"net_migration":     {DisplayName: "Net migration"},
-		"area_km2":          {DisplayName: "Area (km²)"},
-		"elevation_m":       {DisplayName: "Elevation (m)"},
-		"latitude":          {DisplayName: "Latitude"},
-		"longitude":         {DisplayName: "Longitude"},
-		"wikidata":          {DisplayName: "Wikidata", EntityType: "wikidata.item"},
+		"bfs_nr":            withClass(municipalityCol, "Municipality"),
+		"name":              {DisplayName: "Municipality", Class: "Municipality"},
+		"canton":            {DisplayName: "Canton", EntityType: "ch.canton", Class: "Administration"},
+		"district":          {DisplayName: "District", EntityType: "ch.district", Class: "Administration"},
+		"region":            {DisplayName: "Region", EntityType: "ch.region", Class: "Administration"},
+		"language_region":   {DisplayName: "Language region", Class: "Classification"},
+		"urbanisation":      {DisplayName: "Urbanisation", Class: "Classification"},
+		"municipality_type": {DisplayName: "Type", Class: "Classification"},
+		"population":        {DisplayName: "Population", Class: "Population 2024"},
+		"swiss":             {DisplayName: "Swiss", Class: "Population 2024"},
+		"foreign":           {DisplayName: "Foreign", Class: "Population 2024"},
+		"men":               {DisplayName: "Men", Class: "Population 2024"},
+		"women":             {DisplayName: "Women", Class: "Population 2024"},
+		"age_0_19":          {DisplayName: "Aged 0-19", Class: "Age"},
+		"age_20_64":         {DisplayName: "Aged 20-64", Class: "Age"},
+		"age_65_plus":       {DisplayName: "Aged 65+", Class: "Age"},
+		"age_80_plus":       {DisplayName: "Aged 80+", Class: "Age"},
+		"median_age":        {DisplayName: "Median age", Class: "Age"},
+		"births":            {DisplayName: "Births", Class: "Demography 2024"},
+		"deaths":            {DisplayName: "Deaths", Class: "Demography 2024"},
+		"immigration":       {DisplayName: "Immigration", Class: "Demography 2024"},
+		"emigration":        {DisplayName: "Emigration", Class: "Demography 2024"},
+		"net_migration":     {DisplayName: "Net migration", Class: "Demography 2024"},
+		"area_km2":          {DisplayName: "Area (km²)", Class: "Geography"},
+		"elevation_m":       {DisplayName: "Elevation (m)", Class: "Geography"},
+		"latitude":          {DisplayName: "Latitude", Class: "Geography"},
+		"longitude":         {DisplayName: "Longitude", Class: "Geography"},
+		"wikidata":          {DisplayName: "Wikidata", EntityType: "wikidata.item", Class: "Municipality"},
 	}, []tables.ComputedDefinition{
-		{Name: "density", DisplayName: "Density (per km²)", Expression: "round(population / area_km2)"},
-		{Name: "foreign_pct", DisplayName: "Foreign (%)", Expression: "round(foreign * 100 / population, 1)"},
-		{Name: "over_65_pct", DisplayName: "Aged 65+ (%)", Expression: "round(age_65_plus * 100 / population, 1)"},
+		{Name: "density", DisplayName: "Density (per km²)", Expression: "round(population / area_km2)", Class: "Population 2024"},
+		{Name: "foreign_pct", DisplayName: "Foreign (%)", Expression: "round(foreign * 100 / population, 1)", Class: "Population 2024"},
+		{Name: "over_65_pct", DisplayName: "Aged 65+ (%)", Expression: "round(age_65_plus * 100 / population, 1)", Class: "Age"},
 	}},
 	{"ch_votes", chVotesCSV, map[string]col{
 		"vote":        voteCol,

@@ -48,6 +48,8 @@ type TableViewModel struct {
 	IsGrouped             bool                    // Whether the table is currently grouped
 	AllColumns            []ColumnInfo            // All available columns with metadata
 	PaneColumns           []ColumnInfo            // Column pane: the base table's columns, alphabetical (joined columns hang under their join, computed columns have their own section)
+	PaneClasses           []PaneClass             // Column pane by class, when the table's columns have classes (nil: the flat PaneColumns list)
+	PaneSearch            bool                    // Column pane: show the column search box (tables with many columns)
 	ComputedColumns       []ComputedColumnInfo    // Computed columns defined by the user
 	CurrentQuery          string                  // Current query string
 	CurrentURL            safehtml.URL            // Current URL for building toggle links
@@ -298,6 +300,8 @@ type ColumnInfo struct {
 	IsAggSortDescending bool         // Whether aggregate sort is descending
 	PaneName            string       // Name shown in the column pane (the column's own display name, also for joined columns)
 	PaneContext         string       // Column pane: the table a joined column comes from, shown muted before the name; empty for base columns
+	Class               string       // Column pane: the column's class (ColumnDef.Class), its heading; empty for none
+	PaneHidden          bool         // Column pane: listed but hidden (a column not in the view, in a collapsed class); search reveals it
 	ShowJoins           bool         // Column pane: list this column's join targets (expanded, or a joined column beneath it is in the view)
 	Formula             string       // Computed columns defined with the table: the expression (fx mark in the column pane); empty otherwise
 }
@@ -731,6 +735,7 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 				Name:                colName,
 				DisplayName:         col.ColumnDef().DisplayName(),
 				PaneName:            col.ColumnDef().DisplayName(),
+				Class:               col.ColumnDef().Class(),
 				IsVisible:           visibleCols[colName],
 				IsGrouped:           q.IsColumnGrouped(colName),
 				GroupLevel:          q.GroupLevel(colName),
@@ -925,6 +930,8 @@ func BuildViewModel(dataModel *models.DataModel, tableName string, tableView *ta
 	}
 
 	vm.PaneColumns = paneColumns(vm.AllColumns, computedColNames)
+	vm.PaneClasses = paneClasses(vm.PaneColumns, paneColumnOrder(tableView), q)
+	vm.PaneSearch = len(vm.PaneColumns) > paneSearchFrom
 
 	// Build headers and columns from view
 	for _, colName := range view.Columns {
@@ -1957,6 +1964,7 @@ func tableComputedColumnInfo(d tables.ComputedDefinition, tableView *tables.Tabl
 		DisplayName:       displayName,
 		PaneName:          displayName,
 		Formula:           d.Expression,
+		Class:             d.Class,
 		IsVisible:         visibleCols[name],
 		IsGrouped:         q.IsColumnGrouped(name),
 		GroupLevel:        q.GroupLevel(name),

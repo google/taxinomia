@@ -124,6 +124,7 @@ type ColumnDef struct {
 	displayName string
 	entityType  string
 	collation   Collation // how string values order (sorting, grouping, storage sort); see Collation
+	class       string    // the column's class in the column pane (e.g. "Population"); see SetClass
 }
 
 // Collation is how this column's string values are ordered.
@@ -137,6 +138,20 @@ func (cd *ColumnDef) Collation() Collation {
 // Returns the definition for chaining.
 func (cd *ColumnDef) SetCollation(c Collation) *ColumnDef {
 	cd.collation = c
+	return cd
+}
+
+// Class is the column's class: a heading the column pane lists it under,
+// with the other columns of the class (e.g. "Population", "Geography").
+// Empty: no class.
+func (cd *ColumnDef) Class() string {
+	return cd.class
+}
+
+// SetClass sets the column's class (see Class). Returns the definition for
+// chaining.
+func (cd *ColumnDef) SetClass(class string) *ColumnDef {
+	cd.class = class
 	return cd
 }
 
