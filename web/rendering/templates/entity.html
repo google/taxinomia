@@ -84,7 +84,11 @@
                 <h2>Referred to by</h2>
                 <ul class="entity-list">
                     {{range .Related}}
-                    <li><a href="{{.FilterURL}}">{{.DisplayName}}</a> <span class="entity-muted">by {{.ColumnName}}</span></li>
+                    <li><a href="{{.FilterURL}}">{{.DisplayName}}</a> <span class="entity-muted">by {{.ColumnName}}{{if .Entities}} &middot; {{.RowCount}}{{end}}</span>
+                        {{if .Entities}}{{$ref := .}}
+                        <div class="entity-related">{{range .Entities}}<a href="{{.URL}}" class="entity-link-entity">{{.Name}}</a>{{end}}{{if gt $ref.RowCount (len $ref.Entities)}}<a href="{{$ref.FilterURL}}" class="entity-related-more">all {{$ref.RowCount}}</a>{{end}}</div>
+                        {{end}}
+                    </li>
                     {{end}}
                 </ul>
             </section>

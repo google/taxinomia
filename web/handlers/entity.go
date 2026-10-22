@@ -215,7 +215,7 @@ func (s *Server) buildEntityViewModel(path, entityType, value, home string, home
 	}
 	// Every table that refers to the entity (the detail panel's resolver
 	// leaves out tables already in a hierarchy; this page lists them all).
-	vm.Related = s.referringTables(path, home, entityType, value)
+	vm.Related = s.referringTables(path, home, entityType, value, homes)
 	if allURLs != nil {
 		vm.ExternalURLs = allURLs(entityType, value)
 	}
@@ -256,9 +256,19 @@ func findRows(table *tables.DataTable, keyCol, value string) []uint32 {
 	return rows
 }
 
+// relatedEntityLimit is how many referring entities one referring table
+// lists on the entity page: a screenful, the rest are behind the table link.
+const relatedEntityLimit = 12
+
 // referringTables lists every column of every other table whose entity type
-// is the entity's, as a link to that table filtered to the entity.
-func (s *Server) referringTables(path, home, entityType, value string) []viewmodel.RelatedTable {
+// is the entity's, as a link to that table filtered to the entity. When the
+// table's primary key is an entity, its first referring entities are listed
+// too, as links to their pages.
+func (s *Server) referringTables(path, home, entityType, value string, homes map[string]string) []viewmodel.RelatedTable {
+	homeKey := make(map[string]string) // table -> its key column, for tables that are an entity's home
+	for et, table := range homes {
+		homeKey[table] = keyColumnFor(s.dataModel.GetTable(table), et)
+	}
 	names := make([]string, 0, len(s.dataModel.GetAllTables()))
 	for name := range s.dataModel.GetAllTables() {
 		if name != home && !strings.HasPrefix(name, "_") {
@@ -277,14 +287,60 @@ func (s *Server) referringTables(path, home, entityType, value string) []viewmod
 			v := url.Values{}
 			v.Set("table", name)
 			v.Set("filter:"+colName, `"`+value+`"`)
-			refs = append(refs, viewmodel.RelatedTable{
+			ref := viewmodel.RelatedTable{
 				TableName:        name,
 				DisplayName:      strings.Title(name), //nolint:staticcheck // matches the table page heading
 				ColumnName:       col.ColumnDef().DisplayName(),
 				ColumnEntityType: entityType,
 				FilterURL:        path + "?" + v.Encode(),
-			})
+			}
+			if key := homeKey[name]; key != "" && key != colName {
+				ref.Entities, ref.RowCount = referringEntities(path, table, colName, key, value)
+			}
+			refs = append(refs, ref)
 		}
 	}
 	return refs
+}
+
+// referringEntities returns the first distinct keys (table order, at most
+// relatedEntityLimit) of the rows of table whose column colName is value, as
+// links to their entity pages, and the number of such rows.
+func referringEntities(path string, table *tables.DataTable, colName, keyCol, value string) ([]viewmodel.EntityURL, int) {
+	key := table.GetColumn(keyCol)
+	et := key.ColumnDef().EntityType()
+	var links []viewmodel.EntityURL
+	seen := make(map[string]bool)
+	count := 0
+	forEachRowEqual(table.GetColumn(colName), value, func(row uint32) {
+		count++
+		if len(links) == relatedEntityLimit {
+			return
+		}
+		k, err := key.GetString(row)
+		if err != nil || k == "" || isUnreadableLabel(k) || seen[k] {
+			return
+		}
+		seen[k] = true
+		links = append(links, viewmodel.EntityURL{Name: k, URL: EntityPageURL(path, et, k)})
+	})
+	return links, count
+}
+
+// forEachRowEqual calls f for each row of col whose value is value, in row
+// order: through the column's equality filter when it has one (zone maps
+// skip chunks that cannot hold the value), else a scan.
+func forEachRowEqual(col columns.IDataColumn, value string, f func(row uint32)) {
+	if fc, ok := col.(interface {
+		FilterSelectionEqual(string) *columns.Selection
+	}); ok {
+		fc.FilterSelectionEqual(value).ForEach(f)
+		return
+	}
+	n := col.Length()
+	for i := 0; i < n; i++ {
+		if v, err := col.GetString(uint32(i)); err == nil && v == value {
+			f(uint32(i))
+		}
+	}
 }

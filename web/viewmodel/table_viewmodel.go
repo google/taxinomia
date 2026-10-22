@@ -166,6 +166,13 @@ type RelatedTable struct {
 	ColumnEntityType string // e.g., "google.cluster"
 	Description      string // Table description
 	FilterURL        string // URL to view the table filtered by the selected item
+
+	// Filled on the single-entity page only, for a referring table whose
+	// primary key is an entity: the first referring entities (table order,
+	// at most a screenful) as links to their pages, and the number of
+	// referring rows.
+	Entities []EntityURL // Name is the entity's value, URL its page
+	RowCount int         // rows of the table referring to the item
 }
 
 // HierarchyContextBuilder builds hierarchy contexts for a selected item.

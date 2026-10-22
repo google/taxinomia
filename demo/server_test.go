@@ -180,6 +180,35 @@ func TestGoldenDemoPages(t *testing.T) {
 	}
 }
 
+// TestEntityPageRelatedEntities checks the single-entity page lists the
+// entities referring to it: a zone's clusters as links to their pages, and a
+// link to the whole filtered table when there are more than a screenful
+// (the zone's 100 racks). Asserted on substrings: other tables referring to
+// the zone (jobs) are generated randomly, so no golden.
+func TestEntityPageRelatedEntities(t *testing.T) {
+	srv, products := goldenSetup(t)
+	u, _ := url.Parse("/default/table?entity=google.zone&value=asia-east-a")
+	var buf bytes.Buffer
+	if res := srv.HandleTableRequest(&buf, u, products.Get("default"), func(k, v string) {}); res != nil {
+		t.Fatalf("HandleTableRequest failed: %+v", res)
+	}
+	page := buf.String()
+	for _, want := range []string{
+		`by Zone &middot; 5</span>`,
+		`<a href="/default/table?entity=google.cluster&amp;value=asia-east-a-c0" class="entity-link-entity">asia-east-a-c0</a>`,
+		`<a href="/default/table?entity=google.cluster&amp;value=asia-east-a-c4" class="entity-link-entity">asia-east-a-c4</a>`,
+		`<a href="/default/table?entity=google.rack&amp;value=asia-east-a-c0-r11" class="entity-link-entity">asia-east-a-c0-r11</a>`,
+		`<a href="/default/table?filter%3Azone=%22asia-east-a%22&amp;table=google_racks" class="entity-related-more">all 100</a>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("entity page lacks %s", want)
+		}
+	}
+	if strings.Contains(page, "asia-east-a-c0-r12") {
+		t.Errorf("entity page lists more racks than the limit")
+	}
+}
+
 // TestExecuteMatchesHandler pins the extracted pipeline to the handler: a
 // page built from Execute + BuildViewModel + the renderer — the path an
 // embedding server takes — is byte-identical to HandleTableRequest's.

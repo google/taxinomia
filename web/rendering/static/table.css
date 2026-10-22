@@ -2543,6 +2543,19 @@
             text-decoration: underline;
         }
 
+        /* Referring entities under a "Referred to by" table: links to their pages. */
+        .entity-related {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px 12px;
+            margin: 0 0 6px 12px;
+            line-height: 1.6;
+        }
+
+        .entity-card .entity-related-more {
+            color: #8a929c;
+        }
+
         .entity-muted {
             color: #8a929c;
             font-size: 12px;
