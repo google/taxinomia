@@ -45,6 +45,8 @@ type EntityViewModel struct {
 	Hierarchies  []HierarchyContext // its place in each hierarchy
 	Related      []RelatedTable     // tables that refer to it, as filtered lists
 	ExternalURLs []EntityURL        // links declared for the entity type
+	Commands     []EntityCommand    // command lines declared for the entity type
+	LinkBlocks   []LinkBlock        // ExternalURLs and Commands grouped by area, for the page's link column
 
 	Assets Assets         // stylesheet (shared with the table page)
 	Build  buildinfo.Info // build stamp for the status line

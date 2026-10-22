@@ -147,13 +147,42 @@ func TestResolveDefaultURL(t *testing.T) {
 	}
 }
 
+func TestCommands(t *testing.T) {
+	n := NewNavigator(&engine.Catalog{EntityTypes: []engine.EntityTypeMeta{{
+		Name: "demo.host",
+		Commands: []engine.CommandTemplate{
+			{Name: "Log in", Template: "ssh {value}"},
+			{Name: "Describe", Template: "hostctl describe --type={entity_type} {value}", Area: "Ops"},
+		},
+	}}})
+
+	got := n.Commands("demo.host", "web-1.example")
+	want := []viewmodel.EntityCommand{
+		{Name: "Log in", Command: "ssh web-1.example"},
+		{Name: "Describe", Command: "hostctl describe --type=demo.host web-1.example", Area: "Ops"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Commands: got %+v, want %+v", got, want)
+	}
+	// A value the shell would interpret is quoted: pasted, it stays one word.
+	if got := n.Commands("demo.host", "a b; rm -rf ~ 'x'")[0].Command; got != `ssh 'a b; rm -rf ~ '\''x'\'''` {
+		t.Errorf("quoted command = %s", got)
+	}
+	if got := n.Commands("demo.host", "")[0].Command; got != "ssh ''" {
+		t.Errorf("empty value command = %s", got)
+	}
+	if got := n.Commands("nope", "x"); got != nil {
+		t.Errorf("unknown entity type: got %+v, want nil", got)
+	}
+}
+
 func TestAllURLs(t *testing.T) {
 	n := NewNavigator(testCatalog())
 
 	got := n.AllURLs("demo.order_id", "ORD-1")
 	want := []viewmodel.EntityURL{
-		{Name: "Order Details", URL: "https://orders.example.com/orders/ORD-1"},
-		{Name: "Tracking", URL: "https://track.example.com/demo.order_id/ORD-1"},
+		{Name: "Order Details", URL: "https://orders.example.com/orders/ORD-1", Icon: "doc"},
+		{Name: "Tracking", URL: "https://track.example.com/demo.order_id/ORD-1", Icon: "map"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("AllURLs: got %+v, want %+v", got, want)

@@ -20,6 +20,7 @@ package rendering
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -60,5 +61,52 @@ func TestRenderWithoutTimings(t *testing.T) {
 	}
 	if strings.Contains(html, "No phase timings were recorded") {
 		t.Error("explanation must not show when timings exist")
+	}
+}
+
+// TestEntityLinkBlocks renders the entity page's link column: every icon a
+// link can name has a symbol in the page's sprite, an area's block carries
+// its name and colour, links without an area get a plain block, and
+// commands come with a copy button and its script.
+func TestEntityLinkBlocks(t *testing.T) {
+	page, err := templateFS.ReadFile("templates/entity.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, icon := range viewmodel.LinkIcons {
+		if !strings.Contains(string(page), `<symbol id="i-`+icon+`"`) {
+			t.Errorf("entity.html has no symbol for icon %q", icon)
+		}
+	}
+
+	r, err := NewTableRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	links := []viewmodel.EntityURL{
+		{Name: "Dashboard", URL: "https://example.com/d", Area: "Monitoring", Icon: "chart"},
+		{Name: "Wiki", URL: "https://example.com/w", Icon: "book"},
+	}
+	var buf bytes.Buffer
+	commands := []viewmodel.EntityCommand{{Name: "Log in", Command: "ssh 'a b'"}}
+	if err := r.RenderEntity(&buf, viewmodel.EntityViewModel{Found: true, ExternalURLs: links, Commands: commands, LinkBlocks: viewmodel.BuildLinkBlocks(links, commands)}); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	for _, want := range []string{
+		`<div class="entity-layout has-links">`,
+		`<section class="link-block" style="--hue: ` + strconv.Itoa(viewmodel.AreaHue("Monitoring")) + `">`,
+		`<h2>Monitoring</h2>`,
+		`<use href="#i-chart"></use>`,
+		`<section class="link-block link-block-plain">`,
+		`<span>Wiki</span>`,
+		`<h2>Commands</h2>`,
+		`<code>ssh &#39;a b&#39;</code>`,
+		`data-command="ssh &#39;a b&#39;"`,
+		`document.addEventListener('click'`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("entity page lacks %s", want)
+		}
 	}
 }

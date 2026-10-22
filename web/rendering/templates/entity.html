@@ -11,6 +11,26 @@
     {{end}}
 </head>
 <body class="entity-body">
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2L7.8 4M9.5 6.5a3 3 0 0 0-4.2 0L2.8 9a3 3 0 0 0 4.2 4.2L8.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-chart" viewBox="0 0 16 16"><path d="M2 14h12M4 11V8M7.3 11V4M10.6 11V6.5M13.5 11V2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-logs" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 5.5h7M4.5 8h5M4.5 10.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-doc" viewBox="0 0 16 16"><path d="M4 1.8h5l3 3v9.4H4zM9 1.8v3h3M6 8.5h4M6 11h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-book" viewBox="0 0 16 16"><path d="M8 4.2C6.5 3 4.3 2.7 2 3v9.8c2.3-.3 4.5 0 6 1.2 1.5-1.2 3.7-1.5 6-1.2V3c-2.3-.3-4.5 0-6 1.2zM8 4.2V14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-map" viewBox="0 0 16 16"><path d="M8 14.5s-4.5-4.3-4.5-8a4.5 4.5 0 0 1 9 0c0 3.7-4.5 8-4.5 8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="6.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-server" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="4.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="2" y="9" width="12" height="4.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 4.8h.01M4.5 11.3h.01" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></symbol>
+        <symbol id="i-network" viewBox="0 0 16 16"><circle cx="8" cy="3.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="3.5" cy="12.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12.5" cy="12.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 5L4.5 11M9 5l2.5 6M5.3 12.5h5.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-person" viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 14.5c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-people" viewBox="0 0 16 16"><circle cx="5.8" cy="5.5" r="2.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11.3" cy="6" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 14c.5-2.6 2.2-3.8 4.3-3.8s3.8 1.2 4.3 3.8M10.5 10.3c2 0 3.5 1 4 3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-tag" viewBox="0 0 16 16"><path d="M2 2h5.5l6.5 6.5-5.5 5.5L2 7.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="5" r="1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-bolt" viewBox="0 0 16 16"><path d="M9 1.5L3 9h4.5L7 14.5 13 7H8.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-ticket" viewBox="0 0 16 16"><path d="M1.8 4.5h12.4v2a1.5 1.5 0 0 0 0 3v2H1.8v-2a1.5 1.5 0 0 0 0-3zM10 4.5v7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-code" viewBox="0 0 16 16"><path d="M5 4L1.5 8 5 12M11 4l3.5 4-3.5 4M9.3 2.5l-2.6 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.3 10.3L14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.8 8h12.4M8 1.8c-2 2.2-2 10.2 0 12.4M8 1.8c2 2.2 2 10.2 0 12.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8.5" height="8.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 5.5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></symbol>
+    </svg>
     <div class="entity-page">
         <div class="entity-nav">
             <a href="#" onclick="history.back(); return false;" class="entity-back">&larr; Back</a>
@@ -23,6 +43,33 @@
         </h1>
         {{if .Description}}<p class="entity-description">{{.Description}}</p>{{end}}
 
+        <div class="entity-layout{{if .LinkBlocks}} has-links{{end}}">
+        {{if .LinkBlocks}}
+        {{/* The links declared for the entity type, on the left: one block per
+             area under its name and in its colour, links without an area in
+             small unnamed blocks. */}}
+        <aside class="entity-links" aria-label="Links and commands">
+            {{range .LinkBlocks}}
+            <section class="link-block{{if lt .Hue 0}} link-block-plain{{end}}"{{if ge .Hue 0}} style="{{hueStyle .Hue}}"{{end}}>
+                {{if .Area}}<h2>{{.Area}}</h2>{{else if not .Links}}<h2>Commands</h2>{{end}}
+                {{if .Links}}
+                <ul>
+                    {{range .Links}}
+                    <li><a href="{{.URL}}" rel="noopener" title="{{.URL}}">{{linkIcon .Icon}}<span>{{.Name}}</span></a></li>
+                    {{end}}
+                </ul>
+                {{end}}
+                {{range .Commands}}
+                <div class="command">
+                    <div class="command-name">{{.Name}}</div>
+                    <div class="command-line"><code>{{.Command}}</code><button type="button" class="command-copy" title="Copy the command" aria-label="Copy {{.Name}}" data-command="{{.Command}}"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"></use></svg><svg class="icon-copied" aria-hidden="true"><use href="#i-check"></use></svg></button></div>
+                </div>
+                {{end}}
+            </section>
+            {{end}}
+        </aside>
+        {{end}}
+        <div class="entity-main">
         {{if not .Found}}
         <div class="entity-card entity-missing">
             No {{.TypeLabel}} {{.Value}} in {{.HomeTitle}}.
@@ -93,21 +140,39 @@
                 </ul>
             </section>
             {{end}}
-
-            {{if .ExternalURLs}}
-            <section class="entity-card">
-                <h2>Links</h2>
-                <ul class="entity-list">
-                    {{range .ExternalURLs}}
-                    <li><a href="{{.URL}}" rel="noopener">{{.Name}}</a></li>
-                    {{end}}
-                </ul>
-            </section>
-            {{end}}
         </div>
         {{end}}
+        </div>
+        </div>
 
         <div class="entity-footer">Taxinomia <span class="build-version" title="{{.Build.Long}}">{{.Build.Display}}</span></div>
     </div>
+    {{if .Commands}}
+    <script>
+    // Copy a command to the clipboard; a check mark confirms it. Without the
+    // clipboard API (a page served over plain http), a selected textarea and
+    // execCommand do it.
+    document.addEventListener('click', function (e) {
+        var button = e.target.closest('.command-copy');
+        if (!button) return;
+        var text = button.getAttribute('data-command');
+        var done = function () {
+            button.classList.add('copied');
+            setTimeout(function () { button.classList.remove('copied'); }, 1200);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done);
+            return;
+        }
+        var area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        try { if (document.execCommand('copy')) done(); } finally { area.remove(); }
+    });
+    </script>
+    {{end}}
 </body>
 </html>

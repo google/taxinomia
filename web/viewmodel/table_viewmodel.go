@@ -135,6 +135,16 @@ type SelectedRowField struct {
 type EntityURL struct {
 	Name string // Display name for the URL (e.g., "View Orders", "Orders by Status")
 	URL  string // The resolved URL
+	Area string // Area the link belongs to on the entity page ("" for none)
+	Icon string // Icon of the link on the entity page (one of LinkIcons; "" for none)
+}
+
+// EntityCommand is a command line for an entity value, shown on the entity
+// page ready to copy.
+type EntityCommand struct {
+	Name    string // e.g. "Log in"
+	Command string // the command line, the value shell-quoted where needed
+	Area    string // area the command belongs to ("" for none)
 }
 
 // HierarchyContext represents the item's position within a hierarchy

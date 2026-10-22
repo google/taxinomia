@@ -153,6 +153,17 @@ message URLTemplate {
   // small chip with this label, after the value; when empty, the link is
   // listed on the entity page and in the detail panel only.
   string table_label = 4;
+
+  // Area the link belongs to (e.g. "Monitoring", "Hardware"): the entity
+  // page shows the links of an area together, in a block under its name.
+  // Links without an area are shown in small unnamed blocks.
+  string area = 5;
+
+  // Icon shown next to the link on the entity page, one of: link, chart,
+  // logs, doc, book, map, server, network, person, tag, bolt, ticket, code,
+  // search, people, globe. When empty or unknown, the icon is inferred from
+  // the link's name (a "... Dashboard" gets chart), else link.
+  string icon = 6;
 }
 
 // EntityTypeDefinition defines metadata for an entity type.
@@ -167,6 +178,27 @@ message EntityTypeDefinition {
   // URL templates for navigating to related views.
   // Multiple templates allow different actions (view, edit, filter, etc.).
   repeated URLTemplate urls = 3;
+
+  // Command lines for a value of this entity type, shown on the entity page
+  // ready to copy (e.g. "ssh {value}").
+  repeated CommandTemplate commands = 4;
+}
+
+// CommandTemplate defines a command line for an entity value, shown on the
+// entity page with a copy button.
+message CommandTemplate {
+  // Display name shown above the command (e.g., "Log in").
+  string name = 1;
+
+  // Command line with the placeholders {value} and {entity_type}, e.g.
+  // "ssh {value}". A placeholder's text is shell-quoted when it holds
+  // characters the shell would interpret.
+  string template = 2;
+
+  // Area the command belongs to, as URLTemplate.area: it is shown in that
+  // area's block, with the area's links. Commands without an area are shown
+  // in a block of their own.
+  string area = 3;
 }
 
 // Hierarchy defines an ordered sequence of entity types representing a

@@ -219,6 +219,10 @@ func (s *Server) buildEntityViewModel(path, entityType, value, home string, home
 	if allURLs != nil {
 		vm.ExternalURLs = allURLs(entityType, value)
 	}
+	if s.navigator != nil {
+		vm.Commands = s.navigator.Commands(entityType, value)
+	}
+	vm.LinkBlocks = viewmodel.BuildLinkBlocks(vm.ExternalURLs, vm.Commands)
 	return vm
 }
 

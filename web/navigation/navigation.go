@@ -102,6 +102,8 @@ func (n *Navigator) AllURLs(entityType, value string) []viewmodel.EntityURL {
 		result[i] = viewmodel.EntityURL{
 			Name: u.Name,
 			URL:  expandTemplate(u.Template, value, entityType),
+			Area: u.Area,
+			Icon: viewmodel.LinkIcon(u.Icon, u.Name),
 		}
 	}
 	return result
@@ -127,6 +129,33 @@ func (n *Navigator) CellLinks(entityType, value string) []viewmodel.CellLink {
 		})
 	}
 	return links
+}
+
+// Commands returns the command lines declared for the entity type, expanded
+// for value, in declaration order: shown on the entity page ready to copy.
+// Nil when the entity type declares none.
+func (n *Navigator) Commands(entityType, value string) []viewmodel.EntityCommand {
+	et := n.entityTypes[entityType]
+	if et == nil || len(et.Commands) == 0 {
+		return nil
+	}
+	result := make([]viewmodel.EntityCommand, len(et.Commands))
+	for i, c := range et.Commands {
+		command := strings.ReplaceAll(c.Template, "{value}", shellQuote(value))
+		command = strings.ReplaceAll(command, "{entity_type}", shellQuote(entityType))
+		result[i] = viewmodel.EntityCommand{Name: c.Name, Command: command, Area: c.Area}
+	}
+	return result
+}
+
+// shellQuote returns s as one word for a POSIX shell: unchanged when it holds
+// only characters the shell takes literally, else single-quoted (a value
+// with a space, ; or $ cannot run anything once pasted).
+func shellQuote(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // PrimaryKeyEntityType returns the primary key entity type recorded for the

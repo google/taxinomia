@@ -63,6 +63,19 @@ type EntityTypeMeta struct {
 	// URLs are the external link templates declared for values of this
 	// entity type, in declaration order.
 	URLs []URLTemplate
+
+	// Commands are the command lines declared for values of this entity
+	// type, in declaration order.
+	Commands []CommandTemplate
+}
+
+// CommandTemplate is one command line for an entity type, shown on the
+// entity page ready to copy. Template may contain the placeholders {value}
+// and {entity_type}.
+type CommandTemplate struct {
+	Name     string
+	Template string
+	Area     string // groups the command with the area's links ("" for none)
 }
 
 // URLTemplate is one external link template for an entity type. Template may
@@ -74,6 +87,10 @@ type URLTemplate struct {
 	// TableLabel, when set, shows the link in table cells as a chip with
 	// this label after every value of the entity type.
 	TableLabel string
+	// Area groups the link with others on the entity page ("" for none).
+	Area string
+	// Icon names the link's icon on the entity page ("" to infer it).
+	Icon string
 }
 
 // JoinMeta describes one declared join between two tables, by name — the

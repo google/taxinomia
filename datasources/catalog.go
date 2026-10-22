@@ -126,6 +126,15 @@ func (m *Manager) BuildCatalog(tbls map[string]*tables.DataTable) *engine.Catalo
 				Template:   u.GetTemplate(),
 				IsDefault:  u.GetIsDefault(),
 				TableLabel: u.GetTableLabel(),
+				Area:       u.GetArea(),
+				Icon:       u.GetIcon(),
+			})
+		}
+		for _, c := range et.GetCommands() {
+			meta.Commands = append(meta.Commands, engine.CommandTemplate{
+				Name:     c.GetName(),
+				Template: c.GetTemplate(),
+				Area:     c.GetArea(),
 			})
 		}
 		cat.EntityTypes = append(cat.EntityTypes, meta)

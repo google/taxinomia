@@ -155,15 +155,26 @@ entity_types {
 entity_types {
   name: "google.zone"
   description: "Data center zone"
-  urls { name: "Zone Dashboard"        template: "https://monitoring.corp.example.com/zones/{value}" is_default: true }
-  urls { name: "Power & Cooling"       template: "https://facilities.corp.example.com/zones/{value}" }
+  # Links grouped by area: the entity page shows each area as a block.
+  urls { name: "Zone Dashboard"        template: "https://monitoring.corp.example.com/zones/{value}" is_default: true area: "Monitoring" }
+  urls { name: "Alerts"                template: "https://alerts.corp.example.com/zones/{value}" area: "Monitoring" icon: "bolt" }
+  urls { name: "Power & Cooling"       template: "https://facilities.corp.example.com/zones/{value}" area: "Facilities" }
+  urls { name: "Floor Map"             template: "https://facilities.corp.example.com/zones/{value}/map" area: "Facilities" }
+  urls { name: "Site Contacts"         template: "https://facilities.corp.example.com/zones/{value}/contacts" area: "Facilities" icon: "people" }
+  urls { name: "Open Incidents"        template: "https://incidents.corp.example.com/zones/{value}" area: "Operations" }
+  urls { name: "Change Calendar"       template: "https://changes.corp.example.com/zones/{value}" area: "Operations" icon: "doc" }
+  commands { name: "Drain (dry run)"   template: "zonectl drain --dry-run {value}" area: "Operations" }
 }
 
 entity_types {
   name: "google.cluster"
   description: "Machine cluster"
+  # No areas: the entity page shows these links in small blocks.
   urls { name: "Cluster Dashboard"     template: "https://monitoring.corp.example.com/clusters/{value}" is_default: true }
   urls { name: "Network Topology"      template: "https://netops.corp.example.com/clusters/{value}/topology" }
+  urls { name: "Cluster Logs"          template: "https://logs.corp.example.com/clusters/{value}" }
+  urls { name: "Config Source"         template: "https://code.corp.example.com/clusters/{value}" }
+  urls { name: "Owner Team"            template: "https://people.corp.example.com/clusters/{value}/team" }
 }
 
 entity_types {
@@ -176,9 +187,15 @@ entity_types {
 entity_types {
   name: "google.machine"
   description: "Physical server"
-  urls { name: "Machine Dashboard"     template: "https://monitoring.corp.example.com/machines/{value}" is_default: true }
-  urls { name: "System Logs"           template: "https://logs.corp.example.com/machines/{value}" }
-  urls { name: "Hardware Specs"        template: "https://inventory.corp.example.com/machines/{value}" }
+  urls { name: "Machine Dashboard"     template: "https://monitoring.corp.example.com/machines/{value}" is_default: true area: "Monitoring" }
+  urls { name: "System Logs"           template: "https://logs.corp.example.com/machines/{value}" area: "Monitoring" }
+  urls { name: "Hardware Specs"        template: "https://inventory.corp.example.com/machines/{value}" area: "Hardware" }
+  urls { name: "Repair Tickets"        template: "https://repairs.corp.example.com/machines/{value}" area: "Hardware" }
+  # Command lines, ready to copy on the entity page; {value} is shell-quoted
+  # when needed.
+  commands { name: "Log in"            template: "ssh {value}.corp.example.com" }
+  commands { name: "Recent kernel log" template: "ssh {value}.corp.example.com journalctl -k --since -1h" }
+  commands { name: "Hardware check"    template: "hwctl check --machine={value}" area: "Hardware" }
 }
 
 entity_types {

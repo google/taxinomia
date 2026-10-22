@@ -21,8 +21,11 @@ package rendering
 import (
 	"embed"
 	"io"
+	"strconv"
 
+	"github.com/google/safehtml"
 	"github.com/google/safehtml/template"
+	"github.com/google/safehtml/uncheckedconversions"
 	"github.com/google/taxinomia/web/viewmodel"
 )
 
@@ -64,7 +67,8 @@ func NewTableRenderer() (*TableRenderer, error) {
 	}
 
 	// Parse the single-entity page template
-	entityTemplate, err := template.New("entity.html").ParseFS(trustedFS, "templates/entity.html")
+	entityFuncs := template.FuncMap{"linkIcon": linkIcon, "hueStyle": hueStyle}
+	entityTemplate, err := template.New("entity.html").Funcs(entityFuncs).ParseFS(trustedFS, "templates/entity.html")
 	if err != nil {
 		return nil, err
 	}
@@ -107,4 +111,23 @@ func (r *TableRenderer) RenderLanding(w io.Writer, vm viewmodel.LandingViewModel
 func (r *TableRenderer) RenderEntity(w io.Writer, vm viewmodel.EntityViewModel) error {
 	vm.Assets = r.assetsFor()
 	return r.entityTemplate.Execute(w, vm)
+}
+
+// linkIcon renders a link's icon from the entity page's sprite; nothing for
+// a name that is not one of viewmodel.LinkIcons. (html/template allows no
+// action inside an SVG <use href>, so the reference is built here, from
+// the known names only.)
+func linkIcon(name string) safehtml.HTML {
+	for _, icon := range viewmodel.LinkIcons {
+		if name == icon {
+			return uncheckedconversions.HTMLFromStringKnownToSatisfyTypeContract(`<svg class="link-icon" aria-hidden="true"><use href="#i-` + icon + `"></use></svg>`)
+		}
+	}
+	return safehtml.HTML{}
+}
+
+// hueStyle sets a link block's colour, an HSL hue, as the --hue property
+// its stylesheet rules read.
+func hueStyle(hue int) safehtml.Style {
+	return uncheckedconversions.StyleFromStringKnownToSatisfyTypeContract("--hue: " + strconv.Itoa(hue))
 }
