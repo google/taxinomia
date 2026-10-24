@@ -171,6 +171,23 @@ func TestCommands(t *testing.T) {
 	if got := n.Commands("demo.host", "")[0].Command; got != "ssh ''" {
 		t.Errorf("empty value command = %s", got)
 	}
+	// A value starting with "-" would be an option where it starts a word:
+	// that command is left out; inside a word or after "--" it is kept.
+	n = NewNavigator(&engine.Catalog{EntityTypes: []engine.EntityTypeMeta{{
+		Name: "demo.host",
+		Commands: []engine.CommandTemplate{
+			{Name: "Log in", Template: "ssh {value}"},
+			{Name: "Check", Template: "hwctl check --machine={value}"},
+			{Name: "Ping", Template: "pingctl -- {value}"},
+		},
+	}}})
+	var names []string
+	for _, c := range n.Commands("demo.host", "-oProxyCommand=sh") {
+		names = append(names, c.Name)
+	}
+	if !reflect.DeepEqual(names, []string{"Check", "Ping"}) {
+		t.Errorf("commands for an option-like value: %v, want [Check Ping]", names)
+	}
 	if got := n.Commands("nope", "x"); got != nil {
 		t.Errorf("unknown entity type: got %+v, want nil", got)
 	}

@@ -133,19 +133,42 @@ func (n *Navigator) CellLinks(entityType, value string) []viewmodel.CellLink {
 
 // Commands returns the command lines declared for the entity type, expanded
 // for value, in declaration order: shown on the entity page ready to copy.
-// Nil when the entity type declares none.
+// A command the value would turn into an option is left out (see
+// optionInjection). Nil when the entity type declares none.
 func (n *Navigator) Commands(entityType, value string) []viewmodel.EntityCommand {
 	et := n.entityTypes[entityType]
 	if et == nil || len(et.Commands) == 0 {
 		return nil
 	}
-	result := make([]viewmodel.EntityCommand, len(et.Commands))
-	for i, c := range et.Commands {
+	var result []viewmodel.EntityCommand
+	for _, c := range et.Commands {
+		if optionInjection(c.Template, map[string]string{"{value}": value, "{entity_type}": entityType}) {
+			continue
+		}
 		command := strings.ReplaceAll(c.Template, "{value}", shellQuote(value))
 		command = strings.ReplaceAll(command, "{entity_type}", shellQuote(entityType))
-		result[i] = viewmodel.EntityCommand{Name: c.Name, Command: command, Area: c.Area}
+		result = append(result, viewmodel.EntityCommand{Name: c.Name, Command: command, Area: c.Area})
 	}
 	return result
+}
+
+// optionInjection reports whether substituting the placeholders would let a
+// value act as an option of the command: a placeholder starting a word,
+// with a value starting with "-", and no "--" (end of options) before it.
+// Quoting cannot help there: ssh '-oProxyCommand=...' still reads an
+// option. A placeholder inside a word (--machine={value}) is safe.
+func optionInjection(template string, values map[string]string) bool {
+	for _, word := range strings.Fields(template) {
+		if word == "--" {
+			return false
+		}
+		for placeholder, v := range values {
+			if strings.HasPrefix(word, placeholder) && strings.HasPrefix(v, "-") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // shellQuote returns s as one word for a POSIX shell: unchanged when it holds

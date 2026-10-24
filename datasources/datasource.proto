@@ -192,7 +192,10 @@ message CommandTemplate {
 
   // Command line with the placeholders {value} and {entity_type}, e.g.
   // "ssh {value}". A placeholder's text is shell-quoted when it holds
-  // characters the shell would interpret.
+  // characters the shell would interpret. A value starting with "-" would
+  // be read as an option where a placeholder starts a word: the command is
+  // then not shown, unless "--" (end of options) comes before it, e.g.
+  // "ping -- {value}".
   string template = 2;
 
   // Area the command belongs to, as URLTemplate.area: it is shown in that
