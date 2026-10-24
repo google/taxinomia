@@ -51,7 +51,7 @@ func main() {
 	// logs them.
 	srv.SetFeedbackURL("/feedback")
 	mux.Handle("/feedback", handlers.FeedbackHandler(func(ctx context.Context, r handlers.FeedbackReport) error {
-		log.Printf("feedback (%s) build=%q page=%q: %s", r.Kind, r.Build, r.Page, r.Text)
+		log.Printf("feedback (%s) build=%q page=%q: %q", r.Kind, r.Build, r.Page, r.Text) // %q: a newline in the text cannot forge a log line
 		return nil
 	}))
 

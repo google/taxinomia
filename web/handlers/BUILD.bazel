@@ -46,6 +46,7 @@ go_test(
         "feedback_test.go",
         "import_test.go",
         "concurrency_test.go",
+        "http_test.go",
         "journeys_test.go",
     ],
     deps = [

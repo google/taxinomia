@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -137,3 +138,30 @@ func (g *gzipResponseWriter) Close() {
 }
 
 var _ = viewmodel.TimingEntry{}
+
+// crossSite reports whether r was sent by a page of another site: a form
+// or script on any web page the user visits can POST to this server (even
+// one bound to localhost), and the state-changing endpoints (import,
+// feedback) refuse such requests. The browser's Sec-Fetch-Site header
+// decides when present (a proxy in between cannot falsify it); else the
+// Origin header is compared with the host the request was sent to (the
+// X-Forwarded-Host a proxy sets, else Host). A request with neither header
+// is not from a browser page (curl, a script) and passes.
+func crossSite(r *http.Request) bool {
+	if site := r.Header.Get("Sec-Fetch-Site"); site != "" {
+		return site != "same-origin" && site != "none"
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return true // "null" (a sandboxed frame, a file) or garbage
+	}
+	host := r.Host
+	if fwd := r.Header.Get("X-Forwarded-Host"); fwd != "" {
+		host = strings.TrimSpace(strings.Split(fwd, ",")[0])
+	}
+	return !strings.EqualFold(u.Host, host)
+}

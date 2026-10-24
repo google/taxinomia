@@ -62,13 +62,18 @@ func (s *Server) SetFeedbackURL(url string) {
 // FeedbackHandler serves the address set with SetFeedbackURL: it accepts a
 // POSTed FeedbackReport (JSON, at most 64 KiB), checks it, and hands it to
 // submit, the application's back end. It answers 204 when submit succeeds,
-// 400 for a malformed or invalid report, 405 for another method and 500
+// 400 for a malformed or invalid report, 403 for a request from another
+// site's page (cross-site request forgery), 405 for another method and 500
 // when submit fails; errors come back as {"error": "..."}.
 func FeedbackHandler(submit func(ctx context.Context, report FeedbackReport) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
 			feedbackError(w, http.StatusMethodNotAllowed, "use POST")
+			return
+		}
+		if crossSite(r) {
+			feedbackError(w, http.StatusForbidden, "reports are accepted from this site's pages only")
 			return
 		}
 		var report FeedbackReport

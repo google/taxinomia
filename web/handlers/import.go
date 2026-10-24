@@ -92,7 +92,8 @@ func (s *Server) SetImportURL(url string) {
 // field, and an optional "name" for the table. Requests asking for JSON
 // (Accept: application/json, as the dialog does) get
 // {"table", "url", "rows", "columns"} with 200, or {"error"} with 400 for
-// text that is not a table, 403 when Accept refuses, 405 for another method
+// text that is not a table, 403 when Accept refuses or the request comes
+// from another site's page (cross-site request forgery), 405 for another method
 // and 413 for a body over MaxBytes. Plain form posts are redirected (303)
 // to the new table under the product path in the "return" field.
 func (s *Server) ImportHandler(opts ImportOptions) http.Handler {
@@ -114,6 +115,10 @@ func (s *Server) ImportHandler(opts ImportOptions) http.Handler {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
 			fail(http.StatusMethodNotAllowed, "use POST")
+			return
+		}
+		if crossSite(r) {
+			fail(http.StatusForbidden, "imports are accepted from this site's pages only")
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
