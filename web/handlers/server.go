@@ -71,7 +71,8 @@ type EntityTypeDescriptionResolver func(entityType string) string
 type Server struct {
 	dataModel      *models.DataModel
 	renderer       *rendering.TableRenderer
-	tableViewCache map[string]*tables.TableView
+	viewsMu        sync.Mutex             // guards views
+	views          map[string]*cachedView // cacheKey -> the user's table view, while no request has it out
 	userStore      users.UserStore
 	clock          hrclock.Clock    // times the request phases of the perf breakdown (SetClock)
 	feedbackURL    string           // where the feedback form posts reports; "" hides the button (SetFeedbackURL)
@@ -89,11 +90,54 @@ type Server struct {
 	entityTypeDescResolver  EntityTypeDescriptionResolver     // Optional resolver for entity type descriptions
 	hierarchyContextBuilder viewmodel.HierarchyContextBuilder // Optional builder for hierarchy contexts in detail panel
 	relatedTablesResolver   viewmodel.RelatedTablesResolver   // Optional resolver for related tables in detail panel
+}
 
-	// Caches for computed columns
-	exprCache         map[string]*expr.Expression  // expression string -> compiled expression
-	computedColState  map[string]map[string]string // cacheKey -> columnName -> expression
-	computedColErrors map[string]map[string]string // cacheKey -> columnName -> error message (empty if no error)
+// cachedView is a user's table view kept between requests, with the
+// computed columns it holds: a request that asks for the same ones reuses
+// them (and the view's cached filter result) instead of rebuilding them.
+type cachedView struct {
+	tableView      *tables.TableView
+	computedState  map[string]string // column name -> its expression
+	computedErrors map[string]string // column name -> its error ("" for none)
+}
+
+// checkoutView hands the request the cached view for key, for its use
+// alone: the view leaves the cache until releaseView puts it back. A
+// request for a key whose view is out (a concurrent request of the same
+// user and table) gets a fresh view, so no two requests ever share one.
+func (s *Server) checkoutView(key string, table *tables.DataTable, tableName string) *cachedView {
+	s.viewsMu.Lock()
+	defer s.viewsMu.Unlock()
+	if v, ok := s.views[key]; ok {
+		delete(s.views, key)
+		return v
+	}
+	return &cachedView{
+		tableView:      tables.NewTableView(table, tableName),
+		computedState:  make(map[string]string),
+		computedErrors: make(map[string]string),
+	}
+}
+
+// ensureEncodings selects the storage encodings of every table that has
+// not had them yet. A table's first selection replaces its string columns,
+// so it must happen before a request reads any table: a join reads its
+// target table and the entity page reads them all, while another request
+// may be encoding one (a no-op per table once done).
+func (s *Server) ensureEncodings() {
+	for _, t := range s.dataModel.GetAllTables() {
+		t.EnsureEncodings()
+	}
+}
+
+// releaseView returns a checked-out view to the cache, unless a concurrent
+// request has already put one back for key (that one is kept).
+func (s *Server) releaseView(key string, v *cachedView) {
+	s.viewsMu.Lock()
+	defer s.viewsMu.Unlock()
+	if _, taken := s.views[key]; !taken {
+		s.views[key] = v
+	}
 }
 
 // NewServer creates a new server with the given data model
@@ -104,13 +148,10 @@ func NewServer(dataModel *models.DataModel) (*Server, error) {
 	}
 
 	return &Server{
-		dataModel:         dataModel,
-		renderer:          renderer,
-		tableViewCache:    make(map[string]*tables.TableView),
-		clock:             hrclock.System(),
-		exprCache:         make(map[string]*expr.Expression),
-		computedColState:  make(map[string]map[string]string),
-		computedColErrors: make(map[string]map[string]string),
+		dataModel: dataModel,
+		renderer:  renderer,
+		views:     make(map[string]*cachedView),
+		clock:     hrclock.System(),
 	}, nil
 }
 
@@ -430,6 +471,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	if res != nil {
 		return res
 	}
+	defer exec.Release()
 	viewModel := s.BuildViewModel(exec)
 
 	// Set content type and render
@@ -465,6 +507,11 @@ type ExecOptions struct {
 // computed columns, filters and grouping have been applied for the query,
 // plus validation errors and phase timings. Read the view directly for your
 // own output, or hand the execution to BuildViewModel for the table page.
+//
+// The table view is the execution's alone until Release, which returns it
+// to the server's cache for the user's next request; call it once done
+// with the view (and its view model). An execution never released only
+// costs that reuse: the next request builds a fresh view.
 type Execution struct {
 	Query      *urlquery.Query
 	View       viewmodel.View
@@ -472,6 +519,21 @@ type Execution struct {
 	Validation *ValidationResult
 	Timing     *TimingCollector
 	Product    string // ExecOptions.Product
+
+	release sync.Once
+	cached  *cachedView
+	server  *Server
+	key     string
+}
+
+// Release returns the execution's table view to the server's cache. The
+// execution's TableView must not be used afterwards. Calling it again does
+// nothing.
+func (e *Execution) Release() {
+	if e == nil || e.server == nil {
+		return
+	}
+	e.release.Do(func() { e.server.releaseView(e.key, e.cached) })
 }
 
 // Execute runs the request pipeline for q. It is the one supported way to
@@ -558,8 +620,12 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 	// table's storage encodings are selected on first use (a no-op for the
 	// loaders that already did it).
 	cacheStart := timing.Now()
-	table.EnsureEncodings()
-	tableView := viewmodel.GetOrCreateTableView(cacheKey, table, s.tableViewCache)
+	s.ensureEncodings()
+	// The view is this request's alone from here; it goes back to the cache
+	// on Release, or not at all when the request fails half-way (its state
+	// may then be inconsistent).
+	cached := s.checkoutView(cacheKey, table, q.Table)
+	tableView := cached.tableView
 	timing.Record("Get TableView", timing.Since(cacheStart))
 
 	// Update joined columns to match the current request
@@ -578,7 +644,7 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 
 	// Create computed columns from the query (with caching)
 	computedStart := timing.Now()
-	validation.ComputedColumnErrors = s.updateComputedColumns(tableView, q, cacheKey)
+	validation.ComputedColumnErrors = s.updateComputedColumns(cached, q)
 	var computedLinks []viewmodel.SettingLink
 	for _, c := range q.ComputedColumns {
 		nq := q.Clone()
@@ -732,7 +798,8 @@ func (s *Server) Execute(ctx context.Context, q *urlquery.Query, opts ExecOption
 		}
 	}
 
-	return &Execution{Query: q, View: view, TableView: tableView, Validation: validation, Timing: timing, Product: opts.Product}, nil
+	return &Execution{Query: q, View: view, TableView: tableView, Validation: validation, Timing: timing, Product: opts.Product,
+		cached: cached, server: s, key: cacheKey}, nil
 }
 
 // BuildViewModel turns an execution into the table page's view model:
@@ -867,26 +934,15 @@ func (s *Server) HandleLandingRequest(w io.Writer, requestURL *url.URL, product 
 	return nil
 }
 
-// updateComputedColumns manages computed columns with caching.
-// Only recompiles expressions and recreates columns when something has changed.
-// The cacheKey is user+table specific to ensure users have isolated computed columns.
+// updateComputedColumns brings the computed columns of a checked-out view
+// in line with the query: it only recompiles expressions and recreates
+// columns when something has changed since the view's last request.
 // Returns a map of column names to error messages for any columns that failed to compile.
-func (s *Server) updateComputedColumns(tableView *tables.TableView, q *urlquery.Query, cacheKey string) map[string]string {
+func (s *Server) updateComputedColumns(cached *cachedView, q *urlquery.Query) map[string]string {
 	errors := make(map[string]string)
-
-	// Get current state for this user+table combination
-	currentState, exists := s.computedColState[cacheKey]
-	if !exists {
-		currentState = make(map[string]string)
-		s.computedColState[cacheKey] = currentState
-	}
-
-	// Get cached errors for this user+table combination
-	cachedErrors, errCacheExists := s.computedColErrors[cacheKey]
-	if !errCacheExists {
-		cachedErrors = make(map[string]string)
-		s.computedColErrors[cacheKey] = cachedErrors
-	}
+	tableView := cached.tableView
+	currentState := cached.computedState
+	cachedErrors := cached.computedErrors
 
 	// The columns to have, in order: the table's own computed columns (from
 	// its definition) first, then the ones this URL adds. A URL column may
@@ -955,16 +1011,13 @@ func (s *Server) createComputedColumn(tableView *tables.TableView, name, display
 		return nil
 	}
 
-	// Check expression cache first
-	compiled, ok := s.exprCache[expression]
-	if !ok {
-		var err error
-		compiled, err = expr.Compile(expression)
-		if err != nil {
-			tableView.AddComputedColumn(name, nil)
-			return fmt.Errorf("syntax error: %v", err)
-		}
-		s.exprCache[expression] = compiled
+	// Compiled per column: compiling costs microseconds next to evaluating
+	// the column, and a server-wide cache of expressions would be shared
+	// state growing with every expression ever sent.
+	compiled, err := expr.Compile(expression)
+	if err != nil {
+		tableView.AddComputedColumn(name, nil)
+		return fmt.Errorf("syntax error: %v", err)
 	}
 
 	// Get a reference column to determine length

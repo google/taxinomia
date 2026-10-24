@@ -261,6 +261,8 @@ func TestExecuteMatchesHandler(t *testing.T) {
 		if err := renderer.Render(&viaExecute, srv.BuildViewModel(exec)); err != nil {
 			t.Fatal(err)
 		}
+		// Done with the view: back to the cache for the next request.
+		exec.Release()
 		// The handler additionally records "Parse Query" as its first phase;
 		// drop that row before comparing. The grouping sub-steps differ too:
 		// the first render builds the grouping, the second is served from the

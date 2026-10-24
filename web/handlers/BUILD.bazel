@@ -45,6 +45,7 @@ go_test(
     srcs = [
         "feedback_test.go",
         "import_test.go",
+        "concurrency_test.go",
         "journeys_test.go",
     ],
     deps = [
@@ -53,6 +54,7 @@ go_test(
         "//core/models",
         "//core/tables",
         "//web/urlquery",
+        "//web/viewmodel",
     ],
     embed = [":handlers"],
 )

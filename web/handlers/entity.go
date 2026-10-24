@@ -110,6 +110,7 @@ func isUnreadableLabel(v string) bool {
 
 // handleEntityRequest renders the single-entity page.
 func (s *Server) handleEntityRequest(ctx context.Context, w io.Writer, requestURL *url.URL, product ProductConfig, setHeader func(key, value string)) *TableHandlerResult {
+	s.ensureEncodings() // the page reads every table
 	params := requestURL.Query()
 	entityType := params.Get("entity")
 	value := params.Get("value")
