@@ -191,6 +191,9 @@
         }
 
         function isFragmentTarget(url) {
+            // The entity and help pages share the table route but are other
+            // pages: fetching one to swap would fail and load it twice.
+            if (url.searchParams.has('entity') || url.searchParams.has('help')) return false;
             return url.origin === window.location.origin && url.pathname === window.location.pathname;
         }
 
@@ -201,9 +204,14 @@
             hideHelp();
             const url = new URL(target, window.location);
             const push = !(options && options.push === false);
-            if (!isFragmentTarget(url) || !window.fetch || !window.DOMParser) {
+            if (!isFragmentTarget(url)) {
                 showWaiting();
                 window.location.href = url.toString();
+                return;
+            }
+            if (!window.fetch || !window.DOMParser) {
+                showWaiting();
+                fullLoadFallback(url, 'this browser has no fetch or DOMParser');
                 return;
             }
             showWaiting();
@@ -216,19 +224,26 @@
                 headers: { 'Accept': 'text/html', 'X-Taxinomia-Fragment': '1' },
                 signal: controller ? controller.signal : undefined
             });
+            let redirected = false;
             req.then(function(resp) {
                 const ct = resp.headers.get('Content-Type') || '';
-                if (!resp.ok || ct.indexOf('text/html') === -1) throw new Error('not a page: ' + resp.status);
+                redirected = resp.redirected;
+                if (!resp.ok) throw new Error('the server answered HTTP ' + resp.status + (redirected ? ' after a redirect' : ''));
+                if (ct.indexOf('text/html') === -1) throw new Error('the answer is ' + (ct || 'of no type') + ', not HTML');
                 return resp.text();
             }).then(function(html) {
                 const t1 = performance.now();
                 const doc = new DOMParser().parseFromString(html, 'text/html');
                 const newMain = doc.getElementById('main-content');
                 const newSidebar = doc.getElementById('sidebar');
-                if (!newMain || !newSidebar) throw new Error('not a table page');
+                if (!newMain || !newSidebar) {
+                    throw new Error('the answer is not a table page' + (redirected ? ' (redirected: a proxy login or error page?)' : ' (a proxy login or error page?)'));
+                }
                 // A new build (another script or stylesheet version) needs
                 // the full page: swapping would keep running this script.
-                if (assetVersion(doc) !== assetVersion(document)) throw new Error('new build');
+                if (assetVersion(doc) !== assetVersion(document)) {
+                    throw new Error('the server runs a new build (its script or stylesheet address differs: a proxy rewriting them would do that too)');
+                }
                 swapPage(doc, newMain, newSidebar);
                 if (push) {
                     history.pushState({ taxinomia: true }, '', url.toString());
@@ -237,11 +252,97 @@
                 }
                 fragmentState.swapped = true;
                 afterSwap();
-                recordFragmentTiming(t0, t1);
+                recordFragmentTiming(t0, t1, url, redirected);
             }).catch(function(err) {
                 if (err && err.name === 'AbortError') return;
-                window.location.href = url.toString();
+                fullLoadFallback(url, err && err.message ? err.message : String(err));
             });
+        }
+
+        // fullLoadFallback loads url as a full page because a fragment
+        // navigation could not be done, and says why: in the console now,
+        // and in the Performance tab of the page that loads (the reason is
+        // kept in sessionStorage across the load). Behind a proxy, a reason
+        // here explains slow navigations: every click reloads everything.
+        const FALLBACK_KEY = 'taxinomia-fallback';
+        function fullLoadFallback(url, reason) {
+            console.warn('taxinomia: full page load instead of a fragment swap: ' + reason);
+            try { sessionStorage.setItem(FALLBACK_KEY, JSON.stringify({ reason: reason, to: url.toString() })); } catch (e) {}
+            window.location.href = url.toString();
+        }
+
+        // takeFallbackReason returns the reason the current page was loaded
+        // in full instead of swapped, once; "" when it was not a fallback.
+        function takeFallbackReason() {
+            let saved = null;
+            try {
+                saved = JSON.parse(sessionStorage.getItem(FALLBACK_KEY) || 'null');
+                sessionStorage.removeItem(FALLBACK_KEY);
+            } catch (e) {}
+            if (!saved || saved.to !== window.location.href) return '';
+            return saved.reason || '';
+        }
+
+        // timingRow adds a row to the perf tab's browser section, before its
+        // total: the operation, an optional detail (volume) and the value.
+        function timingRow(label, value, detail, sub) {
+            const list = document.getElementById('browser-timing-list');
+            const totalItem = document.getElementById('perf-browser-total-item');
+            if (!list || !totalItem) return;
+            const li = document.createElement('li');
+            li.className = 'perf-timing-item' + (sub ? ' sub' : '');
+            const op = document.createElement('span');
+            op.className = 'perf-operation';
+            op.textContent = label;
+            const vol = document.createElement('span');
+            vol.className = 'perf-volume';
+            vol.textContent = detail || '';
+            const dur = document.createElement('span');
+            dur.className = 'perf-duration';
+            dur.textContent = value;
+            li.appendChild(op);
+            li.appendChild(vol);
+            li.appendChild(dur);
+            list.insertBefore(li, totalItem);
+        }
+
+        const fmtMs = function(v) { return (v > 0 ? v : 0).toFixed(1) + 'ms'; };
+        const fmtKB = function(b) { return b >= 1024 ? (b / 1024).toFixed(1) + ' KB' : b + ' B'; };
+
+        // networkRows breaks a request (a page load's navigation entry or a
+        // fragment fetch's resource entry) into connection setup, waiting
+        // and download, and splits the waiting into the server's own time
+        // (its Server-Timing total, rendering included) and the rest: the
+        // network and anything in between, such as a proxy.
+        // Sizes show whether the answer came compressed.
+        function networkRows(entry) {
+            if (entry.redirectEnd > 0) {
+                timingRow('Redirects', fmtMs(entry.redirectEnd - entry.redirectStart), 'a proxy or login sent the request elsewhere first');
+            }
+            if (entry.connectEnd - entry.connectStart > 1) {
+                timingRow('Connect (TCP, TLS)', fmtMs(entry.connectEnd - entry.connectStart),
+                    'a new connection: a proxy that does not keep connections open pays this on every request');
+            }
+            const waiting = entry.responseStart - entry.requestStart;
+            timingRow('Request to first byte', fmtMs(waiting));
+            let serverTotal = -1;
+            (entry.serverTiming || []).forEach(function(t) {
+                if (t.name === 'total') serverTotal = t.duration;
+            });
+            if (serverTotal >= 0) {
+                timingRow('of which the server', fmtMs(serverTotal), 'its phases and rendering', true);
+                timingRow('of which network and proxy', fmtMs(waiting - serverTotal), '', true);
+            } else {
+                timingRow('Server phases unknown', '', 'no Server-Timing header arrived (removed on the way?)', true);
+            }
+            let size = '';
+            if (entry.encodedBodySize) {
+                size = fmtKB(entry.encodedBodySize) + ' on the wire → ' + fmtKB(entry.decodedBodySize);
+                if (entry.encodedBodySize === entry.decodedBodySize && entry.decodedBodySize > 4096) {
+                    size += ' (not compressed: a proxy may have removed gzip)';
+                }
+            }
+            timingRow('Download', fmtMs(entry.responseEnd - entry.responseStart), size);
         }
 
         // swapPage replaces the sidebar (only if it changed) and the main
@@ -275,9 +376,10 @@
         }
 
         // recordFragmentTiming fills the status bar's Total and the perf
-        // tab's browser section for a fragment navigation: fetch (server +
-        // transfer) and swap + layout, measured to the next frame.
-        function recordFragmentTiming(t0, t1) {
+        // tab's browser section for a fragment navigation: fetch (broken
+        // down by the fetch's resource timing entry) and swap + layout,
+        // measured to the next frame.
+        function recordFragmentTiming(t0, t1, url, redirected) {
             requestAnimationFrame(function() {
                 const t2 = performance.now();
                 const total = t2 - t0;
@@ -285,24 +387,15 @@
                 if (timingElement) timingElement.textContent = total.toFixed(0) + 'ms';
                 const perfElement = document.getElementById('perf-browser-total');
                 if (perfElement) perfElement.textContent = total.toFixed(0) + 'ms';
-                const list = document.getElementById('browser-timing-list');
                 const totalItem = document.getElementById('perf-browser-total-item');
-                if (!list || !totalItem) return;
-                const add = function(label, ms) {
-                    const li = document.createElement('li');
-                    li.className = 'perf-timing-item';
-                    const op = document.createElement('span');
-                    op.className = 'perf-operation';
-                    op.textContent = label;
-                    const dur = document.createElement('span');
-                    dur.className = 'perf-duration';
-                    dur.textContent = ms.toFixed(1) + 'ms';
-                    li.appendChild(op);
-                    li.appendChild(dur);
-                    list.insertBefore(li, totalItem);
-                };
-                add('Fragment navigation: fetch (server + transfer)', t1 - t0);
-                add('Fragment navigation: swap, layout and paint', t2 - t1);
+                if (!totalItem) return;
+                timingRow('Fragment navigation: fetch', fmtMs(t1 - t0), redirected ? 'redirected on the way' : '');
+                const entries = performance.getEntriesByName ? performance.getEntriesByName(url.toString(), 'resource') : [];
+                if (entries.length) networkRows(entries[entries.length - 1]);
+                // The browser keeps a limited number of entries; this page
+                // reads only its own fetch, so free room for the next one.
+                if (performance.clearResourceTimings) performance.clearResourceTimings();
+                timingRow('Fragment navigation: swap, layout and paint', fmtMs(t2 - t1));
                 totalItem.querySelector('.perf-operation').textContent = 'Total (click to painted)';
             });
         }
@@ -323,8 +416,8 @@
             } else if (performance.timing) {
                 totalTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
             }
-            const ms = function(v) { return (v > 0 ? v : 0).toFixed(1) + 'ms'; };
-            const kb = function(b) { return b >= 1024 ? (b / 1024).toFixed(1) + ' KB' : b + ' B'; };
+            const ms = fmtMs;
+            const kb = fmtKB;
             const timeStr = (totalTime && totalTime > 0) ? totalTime.toFixed(0) + 'ms' : 'N/A';
 
             const timingElement = document.getElementById('browser-timing');
@@ -336,33 +429,20 @@
                 perfElement.textContent = timeStr;
             }
 
-            const list = document.getElementById('browser-timing-list');
-            const totalItem = document.getElementById('perf-browser-total-item');
-            if (!list || !nav) return;
-            const addRow = function(label, value, detail, sub) {
-                const li = document.createElement('li');
-                li.className = 'perf-timing-item' + (sub ? ' sub' : '');
-                const op = document.createElement('span');
-                op.className = 'perf-operation';
-                op.textContent = label;
-                const vol = document.createElement('span');
-                vol.className = 'perf-volume';
-                vol.textContent = detail || '';
-                const dur = document.createElement('span');
-                dur.className = 'perf-duration';
-                dur.textContent = value;
-                li.appendChild(op);
-                li.appendChild(vol);
-                li.appendChild(dur);
-                list.insertBefore(li, totalItem);
-            };
+            const fallback = takeFallbackReason();
+            if (!document.getElementById('browser-timing-list') || !nav) return;
+            const addRow = timingRow;
 
-            if (nav.connectEnd - nav.startTime > 1) {
-                addRow('Connect (DNS, TCP, TLS)', ms(nav.connectEnd - nav.startTime));
+            // A page loaded in full because a fragment swap failed says why,
+            // and the status bar's Total flags it.
+            if (fallback) {
+                addRow('Full page load instead of a swap', '', fallback);
+                if (timingElement) {
+                    timingElement.textContent += ' (full load)';
+                    timingElement.title = 'Loaded in full instead of swapped: ' + fallback;
+                }
             }
-            addRow('Request to first byte (server + network)', ms(nav.responseStart - nav.requestStart));
-            addRow('Download HTML', ms(nav.responseEnd - nav.responseStart),
-                nav.encodedBodySize ? kb(nav.encodedBodySize) + ' on the wire → ' + kb(nav.decodedBodySize) : '');
+            networkRows(nav);
             addRow('Parse HTML (to DOM interactive)', ms(nav.domInteractive - nav.responseEnd));
             addRow('Scripts and DOMContentLoaded handlers', ms(nav.domContentLoadedEventEnd - nav.domInteractive));
             addRow('Layout and paint (to load event)', ms(nav.loadEventEnd - nav.domContentLoadedEventEnd));

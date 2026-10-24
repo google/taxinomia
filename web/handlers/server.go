@@ -19,6 +19,7 @@ limitations under the License.
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -474,12 +475,21 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	defer exec.Release()
 	viewModel := s.BuildViewModel(exec)
 
-	// Set content type and render
+	// Render into a buffer first, so that the Server-Timing header (sent
+	// before the body) includes the rendering: the browser's Performance
+	// tab subtracts the server's total from the time to the first byte to
+	// show what the network and any proxy in between cost.
+	renderStart := timing.Now()
+	var page bytes.Buffer
+	if err := s.renderer.Render(&page, viewModel); err != nil {
+		log.Printf("Template rendering error: %v", err)
+		return &TableHandlerResult{Error: err}
+	}
+	timing.Record("Render HTML", timing.Since(renderStart))
 	setHeader("Content-Type", "text/html; charset=utf-8")
 	setHeader(versionHeader, viewModel.Build.Version())
 	setHeader("Server-Timing", timing.ServerTimingHeader())
-	if err := s.renderer.Render(w, viewModel); err != nil {
-		log.Printf("Template rendering error: %v", err)
+	if _, err := page.WriteTo(w); err != nil {
 		return &TableHandlerResult{Error: err}
 	}
 	return nil
