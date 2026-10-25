@@ -160,14 +160,14 @@
 
         // Row selection: the detail panel opens for the row's primary key
         function selectRow(rowId) {
-            sessionStorage.setItem('scrollPosition', window.scrollY);
+            sessionStore.set('scrollPosition', window.scrollY);
             const url = currentUrl();
             url.searchParams.set('row', rowId);
             navigate(url);
         }
 
         function deselectRow() {
-            sessionStorage.setItem('scrollPosition', window.scrollY);
+            sessionStore.set('scrollPosition', window.scrollY);
             const url = currentUrl();
             url.searchParams.delete('row');
             navigate(url);
@@ -175,9 +175,9 @@
 
         // Restore scroll position after a full-load row selection
         (function() {
-            const savedPosition = sessionStorage.getItem('scrollPosition');
+            const savedPosition = sessionStore.get('scrollPosition');
             if (savedPosition !== null) {
-                sessionStorage.removeItem('scrollPosition');
+                sessionStore.remove('scrollPosition');
                 if (!fragmentState.swapped) {
                     window.scrollTo(0, parseInt(savedPosition, 10));
                 }

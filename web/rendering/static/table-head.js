@@ -20,6 +20,31 @@
             return new URL(window.location);
         }
 
+        // Session storage that never throws: a sandboxed page (an iframe
+        // without allow-same-origin) or a browser with storage blocked
+        // throws on any access. Then the values live in memory for this
+        // page only, which is what a fragment navigation needs; what was to
+        // survive a full load is lost, nothing breaks.
+        const memoryStore = {};
+        const sessionStore = {
+            get: function(key) {
+                try { return sessionStorage.getItem(key); } catch (e) {
+                    return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null;
+                }
+            },
+            set: function(key, value) {
+                try { sessionStorage.setItem(key, value); } catch (e) { memoryStore[key] = String(value); }
+            },
+            remove: function(key) {
+                try { sessionStorage.removeItem(key); } catch (e) { delete memoryStore[key]; }
+            }
+        };
+
+        // A sandboxed page has an opaque ("null") origin: its fetches to the
+        // server are cross-origin and always fail, so fragment navigations
+        // are not tried there (location.origin still names the server).
+        const opaqueOrigin = window.origin === 'null' || self.origin === 'null';
+
         // Toggle sidebar visibility (page-local state, not in the URL)
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -194,6 +219,7 @@
             // The entity and help pages share the table route but are other
             // pages: fetching one to swap would fail and load it twice.
             if (url.searchParams.has('entity') || url.searchParams.has('help')) return false;
+            if (opaqueOrigin) return false;
             return url.origin === window.location.origin && url.pathname === window.location.pathname;
         }
 
@@ -267,7 +293,7 @@
         const FALLBACK_KEY = 'taxinomia-fallback';
         function fullLoadFallback(url, reason) {
             console.warn('taxinomia: full page load instead of a fragment swap: ' + reason);
-            try { sessionStorage.setItem(FALLBACK_KEY, JSON.stringify({ reason: reason, to: url.toString() })); } catch (e) {}
+            try { sessionStore.set(FALLBACK_KEY, JSON.stringify({ reason: reason, to: url.toString() })); } catch (e) {}
             window.location.href = url.toString();
         }
 
@@ -276,8 +302,8 @@
         function takeFallbackReason() {
             let saved = null;
             try {
-                saved = JSON.parse(sessionStorage.getItem(FALLBACK_KEY) || 'null');
-                sessionStorage.removeItem(FALLBACK_KEY);
+                saved = JSON.parse(sessionStore.get(FALLBACK_KEY) || 'null');
+                sessionStore.remove(FALLBACK_KEY);
             } catch (e) {}
             if (!saved || saved.to !== window.location.href) return '';
             return saved.reason || '';
@@ -1390,14 +1416,14 @@
         // offers Undo (the browser's back). Kept in sessionStorage so it
         // survives a full page load as well as a fragment navigation.
         function rememberHelpNote(label) {
-            try { sessionStorage.setItem('taxinomia-help-note', JSON.stringify({label: label, from: window.location.href})); } catch (e) {}
+            try { sessionStore.set('taxinomia-help-note', JSON.stringify({label: label, from: window.location.href})); } catch (e) {}
         }
         function forgetHelpNote() {
-            try { sessionStorage.removeItem('taxinomia-help-note'); } catch (e) {}
+            try { sessionStore.remove('taxinomia-help-note'); } catch (e) {}
         }
         function showHelpNoteIfAny() {
             let note = null;
-            try { note = JSON.parse(sessionStorage.getItem('taxinomia-help-note') || 'null'); } catch (e) {}
+            try { note = JSON.parse(sessionStore.get('taxinomia-help-note') || 'null'); } catch (e) {}
             if (!note) return;
             if (note.from === window.location.href) return; // the page has not changed (yet)
             forgetHelpNote();
@@ -1805,7 +1831,7 @@
             document.querySelectorAll('tr.syntax-panel-row').forEach(r => r.remove());
             syntaxPanelInput = null;
             if (forget) {
-                try { sessionStorage.removeItem(SYNTAX_KEY); } catch (e) {}
+                try { sessionStore.remove(SYNTAX_KEY); } catch (e) {}
             }
         }
 
@@ -1814,7 +1840,7 @@
             if (!kind) return;
             closeSyntaxPanel(false);
             syntaxPanelInput = input;
-            try { sessionStorage.setItem(SYNTAX_KEY, JSON.stringify({kind: kind, column: input.dataset.column, table: currentUrl().searchParams.get('table')})); } catch (e) {}
+            try { sessionStore.set(SYNTAX_KEY, JSON.stringify({kind: kind, column: input.dataset.column, table: currentUrl().searchParams.get('table')})); } catch (e) {}
             const row = input.closest('tr');
             const cols = row.children.length;
             const tr = document.createElement('tr');
@@ -1901,7 +1927,7 @@
         // was open), on the same column's field.
         function restoreSyntaxPanel() {
             let saved = null;
-            try { saved = JSON.parse(sessionStorage.getItem(SYNTAX_KEY) || 'null'); } catch (e) {}
+            try { saved = JSON.parse(sessionStore.get(SYNTAX_KEY) || 'null'); } catch (e) {}
             if (!saved) return;
             if (saved.table !== currentUrl().searchParams.get('table')) { closeSyntaxPanel(true); return; }
             const sel = (saved.kind === 'filtering' ? '.filter-input' : saved.kind === 'grouping' ? '.having-input' : '.formula-input') + '[data-column="' + CSS.escape(saved.column || '') + '"]';
@@ -1979,13 +2005,13 @@
         }
 
         function journeyState() {
-            try { return JSON.parse(sessionStorage.getItem(JOURNEY_KEY) || 'null'); } catch (e) { return null; }
+            try { return JSON.parse(sessionStore.get(JOURNEY_KEY) || 'null'); } catch (e) { return null; }
         }
 
         function setJourneyState(state) {
             try {
-                if (state) sessionStorage.setItem(JOURNEY_KEY, JSON.stringify(state));
-                else sessionStorage.removeItem(JOURNEY_KEY);
+                if (state) sessionStore.set(JOURNEY_KEY, JSON.stringify(state));
+                else sessionStore.remove(JOURNEY_KEY);
             } catch (e) {}
         }
 
