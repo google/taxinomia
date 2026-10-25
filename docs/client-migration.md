@@ -415,6 +415,68 @@ http.ListenAndServe(addr, handlers.GzipHandler(mux))   // 6–19× fewer bytes f
   …, `total;dur=…`), which browser devtools show in the network panel's
   timing tab. Nothing to enable.
 
+## Concurrency, fragment answers, sandboxed pages (2026-10)
+
+**`Execution.Release`.** The table view an `Execute` returns is now the
+execution's alone: concurrent requests never share one (they used to,
+which could crash the process or mix two requests' filters). Call
+`exec.Release()` once you are done with the view and its view model; it
+returns the view to the cache for the user's next request, which then
+reuses its filter result and computed columns. Forgetting it is safe but
+slow: the next request builds a fresh view. `HandleTableRequestContext`
+releases its own.
+
+```go
+exec, res := srv.Execute(ctx, q, opts)
+if res != nil { /* … */ }
+defer exec.Release()
+vm := srv.BuildViewModel(exec)
+```
+
+**Fragment answers.** The page's script asks for a fragment
+(`X-Taxinomia-Fragment: 1`) when it navigates between table pages; the
+answer then holds only what it swaps in (title, asset references, sidebar,
+main content). The handler needs the request's headers for that, which
+it gets through the context:
+
+```go
+srv.HandleTableRequestContext(handlers.RequestContext(r), w, r.URL, product, w.Header().Set)
+```
+
+With plain `r.Context()` every answer is the whole page, which works too:
+the script swaps the same parts out of it. With inline assets a fragment
+is a small fraction of the page (the ~190 KB of stylesheet and script stay
+out); with `UseStaticAssets` it saves the icons and markup around the
+content. Table pages carry `Vary: X-Taxinomia-Fragment`.
+
+**Compression.** `GzipHandler` now compresses at the default level instead
+of the fastest (about a fifth fewer bytes, well under a millisecond more
+per page), and `StaticHandler` serves its files to gzip clients
+precompressed (once, at the best level): no compression work per request.
+
+**Import and feedback refuse cross-site requests.** `ImportHandler` and
+`FeedbackHandler` answer 403 to a request from another site's page (the
+browser's `Sec-Fetch-Site` header, else `Origin` against the host or
+`X-Forwarded-Host`). Requests from your own pages, and from clients that
+send neither header (curl, scripts), are unaffected. Behind a proxy that
+rewrites the host, make sure it sets `X-Forwarded-Host`.
+
+**Sandboxed pages.** In an iframe sandboxed without `allow-same-origin`,
+the page has an opaque origin:
+
+- its fetches to the server are cross-origin and fail, so the script does
+  not try fragment navigations there: every navigation is a full load;
+- session storage is unavailable; the script keeps what it needs in memory
+  for the page (row selection and the like work, state meant to survive a
+  full load does not);
+- the browser does not reuse cached static files across loads there, so
+  `UseStaticAssets` costs a request per file on every navigation. Prefer
+  the inline default with `GzipHandler`: one compressed response per page.
+
+The Performance tab breaks every load down (connection setup, the
+server's own time against network and proxy, bytes on the wire) and says
+when a navigation fell back to a full load, and why.
+
 ## Computed columns: failing rows and table-defined columns (2026-10)
 
 Nothing to migrate; two behaviour changes your code may notice:

@@ -20,7 +20,10 @@ package demo
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -316,5 +319,45 @@ func TestGroupDefinitionPage(t *testing.T) {
 	}
 	if !strings.Contains(page, "filter%3Aregion=north&amp;") && !strings.Contains(page, "filter%3Aregion=north\"") {
 		t.Error("the north group does not drill to its term")
+	}
+}
+
+// TestPageSizeBudget keeps the pages from growing unnoticed: a table page
+// (the demo serves its stylesheet and script as static files), the
+// fragment a navigation swaps in, and an entity page, each within a budget
+// raw and gzipped (what crosses the network). A change that needs more
+// raises the budget in review, deliberately.
+func TestPageSizeBudget(t *testing.T) {
+	srv, products := goldenSetup(t)
+	product := products.Get("default")
+	for _, tc := range []struct {
+		name         string
+		url          string
+		fragment     bool
+		raw, gzipped int // budgets, bytes
+	}{
+		{"table page", "/default/table?table=orders&limit=25", false, 70_000, 6_500},
+		{"table fragment", "/default/table?table=orders&limit=25", true, 66_000, 5_700},
+		{"entity page", "/default/table?entity=demo.order_id&value=ORD-2024-002", false, 13_500, 2_600},
+	} {
+		r := httptest.NewRequest(http.MethodGet, tc.url, nil)
+		if tc.fragment {
+			r.Header.Set(handlers.FragmentHeader, "1")
+		}
+		var page bytes.Buffer
+		if res := srv.HandleTableRequestContext(handlers.RequestContext(r), &page, r.URL, product, func(k, v string) {}); res != nil {
+			t.Fatalf("%s: %+v", tc.name, res)
+		}
+		var zipped bytes.Buffer
+		zw, _ := gzip.NewWriterLevel(&zipped, gzip.DefaultCompression) // GzipHandler's level
+		zw.Write(page.Bytes())                                         //nolint:errcheck // a bytes.Buffer does not fail
+		zw.Close()                                                     //nolint:errcheck // a bytes.Buffer does not fail
+		t.Logf("%s: %d bytes, %d gzipped", tc.name, page.Len(), zipped.Len())
+		if page.Len() > tc.raw {
+			t.Errorf("%s: %d bytes, budget %d", tc.name, page.Len(), tc.raw)
+		}
+		if zipped.Len() > tc.gzipped {
+			t.Errorf("%s: %d bytes gzipped, budget %d", tc.name, zipped.Len(), tc.gzipped)
+		}
 	}
 }
