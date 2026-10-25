@@ -70,17 +70,17 @@ type EntityTypeDescriptionResolver func(entityType string) string
 
 // Server represents the application server with all its dependencies
 type Server struct {
-	dataModel      *models.DataModel
-	renderer       *rendering.TableRenderer
-	viewsMu        sync.Mutex             // guards views
-	views          map[string]*cachedView // cacheKey -> the user's table view, while no request has it out
-	userStore      users.UserStore
-	clock          hrclock.Clock    // times the request phases of the perf breakdown (SetClock)
-	feedbackURL    string           // where the feedback form posts reports; "" hides the button (SetFeedbackURL)
-	importURL      string           // where the import dialog posts tables; "" hides the button (SetImportURL)
-	importsMu      sync.Mutex       // guards imports and the name check-and-add of an import
-	imports        []importRecord   // tables added by ImportHandler, in order (import.go)
-	journeys       []engine.Journey // guided journeys from the catalog that check out (journeys.go)
+	dataModel   *models.DataModel
+	renderer    *rendering.TableRenderer
+	viewsMu     sync.Mutex             // guards views
+	views       map[string]*cachedView // cacheKey -> the user's table view, while no request has it out
+	userStore   users.UserStore
+	clock       hrclock.Clock    // times the request phases of the perf breakdown (SetClock)
+	feedbackURL string           // where the feedback form posts reports; "" hides the button (SetFeedbackURL)
+	importURL   string           // where the import dialog posts tables; "" hides the button (SetImportURL)
+	importsMu   sync.Mutex       // guards imports and the name check-and-add of an import
+	imports     []importRecord   // tables added by ImportHandler, in order (import.go)
+	journeys    []engine.Journey // guided journeys from the catalog that check out (journeys.go)
 
 	// navigator provides the catalog-driven navigation defaults (SetCatalog).
 	// The Set*Resolver callbacks below override it individually where set.
@@ -474,6 +474,7 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	}
 	defer exec.Release()
 	viewModel := s.BuildViewModel(exec)
+	viewModel.Fragment = wantsFragment(ctx)
 
 	// Render into a buffer first, so that the Server-Timing header (sent
 	// before the body) includes the rendering: the browser's Performance
@@ -489,6 +490,8 @@ func (s *Server) HandleTableRequestContext(ctx context.Context, w io.Writer, req
 	setHeader("Content-Type", "text/html; charset=utf-8")
 	setHeader(versionHeader, viewModel.Build.Version())
 	setHeader("Server-Timing", timing.ServerTimingHeader())
+	// The answer depends on the fragment header: caches keep both forms.
+	setHeader("Vary", FragmentHeader)
 	if _, err := page.WriteTo(w); err != nil {
 		return &TableHandlerResult{Error: err}
 	}

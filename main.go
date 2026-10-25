@@ -83,7 +83,7 @@ func main() {
 
 		switch action {
 		case "table":
-			result := srv.HandleTableRequestContext(r.Context(), w, r.URL, product, w.Header().Set)
+			result := srv.HandleTableRequestContext(handlers.RequestContext(r), w, r.URL, product, w.Header().Set)
 			if result != nil {
 				http.Error(w, result.Message, result.StatusCode)
 			}

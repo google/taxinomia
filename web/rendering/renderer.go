@@ -38,7 +38,7 @@ type TableRenderer struct {
 	landingTemplate *template.Template
 	entityTemplate  *template.Template
 	helpTemplate    *template.Template
-	assets        *staticAssets // the page's stylesheet and script (static.go)
+	assets          *staticAssets // the page's stylesheet and script (static.go)
 	staticBase      string        // "" = inline them; else the URL prefix StaticHandler is mounted at
 }
 

@@ -20,6 +20,7 @@ package handlers
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,8 +61,11 @@ func (tc *TimingCollector) ServerTimingHeader() string {
 	return strings.Join(parts, ", ")
 }
 
+// gzipPool holds writers at the default level: on a page of a few dozen KB
+// it costs well under a millisecond more than the fastest level and saves
+// about a fifth of the bytes (a 25-row page: 53.8 KB → 42.5 KB).
 var gzipPool = sync.Pool{New: func() any {
-	w, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
+	w, _ := gzip.NewWriterLevel(io.Discard, gzip.DefaultCompression)
 	return w
 }}
 
@@ -164,4 +168,31 @@ func crossSite(r *http.Request) bool {
 		host = strings.TrimSpace(strings.Split(fwd, ",")[0])
 	}
 	return !strings.EqualFold(u.Host, host)
+}
+
+// FragmentHeader is the request header the table page's script sends on a
+// fragment navigation ("1"): the answer then holds only what the script
+// swaps in, a few KB instead of the whole page.
+const FragmentHeader = "X-Taxinomia-Fragment"
+
+type fragmentKey struct{}
+
+// RequestContext returns r's context carrying what the table handler needs
+// from the request beyond its URL: whether the page's script asked for a
+// fragment. Pass it to HandleTableRequestContext:
+//
+//	srv.HandleTableRequestContext(handlers.RequestContext(r), w, r.URL, product, w.Header().Set)
+//
+// With r.Context() instead, every answer is the whole page, which the
+// script handles too.
+func RequestContext(r *http.Request) context.Context {
+	if r.Header.Get(FragmentHeader) == "1" {
+		return context.WithValue(r.Context(), fragmentKey{}, true)
+	}
+	return r.Context()
+}
+
+func wantsFragment(ctx context.Context) bool {
+	v, _ := ctx.Value(fragmentKey{}).(bool)
+	return v
 }

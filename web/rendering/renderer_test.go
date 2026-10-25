@@ -20,6 +20,10 @@ package rendering
 
 import (
 	"bytes"
+	"compress/gzip"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -108,5 +112,46 @@ func TestEntityLinkBlocks(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("entity page lacks %s", want)
 		}
+	}
+}
+
+// The static files go to gzip clients precompressed (and unchanged once
+// decompressed), and to others plain.
+func TestStaticGzip(t *testing.T) {
+	r, err := NewTableRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.UseStaticAssets("/static")
+	h := r.StaticHandler()
+	get := func(gzipOK bool) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/static/"+r.AssetsVersion()+"/table.js", nil)
+		if gzipOK {
+			req.Header.Set("Accept-Encoding", "gzip, br")
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	plain, zipped := get(false), get(true)
+	if plain.Header().Get("Content-Encoding") != "" || zipped.Header().Get("Content-Encoding") != "gzip" {
+		t.Fatalf("Content-Encoding: plain %q, gzip %q", plain.Header().Get("Content-Encoding"), zipped.Header().Get("Content-Encoding"))
+	}
+	zr, err := gzip.NewReader(zipped.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unzipped, err := io.ReadAll(zr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(unzipped, plain.Body.Bytes()) || plain.Body.Len() == 0 {
+		t.Errorf("decompressed %d bytes, plain %d: differ", len(unzipped), plain.Body.Len())
+	}
+	if zipped.Body.Len()*3 > plain.Body.Len() {
+		t.Errorf("gzipped %d of %d bytes: want under a third", zipped.Body.Len(), plain.Body.Len())
+	}
+	if !strings.Contains(zipped.Header().Get("Vary"), "Accept-Encoding") {
+		t.Errorf("Vary = %q", zipped.Header().Get("Vary"))
 	}
 }

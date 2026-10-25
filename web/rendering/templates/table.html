@@ -1,8 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    {{/* A fragment (the page's script asked for one, X-Taxinomia-Fragment:
+         1) is what a fragment navigation swaps in: the title, the asset
+         references the script compares to detect a new build, the sidebar
+         and the main content. No inline assets, icons or waiting bar. */}}
+    {{if not .Fragment}}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{end}}
     <title>{{.Title}}</title>
     {{/* Column pane rows. Every row has the same shape: a disclosure slot (an arrow when the row
          has something to open, else empty), then one link spanning the rest of the row. */}}
@@ -65,12 +71,13 @@
     {{if .Assets.External}}
     <link rel="stylesheet" href="{{.Assets.CSS}}">
     <script src="{{.Assets.JS}}" defer></script>
-    {{else}}
+    {{else if not .Fragment}}
     <style>{{.Assets.InlineCSS}}</style>
     <script>{{.Assets.InlineHeadJS}}</script>
     {{end}}
 </head>
 <body{{if .JourneysJSON}} data-journeys="{{.JourneysJSON}}"{{end}}>
+    {{if not .Fragment}}
     {{/* Icons as inline SVG symbols: no font fallback lookups for symbol glyphs, which cost tens of milliseconds of layout per page. */}}
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
         <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 4l6 8H2z"/></symbol>
@@ -95,6 +102,7 @@
         <div class="waiting-text">Waiting for the server… <span id="waiting-secs">0.0</span> s</div>
     </div>
     <div class="container">
+    {{end}}
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h2>Columns</h2>
@@ -537,9 +545,10 @@ Use &quot;quotes&quot; for exact match">
             </div>
 
         </main>
+    {{if not .Fragment}}
     </div>
 
     {{if not .Assets.External}}<script>{{.Assets.InlineBodyJS}}</script>{{end}}
-    </script>
+    {{end}}
 </body>
 </html>

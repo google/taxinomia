@@ -35,6 +35,10 @@ import (
 
 // TableViewModel contains the data from the table formatted for template consumption
 type TableViewModel struct {
+	// Fragment renders only what a fragment navigation swaps in (title,
+	// asset references, sidebar, main content), not the whole page.
+	Fragment bool
+
 	Title                 string
 	PrimaryKeyEntityType  string                  // The entity type that serves as primary key for this table
 	PrimaryKeyDescription string                  // Description of the primary key entity type

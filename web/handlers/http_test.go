@@ -79,3 +79,44 @@ func TestCrossSiteRefused(t *testing.T) {
 		t.Errorf("feedback: %d (submitted %v), want 403", rec.Code, submitted)
 	}
 }
+
+// A fragment request (the page's script, X-Taxinomia-Fragment: 1) gets
+// only what a fragment navigation swaps in; the whole page otherwise. Both
+// answers say they vary with the header.
+func TestFragmentResponse(t *testing.T) {
+	s := journeyTestServer(t)
+	page := func(fragment bool) (string, http.Header) {
+		r := httptest.NewRequest(http.MethodGet, "/p/table?table=orders", nil)
+		if fragment {
+			r.Header.Set(FragmentHeader, "1")
+		}
+		rec := httptest.NewRecorder()
+		if res := s.HandleTableRequestContext(RequestContext(r), rec, r.URL, testProduct{}, rec.Header().Set); res != nil {
+			t.Fatalf("fragment=%v: %+v", fragment, res)
+		}
+		return rec.Body.String(), rec.Header()
+	}
+	full, fullHeader := page(false)
+	frag, fragHeader := page(true)
+	for _, want := range []string{`id="sidebar"`, `id="main-content"`, `<title>Orders</title>`} {
+		if !strings.Contains(frag, want) {
+			t.Errorf("fragment lacks %s", want)
+		}
+	}
+	for _, whole := range []string{`<svg xmlns="http://www.w3.org/2000/svg"`, `id="waiting"`, `<style>`, `class="container"`} {
+		if !strings.Contains(full, whole) {
+			t.Errorf("full page lacks %s", whole)
+		}
+		if strings.Contains(frag, whole) {
+			t.Errorf("fragment carries %s", whole)
+		}
+	}
+	if len(frag)*4 > len(full) {
+		t.Errorf("fragment is %d bytes, the full page %d: want under a quarter", len(frag), len(full))
+	}
+	for _, h := range []http.Header{fullHeader, fragHeader} {
+		if h.Get("Vary") != FragmentHeader {
+			t.Errorf("Vary = %q, want %s", h.Get("Vary"), FragmentHeader)
+		}
+	}
+}

@@ -19,6 +19,8 @@ limitations under the License.
 package rendering
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -26,6 +28,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/safehtml"
@@ -47,6 +50,26 @@ type staticAssets struct {
 	js                  string // external form: head + body script in one deferred file
 	version             string // path segment that changes with every build
 	etag                string
+
+	// The external files gzipped once, at the best level, when the static
+	// handler is created: served to gzip clients with no work per request.
+	gzOnce      sync.Once
+	cssGz, jsGz []byte
+}
+
+// gzipped compresses the external files, once.
+func (a *staticAssets) gzipped() (css, js []byte) {
+	a.gzOnce.Do(func() {
+		compress := func(s string) []byte {
+			var b bytes.Buffer
+			zw, _ := gzip.NewWriterLevel(&b, gzip.BestCompression)
+			zw.Write([]byte(s)) //nolint:errcheck // a bytes.Buffer does not fail
+			zw.Close()          //nolint:errcheck // a bytes.Buffer does not fail
+			return b.Bytes()
+		}
+		a.cssGz, a.jsGz = compress(a.css), compress(a.js)
+	})
+	return a.cssGz, a.jsGz
 }
 
 func loadStaticAssets() (*staticAssets, error) {
@@ -126,22 +149,25 @@ func (r *TableRenderer) assetsFor() viewmodel.Assets {
 // after a redeploy) is served with no-cache so the browser revalidates.
 func (r *TableRenderer) StaticHandler() http.Handler {
 	a := r.assets
+	cssGz, jsGz := a.gzipped()
 	started := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		file := path.Base(req.URL.Path)
 		version := path.Base(path.Dir(req.URL.Path))
 		var body, ctype string
+		var gz []byte
 		switch file {
 		case "table.css":
-			body, ctype = a.css, "text/css; charset=utf-8"
+			body, ctype, gz = a.css, "text/css; charset=utf-8", cssGz
 		case "table.js":
-			body, ctype = a.js, "text/javascript; charset=utf-8"
+			body, ctype, gz = a.js, "text/javascript; charset=utf-8", jsGz
 		default:
 			http.NotFound(w, req)
 			return
 		}
 		h := w.Header()
 		h.Set("Content-Type", ctype)
+		h.Add("Vary", "Accept-Encoding")
 		h.Set("ETag", `"`+a.etag+`"`)
 		if version == a.version {
 			h.Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -153,6 +179,13 @@ func (r *TableRenderer) StaticHandler() http.Handler {
 			return
 		}
 		h.Set("X-Taxinomia-Version", buildinfo.Get().Version())
+		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
+			// Already compressed: GzipHandler passes a response with a
+			// Content-Encoding through untouched.
+			h.Set("Content-Encoding", "gzip")
+			http.ServeContent(w, req, file, started, bytes.NewReader(gz))
+			return
+		}
 		http.ServeContent(w, req, file, started, strings.NewReader(body))
 	})
 }
